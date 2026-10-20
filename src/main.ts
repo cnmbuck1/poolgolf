@@ -28,7 +28,7 @@ let lastRest = { x: 0, y: 0 };
 const aim: AimState = { active: false, dx: 1, dy: 0, power: 0, guide: 'full' };
 const cue: CueState = { visible: false, dx: 1, dy: 0, pull: 0, alpha: 0 };
 const fx: FX = { ripples: [] };
-let drag: { id: number; sx: number; sy: number; basis: ReturnType<Renderer3D['aimBasis']> } | null = null;
+let drag: { id: number; sx: number; sy: number; x: number; y: number; spin: number; basis: ReturnType<Renderer3D['aimBasis']> } | null = null;
 let practice = false; // playing a single hole from the Courses menu
 let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash reset)
 let time = 0;
@@ -279,7 +279,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!canAim() || drag) return;
   // Freeze the view's basis for this drag, so the camera can turn with the aim without
   // feeding back into it.
-  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, basis: view3d.aimBasis() };
+  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, spin: 0, basis: view3d.aimBasis() };
   canvas.setPointerCapture(e.pointerId);
   aim.active = true;
   aim.power = 0;
@@ -288,14 +288,27 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
+  drag.x = e.clientX;
+  drag.y = e.clientY;
+  applyDrag();
+});
+
+/** Width of the screen-edge strips that keep the aim turning while the finger rests in them. */
+const EDGE_ZONE = 0.12;
+const EDGE_TURN = 1.4; // rad/s
+
+/** Turn the current drag into aim direction and power (called on move and every frame). */
+function applyDrag() {
+  if (!drag) return;
   // Pull back like a cue: dragging down the screen shoots "into" the view.
-  const mx = e.clientX - drag.sx;
-  const my = e.clientY - drag.sy;
+  const mx = drag.x - drag.sx;
+  const my = drag.y - drag.sy;
   const maxDrag = Math.min(window.innerHeight * 0.45, 260);
   const { fwd, right } = drag.basis;
   if (!view3d.isOverview) {
-    // Shot camera: down sets power, sideways turns the aim gently (about 23° per 100 px)
-    const yaw = Math.atan2(fwd.y, fwd.x) - mx * AIM_TURN;
+    // Shot camera: down sets power, sideways turns the aim gently (about 23° per 100 px),
+    // and holding near a screen edge keeps turning, so the aim can come all the way round
+    const yaw = Math.atan2(fwd.y, fwd.x) - mx * AIM_TURN - drag.spin;
     aim.dx = Math.cos(yaw);
     aim.dy = Math.sin(yaw);
     aim.power = Math.min(1, Math.max(0, my) / maxDrag);
@@ -311,7 +324,16 @@ canvas.addEventListener('pointermove', (e) => {
     aim.power = Math.min(1, len / maxDrag);
   }
   updatePower();
-});
+}
+
+function edgeTurn(dt: number) {
+  if (!drag || view3d.isOverview) return;
+  const w = window.innerWidth;
+  const side = drag.x < w * EDGE_ZONE ? -1 : drag.x > w * (1 - EDGE_ZONE) ? 1 : 0;
+  if (!side) return;
+  drag.spin += side * EDGE_TURN * dt;
+  applyDrag();
+}
 
 function endDrag(e: PointerEvent, cancel: boolean) {
   if (!drag || e.pointerId !== drag.id) return;
@@ -465,7 +487,7 @@ click('btn-cues', () => comingSoon('Cues & Balls', 'i-cue', 'Unlock new cues and
 click('btn-achievements', () => comingSoon('Achievements', 'i-trophy', 'Earn trophies for bank shots, aces and clean rounds.'));
 click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
-click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim, then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
+click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
@@ -488,6 +510,7 @@ function frame(now: number) {
   time += dt;
 
   if (phase === 'play' || phase === 'title') tick(dt);
+  if (phase === 'play') edgeTurn(dt);
   updateCue(phase === 'play' ? dt : 0);
   updateFinger();
   view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt);
@@ -592,6 +615,7 @@ if (import.meta.env.DEV) {
     view: () => view3d,
     place: (x: number, y: number) => { world.ball.x = x; world.ball.y = y; },
     cam: (x: number, y: number, dist: number, yaw: number) => view3d.debugView(x, y, dist, yaw),
+    aim: () => ({ ...aim }),
     state: () => ({ phase, holeIdx, strokes, ball: { ...world.ball }, moving: world.moving, dt: lastFrameDt }),
   };
 }

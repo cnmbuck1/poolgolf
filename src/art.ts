@@ -965,7 +965,7 @@ export function lanternGlow(): Animated {
  * Garden turnstile for spinners too small for the windmill: a stone post with a brass cap and
  * four oak paddles. The paddles match the spinner collider (arms of half-length `len`, radius `armR`).
  */
-export function turnstile(len: number, armR: number): Animated {
+export function turnstile(len: number, armR: number, arms: 1 | 2 = 2): Animated {
   const g = new THREE.Group();
   const lib = modelMaterials();
   const post = mesh(new THREE.CylinderGeometry(14, 16, 30, 20).translate(0, 15, 0), lib.Stone);
@@ -980,8 +980,8 @@ export function turnstile(len: number, armR: number): Animated {
   const paddleLen = Math.max(4, len - inner);
   const oak: THREE.BufferGeometry[] = [];
   const brass: THREE.BufferGeometry[] = [new THREE.TorusGeometry(16.5, 2.4, 8, 32).rotateX(Math.PI / 2).translate(0, 8, 0)];
-  for (let i = 0; i < 4; i++) {
-    const rot = new THREE.Matrix4().makeRotationY((i * Math.PI) / 2);
+  for (let i = 0; i < arms * 2; i++) {
+    const rot = new THREE.Matrix4().makeRotationY((i * Math.PI) / arms);
     oak.push(extrudeUp(stadium(paddleLen, armR - 1.5), 13, 1.5, 10).translate(inner + paddleLen / 2, 1.5, 0).applyMatrix4(rot));
     brass.push(extrudeUp(stadium(2.5, armR + 0.1), 14, 0.5, 8).translate(len - 1.5, 1, 0).applyMatrix4(rot));
   }

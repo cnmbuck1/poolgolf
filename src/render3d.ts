@@ -8,7 +8,7 @@ import { Animated } from './art';
 import { buildCourse, Course, disposeGroup, HH, HW, to3, woodTexture } from './course';
 import { buildSky, FOG_COLOR, skyEnvironment, SUN_DIR } from './garden';
 import { getModels } from './models';
-import { BALL_R, CUP_R, heightAt, World } from './physics';
+import { BALL_R, CUP_R, heightAt, routeTarget, World } from './physics';
 
 /** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
 const GradeShader = {
@@ -96,6 +96,7 @@ export class Renderer3D {
   /** Where the shot camera rests between shots: null = face the cup; set when an aim is let go without a shot. */
   private restYaw: number | null = null;
   private wasMoving = false;
+  private routeFor: { x: number; y: number; yaw: number } | null = null;
 
   // Adaptive quality: step down resolution and shadow detail if frames run slow.
   private quality = 0;
@@ -279,7 +280,9 @@ export class Renderer3D {
     this.blend = 0;
     this.restYaw = null;
     const L = world.level;
-    this.shotYaw = Math.atan2(L.cup[1] - L.tee[1], L.cup[0] - L.tee[0]);
+    const [tx, ty] = routeTarget(world, L.tee[0], L.tee[1]);
+    this.shotYaw = Math.atan2(ty - L.tee[1], tx - L.tee[0]);
+    this.routeFor = null;
   }
 
   resize(w: number, h: number, dpr: number, top: number, bottom: number) {
@@ -408,8 +411,12 @@ export class Renderer3D {
     else if (world.moving && speed > 150) { yawGoal = Math.atan2(b.vy, b.vx); yawRate = 1.2; }
     else if (!world.moving && !aim.active) {
       // At rest, face the cup (or hold the direction you last turned to without shooting)
-      const [cx, cy] = world.level.cup;
-      yawGoal = this.restYaw ?? Math.atan2(cy - b.y, cx - b.x);
+      // At rest, face down the route to the cup (straight at it when the line is clear)
+      if (this.restYaw === null && (!this.routeFor || this.routeFor.x !== b.x || this.routeFor.y !== b.y)) {
+        const [tx, ty] = routeTarget(world, b.x, b.y);
+        this.routeFor = { x: b.x, y: b.y, yaw: Math.atan2(ty - b.y, tx - b.x) };
+      }
+      yawGoal = this.restYaw ?? this.routeFor!.yaw;
       yawRate = 2;
     }
     if (world.moving) this.wasMoving = true;

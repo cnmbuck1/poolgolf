@@ -33,7 +33,7 @@ const BUMPER_GRIP = 0.02;
 
 export interface Seg { ax: number; ay: number; bx: number; by: number; r: number; kind?: 'wall' | 'rail' | 'bridge' }
 
-export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number; style?: 'windmill' | 'turnstile' }
+export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number; style?: 'windmill' | 'turnstile'; arms?: 1 | 2 }
 
 export interface AimPath { pts: { x: number; y: number }[]; contacts: number; cup: boolean }
 
@@ -88,7 +88,7 @@ export class World {
 
   spinnerSegs(s: SpinnerState): Seg[] {
     const out: Seg[] = [];
-    for (const off of [0, Math.PI / 2]) {
+    for (const off of s.arms === 1 ? [0] : [0, Math.PI / 2]) {
       const dx = Math.cos(s.angle + off) * s.len;
       const dy = Math.sin(s.angle + off) * s.len;
       out.push({ ax: s.x - dx, ay: s.y - dy, bx: s.x + dx, by: s.y + dy, r: SPINNER_R });
@@ -216,6 +216,9 @@ export class World {
   /** Capsule collision. (cx, cy, omega) describe rotation for moving spinner arms. */
   private collideSeg(s: Seg, e: number, cx: number, cy: number, omega: number, events: Event[], kind: 'wall' | 'rail' | 'spinner') {
     const b = this.ball;
+    // Cheap bounding-box reject before the exact test (outlines have many short segments)
+    const reach = BALL_R + s.r;
+    if (b.x < Math.min(s.ax, s.bx) - reach || b.x > Math.max(s.ax, s.bx) + reach || b.y < Math.min(s.ay, s.by) - reach || b.y > Math.max(s.ay, s.by) + reach) return;
     const p = closestOnSeg(s, b.x, b.y);
     let nx = b.x - p.x;
     let ny = b.y - p.y;
@@ -283,6 +286,8 @@ export class World {
 
   private staticNormal(x: number, y: number): { x: number; y: number; e: number } | null {
     for (const s of this.segs) {
+      const reach = BALL_R + s.r;
+      if (x < Math.min(s.ax, s.bx) - reach || x > Math.max(s.ax, s.bx) + reach || y < Math.min(s.ay, s.by) - reach || y > Math.max(s.ay, s.by) + reach) continue;
       const p = closestOnSeg(s, x, y);
       const d = Math.hypot(x - p.x, y - p.y);
       if (d < BALL_R + s.r) return { x: (x - p.x) / (d || 1), y: (y - p.y) / (d || 1), e: s.kind === 'rail' ? RAIL_E : WALL_E };
@@ -311,6 +316,7 @@ export function closestOnSeg(s: Seg, x: number, y: number) {
 export function inZone(z: Zone, x: number, y: number) {
   if (z.kind === 'circle') return Math.hypot(x - z.x, y - z.y) < z.r;
   if (z.kind === 'rect') return x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h;
+  if (!nearZone(z, x, y)) return false;
   let inside = false;
   const p = z.pts;
   for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
@@ -318,6 +324,19 @@ export function inZone(z: Zone, x: number, y: number) {
     if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+const zoneBoxes = new WeakMap<Zone, [number, number, number, number]>();
+/** Quick reject: is the point inside the zone's bounding box? */
+function nearZone(z: Zone, x: number, y: number) {
+  let b = zoneBoxes.get(z);
+  if (!b) {
+    if (z.kind === 'circle') b = [z.x - z.r, z.y - z.r, z.x + z.r, z.y + z.r];
+    else if (z.kind === 'rect') b = [z.x, z.y, z.x + z.w, z.y + z.h];
+    else b = [Math.min(...z.pts.map((p) => p[0])), Math.min(...z.pts.map((p) => p[1])), Math.max(...z.pts.map((p) => p[0])), Math.max(...z.pts.map((p) => p[1]))];
+    zoneBoxes.set(z, b);
+  }
+  return x >= b[0] && y >= b[1] && x <= b[2] && y <= b[3];
 }
 
 /** Distance from a point to a zone's edge: positive inside, negative outside. */
@@ -359,11 +378,103 @@ export function bridgeEdge(br: Bridge, side: number): [number, number, number, n
   return [cx - (ux * br.len) / 2, cy - (uy * br.len) / 2, cx + (ux * br.len) / 2, cy + (uy * br.len) / 2];
 }
 
-/** The hole's edging polygon; holes without one keep the original rectangle (same playable area). */
+/** The hole's edging as a smooth closed curve: every corner of the outline is rounded off. */
 export function fairwayOutline(level: LevelDef): Pt[] {
-  if (level.outline) return level.outline;
-  const m = EDGE_R; // edging centre line sits just outside the old boundary, so play is unchanged
-  return [[-m, -m], [WORLD_W + m, -m], [WORLD_W + m, WORLD_H + m], [-m, WORLD_H + m]];
+  const cached = outlineCache.get(level);
+  if (cached) return cached;
+  const m = EDGE_R; // the default edging sits just outside the old rectangle, so play is unchanged
+  const raw: Pt[] = level.outline ?? [[-m, -m], [WORLD_W + m, -m], [WORLD_W + m, WORLD_H + m], [-m, WORLD_H + m]];
+  const out = filletPolygon(raw, 70, 7);
+  outlineCache.set(level, out);
+  return out;
+}
+const outlineCache = new WeakMap<LevelDef, Pt[]>();
+
+/** Replace each corner with a circular arc of up to `radius` (limited to 40% of the shorter neighbouring edge). */
+export function filletPolygon(p: Pt[], radius: number, segs: number): Pt[] {
+  const n = p.length;
+  const out: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const [px, py] = p[(i + n - 1) % n], [x, y] = p[i], [qx, qy] = p[(i + 1) % n];
+    const l1 = Math.hypot(px - x, py - y), l2 = Math.hypot(qx - x, qy - y);
+    const u1 = [(px - x) / l1, (py - y) / l1], u2 = [(qx - x) / l2, (qy - y) / l2];
+    const cos = Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1]));
+    const half = Math.acos(cos) / 2; // half the interior angle
+    if (half > 1.5) { out.push([x, y]); continue; } // nearly straight
+    const r = Math.min(radius, Math.tan(half) * 0.4 * Math.min(l1, l2));
+    const t = r / Math.tan(half); // distance from the corner to each tangent point
+    const a: Pt = [x + u1[0] * t, y + u1[1] * t], b: Pt = [x + u2[0] * t, y + u2[1] * t];
+    // Quadratic Bézier through the corner approximates the arc closely enough here
+    for (let k = 0; k <= segs; k++) {
+      const s = k / segs, w0 = (1 - s) ** 2, w1 = 2 * s * (1 - s), w2 = s * s;
+      out.push([w0 * a[0] + w1 * x + w2 * b[0], w0 * a[1] + w1 * y + w2 * b[1]]);
+    }
+  }
+  return out;
+}
+
+/**
+ * Where to look from (x, y) to head toward the cup: walks a distance field around walls, water,
+ * rocks and bumpers and returns the furthest point along the route that is in a clear straight line.
+ */
+export function routeTarget(world: World, x: number, y: number): [number, number] {
+  const L = world.level;
+  const f = routeField(world);
+  const G = f.G, O = f.O;
+  const idx = (cx: number, cy: number) => cx + cy * f.W;
+  let cx = Math.floor((x + O) / G), cy = Math.floor((y + O) / G);
+  let best: [number, number] = L.cup;
+  if (cx < 0 || cy < 0 || cx >= f.W || cy >= f.H || !isFinite(f.d[idx(cx, cy)])) return best;
+  const clear = (tx: number, ty: number) => {
+    const n = Math.ceil(Math.hypot(tx - x, ty - y) / 8);
+    for (let k = 1; k <= n; k++) if (f.blocked(x + ((tx - x) * k) / n, y + ((ty - y) * k) / n)) return false;
+    return true;
+  };
+  if (clear(L.cup[0], L.cup[1])) return L.cup;
+  for (let step = 0; step < 200; step++) {
+    let nx = cx, ny = cy, nd = f.d[idx(cx, cy)];
+    for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+      const ax = cx + ox, ay = cy + oy;
+      if (ax < 0 || ay < 0 || ax >= f.W || ay >= f.H) continue;
+      if (f.d[idx(ax, ay)] < nd) { nd = f.d[idx(ax, ay)]; nx = ax; ny = ay; }
+    }
+    if (nx === cx && ny === cy) break;
+    cx = nx; cy = ny;
+    const px = cx * G + G / 2 - O, py = cy * G + G / 2 - O;
+    if (clear(px, py)) best = [px, py]; else break;
+  }
+  return best;
+}
+
+const fieldCache = new WeakMap<LevelDef, { d: Float64Array; W: number; H: number; G: number; O: number; blocked: (x: number, y: number) => boolean }>();
+function routeField(world: World) {
+  const L = world.level;
+  const hit = fieldCache.get(L);
+  if (hit) return hit;
+  const G = 10, O = 60, W = Math.ceil((WORLD_W + 2 * O) / G), H = Math.ceil((WORLD_H + 2 * O) / G);
+  const segs = world.segs;
+  const blocked = (x: number, y: number) =>
+    segs.some((s) => { if (x < Math.min(s.ax, s.bx) - 30 || x > Math.max(s.ax, s.bx) + 30 || y < Math.min(s.ay, s.by) - 30 || y > Math.max(s.ay, s.by) + 30) return false; const p = closestOnSeg(s, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + s.r; })
+    || (L.bumpers ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
+    || (L.rocks ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
+    || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));
+  const d = new Float64Array(W * H).fill(Infinity);
+  const q: number[] = [];
+  const start = Math.floor((L.cup[0] + O) / G) + Math.floor((L.cup[1] + O) / G) * W;
+  d[start] = 0; q.push(start);
+  for (let qi = 0; qi < q.length; qi++) {
+    const c = q[qi], cx = c % W, cy = (c / W) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const n = nx + ny * W;
+      if (d[n] !== Infinity || blocked(nx * G + G / 2 - O, ny * G + G / 2 - O)) continue;
+      d[n] = d[c] + G; q.push(n);
+    }
+  }
+  const f = { d, W, H, G, O, blocked };
+  fieldCache.set(L, f);
+  return f;
 }
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -372,6 +483,7 @@ const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 export function heightAt(level: LevelDef, x: number, y: number) {
   let h = 0;
   for (const z of level.sand ?? []) {
+    if (!nearZone(z, x, y)) continue;
     const d = zoneDepth(z, x, y);
     if (d > 0) h -= BUNKER_DEPTH * smooth(d / BUNKER_EASE);
   }

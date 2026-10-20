@@ -14,7 +14,8 @@ export type Zone =
 export interface Bar { x: number; y: number; len: number; angle: number } // angle in degrees
 export interface Bumper { x: number; y: number; r: number; color: string; n: number }
 /** `windmill` is the full Hole 1 model (sized for len 82); `turnstile` is a smaller sweeper on a post. */
-export interface Spinner { x: number; y: number; len: number; speed: number; style?: 'windmill' | 'turnstile' } // speed in rad/s
+/** `arms`: 2 = a cross (four paddles, default), 1 = a single bar (two paddles). */
+export interface Spinner { x: number; y: number; len: number; speed: number; style?: 'windmill' | 'turnstile'; arms?: 1 | 2 } // speed in rad/s
 /** Plank footbridge: the ball can cross water on it. Centre, length along `angle` (degrees), deck width. */
 export interface Bridge { x: number; y: number; len: number; width: number; angle: number }
 /** A boulder: solid, and duller to bounce off than a wall. */
@@ -113,7 +114,7 @@ export const LEVELS: LevelDef[] = [
     outline: [[80, 260], [420, 260], [480, 120], [560, 60], [900, 60], [960, 120], [960, 420], [900, 480], [40, 480], [40, 300]],
     bars: [{ x: 700, y: 439, len: 102, angle: 90 }],
     water: [{ kind: 'circle', x: 700, y: 265, r: 62 }],
-    spinners: [{ x: 700, y: 265, len: 82, speed: 0.8, style: 'windmill' }],
+    spinners: [{ x: 700, y: 265, len: 82, speed: 0.6, style: 'windmill' }],
     slopes: [
       { kind: 'tilt', x: 150, y: 270, w: 420, h: 200, dir: 90, drop: 4, feather: 50 },
       { kind: 'hill', x: 620, y: 112, r: 80, h: 6 },
@@ -180,8 +181,8 @@ export const LEVELS: LevelDef[] = [
       [[300, 170], [970, 170]],
     ],
     spinners: [
-      { x: 470, y: 400, len: 55, speed: -1.3, style: 'turnstile' },
-      { x: 560, y: 250, len: 50, speed: 1.5, style: 'turnstile' },
+      { x: 470, y: 400, len: 55, speed: -0.6, style: 'turnstile', arms: 1 },
+      { x: 560, y: 250, len: 50, speed: 0.7, style: 'turnstile', arms: 1 },
     ],
     rocks: [{ x: 860, y: 420, r: 20 }, { x: 140, y: 250, r: 22 }],
     sand: [blob(700, 95, 70, 34, 6, 0.2)],
@@ -206,7 +207,7 @@ export const LEVELS: LevelDef[] = [
       ball(4, 704, 212), ball(8, 704, 250), ball(5, 704, 288),
       ball(6, 736, 193), ball(7, 736, 231), ball(1, 736, 269), ball(2, 736, 307),
     ],
-    spinners: [{ x: 500, y: 250, len: 60, speed: 1.1, style: 'turnstile' }],
+    spinners: [{ x: 500, y: 250, len: 60, speed: 0.8, style: 'turnstile', arms: 1 }],
     rocks: [{ x: 240, y: 250, r: 22 }],
     sand: [blob(700, 105, 70, 32, 7, 0.2, 10), blob(700, 395, 70, 32, 8, 0.2, -10)],
     slopes: [{ kind: 'hill', x: 905, y: 250, r: 150, h: 5 }],

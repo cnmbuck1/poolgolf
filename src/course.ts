@@ -1,11 +1,12 @@
 // Builds everything specific to one hole: the shaped, sloped fairway, its timber edging,
 // obstacles, cup and the garden dressing around it. Purely visual; collision is physics.ts.
 import * as THREE from 'three';
-import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lanternGlow, lilyPadTexture, mats, plainMaterials, rakedSandTextures, stoneWall, turnstile, TURF_TILE, wallRivets, windmill } from './art';
+import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lilyPadTexture, mats, plainMaterials, rakedSandTextures, stoneWall, turnstile, TURF_TILE, wallRivets, windmill } from './art';
 import { Bridge, Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
-import { buildLawn } from './garden';
-import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, onBridge, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
+import { lawnMaterial } from './art';
+import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
+import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -50,44 +51,14 @@ export function buildCourse(world: World, models: Models | null): Course {
 
   // ---- Fairway turf, shaped to the slopes, with arrows showing which way it falls ----
   add(fairwayMesh(L, outline));
-  add(buildLawn(outline, to3));
+  const lawnH = makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
+  const centre3 = to3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
+  add(lawnMesh(outline, to3, lawnH, lawnMaterial(), centre3));
   const arrows = slopeArrows(world, outline);
   if (arrows) { add(arrows.group); anims.push(arrows); }
 
-  // ---- Timber edging on the outline (its centre line is the physics boundary) ----
-  if (models) {
-    const batch = new PieceBatch(models);
-    outline.forEach(([ax, ay], i) => {
-      const [bx, by] = outline[(i + 1) % outline.length];
-      const a = to3(ax, ay), b = to3(bx, by);
-      const len = a.distanceTo(b);
-      const n = Math.max(1, Math.round(len / 48));
-      const stretch = len / (n * 48);
-      const yaw = -Math.atan2(b.z - a.z, b.x - a.x);
-      for (let k = 0; k < n; k++) {
-        const t = (k + 0.5) / n;
-        const h = heightAt(L, ax + (bx - ax) * t, ay + (by - ay) * t);
-        const m = new THREE.Matrix4().makeTranslation(a.x, h - 5, a.z)
-          .multiply(new THREE.Matrix4().makeRotationY(yaw))
-          .multiply(new THREE.Matrix4().makeTranslation(k * 48 * stretch, 0, 0))
-          .multiply(new THREE.Matrix4().makeScale(stretch, 1.35, 1)); // a little taller than the ball
-        batch.add('TimberSection', m);
-      }
-      batch.add('TimberPost', new THREE.Matrix4().makeTranslation(a.x, heightAt(L, ax, ay) - 5, a.z).multiply(new THREE.Matrix4().makeRotationY(yaw)));
-    });
-    add(batch.build());
-  } else {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x7a5434, roughness: 0.8 });
-    outline.forEach(([ax, ay], i) => {
-      const [bx, by] = outline[(i + 1) % outline.length];
-      const a = at(ax, ay), b = at(bx, by);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(a.distanceTo(b) + EDGE_R * 2, 16, EDGE_R * 2), mat);
-      m.position.copy(a).add(b).multiplyScalar(0.5).setY(3);
-      m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-      m.castShadow = m.receiveShadow = true;
-      add(m);
-    });
-  }
+  // ---- Curved timber kerb swept along the outline (its centre line is the physics boundary) ----
+  add(kerbMesh(L, outline, to3));
 
   // ---- Cup, flag and tee ----
   const cupPos = at(L.cup[0], L.cup[1]);
@@ -196,7 +167,7 @@ export function buildCourse(world: World, models: Models | null): Course {
       const pond = (L.water ?? []).find((z) => z.kind === 'circle' && inZone(z, s.x, s.y));
       rig = windmill(s.len, SPINNER_R, pond && pond.kind === 'circle' ? pond.r : 44);
     } else {
-      rig = turnstile(s.len, SPINNER_R);
+      rig = turnstile(s.len, SPINNER_R, s.arms ?? 2);
     }
     rig.group.position.copy(at(s.x, s.y));
     spinnerAnims[i] = rig;
@@ -226,7 +197,10 @@ export function buildCourse(world: World, models: Models | null): Course {
   }
 
   // ---- Garden dressing around the hole ----
-  if (models) dressGarden(L, outline, models, group, anims);
+  if (models) {
+    group.add(landscape(L, outline, models, to3, lawnH, anims));
+    group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y)));
+  }
 
   return { group, spinnerAnims, legacySpinners, anims, waterMats, cupPos, cupPulse, bounds };
 }
@@ -268,7 +242,9 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
     uv[i * 2] = x / TURF_TILE;
     uv[i * 2 + 1] = y / TURF_TILE;
     // Mowing stripes (diagonal bands), plus a light lift on rises and shade in dips so slopes read
-    const band = Math.floor((x + y * 0.35) / 70) % 2 === 0 ? 1.0 : 0.86;
+    // Mowing stripes follow the shape of the hole, rippling out from the edging
+    const edge = outlineDistance(outline, x, y).d;
+    const band = 0.93 + 0.07 * Math.sin((edge + Math.sin(x * 0.01) * 12) * 0.09);
     const shade = Math.max(0.75, Math.min(1.25, 1 + hgt * 0.035));
     // Banks fade from turf to mud and then to a dark bed as they drop into the water
     const wet = Math.min(1, dip / 5), deep = Math.min(1, dip / WATER_BED);
@@ -541,138 +517,6 @@ function slopeArrows(world: World, outline: [number, number][]): Animated | null
 
 // ---------- garden ----------
 
-/** Hedges, flower borders, lamp posts, a stepping-stone path and trees placed around the outline. */
-function dressGarden(L: LevelDef, outline: [number, number][], models: Models, group: THREE.Group, anims: Animated[]) {
-  const ccw = signedArea(outline) > 0; // in table coordinates (y down)
-  const inside = (x: number, y: number) => pointInPolygon(x, y, outline);
-  const distToEdge = (x: number, y: number) => {
-    let best = Infinity;
-    outline.forEach(([ax, ay], i) => {
-      const [bx, by] = outline[(i + 1) % outline.length];
-      const vx = bx - ax, vy = by - ay;
-      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)));
-      best = Math.min(best, Math.hypot(x - ax - vx * t, y - ay - vy * t));
-    });
-    return best;
-  };
-  const outward = (ax: number, ay: number, bx: number, by: number) => {
-    const l = Math.hypot(bx - ax, by - ay);
-    const nx = (by - ay) / l, ny = -(bx - ax) / l; // right-hand normal
-    return ccw ? [nx, ny] : [-nx, -ny];
-  };
-  const batch = new PieceBatch(models);
-  const place = (name: string, x: number, y: number, yaw: number, scale = 1, lift = 0) => {
-    const p = to3(x, y);
-    batch.add(name, new THREE.Matrix4().makeTranslation(p.x, LAWN_Y + lift, p.z)
-      .multiply(new THREE.Matrix4().makeRotationY(yaw))
-      .multiply(new THREE.Matrix4().makeScale(scale, scale, scale)));
-  };
-
-  // A low hedge follows the outline just outside the edging, leaving a gap at the tee for the path
-  const [tx, ty] = L.tee;
-  outline.forEach(([ax, ay], i) => {
-    const [bx, by] = outline[(i + 1) % outline.length];
-    const [nx, ny] = outward(ax, ay, bx, by);
-    const len = Math.hypot(bx - ax, by - ay);
-    const yaw = -Math.atan2(by - ay, bx - ax);
-    for (let d = 30; d < len - 10; d += 58) {
-      const x = ax + ((bx - ax) * d) / len + nx * 62, y = ay + ((by - ay) * d) / len + ny * 62;
-      if (inside(x, y) || distToEdge(x, y) < 50) continue;
-      if (Math.hypot(x - tx, y - ty) < 140) continue;
-      place('Hedge', x - ((bx - ax) / len) * 30, y - ((by - ay) / len) * 30, yaw);
-    }
-  });
-
-  // Flowers in the strip between edging and hedge
-  const flowers = new PieceBatch(models);
-  const colours: number[] = [];
-  const palette = [0xf2c230, 0xf07a8a, 0xffffff, 0xb78be0, 0xff9a3c];
-  let seed = 11;
-  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  outline.forEach(([ax, ay], i) => {
-    const [bx, by] = outline[(i + 1) % outline.length];
-    const [nx, ny] = outward(ax, ay, bx, by);
-    const len = Math.hypot(bx - ax, by - ay);
-    for (let d = 8; d < len; d += 15) {
-      const off = 24 + rnd() * 16;
-      const x = ax + ((bx - ax) * d) / len + nx * off, y = ay + ((by - ay) * d) / len + ny * off;
-      if (inside(x, y) || distToEdge(x, y) < 20) continue;
-      if (Math.hypot(x - tx, y - ty) < 120) continue;
-      const p = to3(x, y);
-      const s = 0.8 + rnd() * 0.5;
-      flowers.add('Flower', new THREE.Matrix4().makeTranslation(p.x, LAWN_Y, p.z).multiply(new THREE.Matrix4().makeRotationY(rnd() * 6.3)).multiply(new THREE.Matrix4().makeScale(s, s, s)));
-      colours.push(palette[Math.floor(rnd() * palette.length)]);
-    }
-  });
-  const fl = flowers.build();
-  fl.traverse((o) => {
-    if (o instanceof THREE.InstancedMesh && (o.material as THREE.Material).name === 'Petal') {
-      const c = new THREE.Color();
-      colours.forEach((hex, i) => o.setColorAt(i, c.setHex(hex)));
-    }
-    o.castShadow = false;
-  });
-  group.add(fl);
-
-  // Stepping stones leading out from the tee
-  const [cx0, cy0] = [(Math.min(...outline.map((p) => p[0])) + Math.max(...outline.map((p) => p[0]))) / 2, (Math.min(...outline.map((p) => p[1])) + Math.max(...outline.map((p) => p[1]))) / 2];
-  let dx = tx - cx0, dy = ty - cy0;
-  const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-  for (let k = 0, d = 0; k < 9; d += 34) {
-    const x = tx + dx * d + (k % 2 ? 6 : -6), y = ty + dy * d;
-    if (inside(x, y) || distToEdge(x, y) < 26) continue;
-    place(`Paver${(k % 3) + 1}`, x, y, k * 0.7, 1.15, 0.6);
-    k++;
-  }
-
-  // Lamp posts at a few outward corners
-  const lamps: [number, number][] = [];
-  outline.forEach(([x, y], i) => {
-    const [px, py] = outline[(i + outline.length - 1) % outline.length];
-    const [qx, qy] = outline[(i + 1) % outline.length];
-    const [n1x, n1y] = outward(px, py, x, y);
-    const [n2x, n2y] = outward(x, y, qx, qy);
-    let nx = n1x + n2x, ny = n1y + n2y;
-    const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
-    const lx = x + nx * 46, ly = y + ny * 46;
-    if (inside(lx, ly) || distToEdge(lx, ly) < 34) return;
-    if (lamps.some(([ax, ay]) => Math.hypot(ax - lx, ay - ly) < 300)) return;
-    lamps.push([lx, ly]);
-  });
-  for (const [x, y] of lamps) {
-    place('LampPost', x, y, 0);
-    const glow = lanternGlow();
-    glow.group.position.copy(to3(x, y)).setY(LAWN_Y + 117);
-    group.add(glow.group);
-    anims.push(glow);
-  }
-
-  // Trees well back from the course so the shot camera never ends up inside one
-  const b = outline.reduce((acc, [x, y]) => ({ minX: Math.min(acc.minX, x), maxX: Math.max(acc.maxX, x), minY: Math.min(acc.minY, y), maxY: Math.max(acc.maxY, y) }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
-  // Only behind and beside the hole: the menu and whole-hole cameras look from the front
-  const treeSpots: [number, number, number][] = [
-    [b.minX - 480, b.minY - 300, 1.1], [b.minX + 150, b.minY - 520, 1.25], [(b.minX + b.maxX) / 2 + 80, b.minY - 560, 1.0],
-    [b.maxX - 120, b.minY - 500, 1.2], [b.maxX + 470, b.minY - 220, 1.05], [b.maxX + 560, (b.minY + b.maxY) / 2, 1.15],
-    [b.minX - 560, (b.minY + b.maxY) / 2 - 60, 1.0],
-  ];
-  for (const [x, y, s] of treeSpots) place('Tree', x, y, x * 0.01, s);
-  // A couple of planters and barrels by the tee path, and rocks under the trees
-  place('Planter', tx + dx * 120 + dy * 90, ty + dy * 120 - dx * 90, 0.4, 1);
-  place('Barrel', tx + dx * 150 - dy * 95, ty + dy * 150 + dx * 95, 1.1, 1);
-  place('Rocks3', b.minX - 420, b.minY - 250, 0.5, 1.6);
-  place('Rocks1', b.maxX + 420, b.maxY + 40, 1.7, 1.5);
-
-  const built = batch.build();
-  // Hedges sit outside the course; their shadows aren't worth a second pass
-  built.traverse((o) => { if (o instanceof THREE.InstancedMesh && o.count > 12) o.castShadow = false; });
-  group.add(built);
-}
-
-function signedArea(p: [number, number][]) {
-  let a = 0;
-  p.forEach(([x1, y1], i) => { const [x2, y2] = p[(i + 1) % p.length]; a += x1 * y2 - x2 * y1; });
-  return a / 2;
-}
 
 function pointInPolygon(x: number, y: number, p: [number, number][]) {
   let inside = false;

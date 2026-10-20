@@ -12,8 +12,9 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   4. **The Creek**: a winding creek with two footbridges, a green tilted toward the water and a bunker by the cup
   5. **Turnstiles**: three lanes joined by stone walls, with turnstiles sweeping two of the gaps
   6. **Eight Ball**: brick walls funnel toward a racked set of pool balls in front of a raised green, with bunkers on both sides
-- **Garden setting** (Three.js): evening sky and sun, mown fairways with timber edging, hedges, flowers, lamp posts and trees, sunken ponds and creeks with lily pads and reeds, raked bunkers, plank footbridges and boulders.
-- **Camera**: a shot camera sits behind the ball and turns with the aim, then follows the rolling ball; it swoops in at the start of each hole and moves in when the ball drops. The **TABLE** button switches to the whole-table view (and **BALL** back).
+- **Garden setting** (Three.js): evening sky and sun; flowing fairways with rounded corners, a curved timber kerb and mowing stripes that follow the shape; rolling lawn with raised flower beds, ornamental grasses, topiary, hedges, lamp posts and trees; sunken ponds and creeks lined with river stones, lily pads and reeds; raked bunkers, plank footbridges, boulders and turnstiles.
+- **Aiming**: pull down to draw the cue back, drag sideways to turn, and hold near a screen edge to keep turning all the way round.
+- **Camera**: a shot camera sits behind the ball and turns with the aim; at rest it faces down the route to the cup, then follows the rolling ball; it swoops in at the start of each hole and moves in when the ball drops. The **TABLE** button switches to the whole-table view (and **BALL** back).
 - **Cue**: draws back with power, strikes the ball, then follows through and fades.
 - **Physics**: harder hits lose more energy, cushions and walls grip some of the ball's sideways speed, lip-outs, and visual skid-then-roll spin plus a small hop off hard hits.
 - **Aim guide** follows the shot through two banks (bumpers, walls and cushions), with a ring at each contact.
@@ -46,7 +47,8 @@ src/levels.ts    course data (edit or add holes here)
 src/physics.ts   ball physics, collisions, aim ray-cast
 src/render3d.ts  camera, ball, cue, aim guide, effects
 src/course.ts    builds each hole: sloped turf, timber edging, obstacles, garden dressing
-src/garden.ts    evening sky, sun, lawn
+src/garden.ts    evening sky and sun
+src/landscape.ts curved kerb, rolling lawn, flower beds, grasses, topiary, river stones
 src/main.ts      game flow, input, HUD, haptics
 src/audio.ts     WebAudio sound effects
 ios/  android/   generated native projects (Capacitor)
