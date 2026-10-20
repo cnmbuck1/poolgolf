@@ -5,6 +5,7 @@ import { StatusBar } from '@capacitor/status-bar';
 import { LEVELS } from './levels';
 import { inZone, MAX_SHOT_SPEED, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
+import { loadModels } from './models';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
 
 const MAX_STROKES = 10;
@@ -580,8 +581,26 @@ type Hot = { snapshot(fn: () => unknown): void; ready?(fn: (d: unknown) => void)
 const hot = (window as unknown as { claude?: { hot?: Hot } }).claude?.hot;
 hot?.snapshot(() => ({ holeIdx, scores, playing: phase !== 'title' }));
 
+/** Load the 3D models in the background; until then the procedural look stands in. */
+function loadCourseModels() {
+  const bar = $('loading');
+  const fill = bar.querySelector('b') as HTMLElement;
+  bar.classList.remove('hidden');
+  loadModels((p) => { fill.style.width = `${Math.round(p * 100)}%`; })
+    .then((m) => {
+      view3d.applyModels(m);
+      view3d.setLevel(world);
+      bar.classList.add('hidden');
+    })
+    .catch((err) => {
+      console.warn('Course models failed to load; using the procedural look', err);
+      bar.classList.add('hidden');
+    });
+}
+
 function start(data: unknown) {
   view3d.setLevel(world);
+  loadCourseModels();
   refreshTitle();
   resize();
   const d = data as { holeIdx?: number; scores?: (number | null)[]; playing?: boolean } | undefined;

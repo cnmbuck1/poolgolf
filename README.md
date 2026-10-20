@@ -24,6 +24,17 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
 - Quality steps down automatically (resolution, then shadow detail) on slower phones.
 - Native apps are locked to landscape and the status bar is hidden.
 
+## 3D models
+
+Hole 1 and the table dressing use detailed models built in Blender: windmill, stone/brick wall kit, cup, lantern posts, barrels, planters and rocks. They're stored as GLB in `src/assets/models/`. The scripts that generate them live in `assets-src/blender/`. Credits and licenses are in `ASSETS.md`.
+
+To rebuild the models:
+
+```bash
+python3 -m venv .bpy && .bpy/bin/pip install bpy==5.2.2   # Blender as a Python module (Python 3.13)
+npm run assets                                             # build + quantize into src/assets/models
+```
+
 ## Project layout
 
 ```

@@ -1,7 +1,28 @@
 import * as THREE from 'three';
 import { Bumper, WORLD_H, WORLD_W, Zone } from './levels';
 import { BALL_R, CUP_R, inZone, SPINNER_R, WALL_R, World } from './physics';
-import { Animated, brassCup, fern, lantern, mats, merge, rugTexture as persianRug, stoneWall, teePlate, TURF_TILE, wallRivets, windmill } from './art';
+import { Animated, brassCup, contactDisc, contactStrip, fern, lantern, lanternGlow, mats, merge, rugTexture as persianRug, stoneWall, teePlate, TURF_TILE, wallRivets, windmill } from './art';
+import { clonePiece, getModels, Models, PieceBatch, windmillRig } from './models';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+
+/** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, vignette: { value: 0.32 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec3 col = c.rgb * vec3(1.03, 1.0, 0.95);
+      col = (col - 0.5) * 1.06 + 0.5;
+      float d = distance(vUv, vec2(0.5));
+      col *= 1.0 - vignette * smoothstep(0.42, 0.85, d);
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
+    }`,
+};
 
 // The physics runs on a flat 2D table (x, y). In 3D that table lies on the XZ plane,
 // centred on the origin, with the felt surface at y = 0.
@@ -50,6 +71,7 @@ export type CamMode = 'title' | 'play' | 'sink' | 'debug';
 
 const TILT_3D = 0.95; // camera elevation in radians (~54°)
 const TILT_TOP = Math.PI / 2 - 0.001;
+const TILT_TITLE = 0.72;
 const MAX_DOTS = 160;
 const DROPS = 14;
 
@@ -78,6 +100,8 @@ export class Renderer3D {
   private spinnerAnims: (Animated | undefined)[] = [];
   private levelAnims: Animated[] = [];
   private globalAnims: Animated[] = [];
+  private corners: THREE.Group[] = [];
+  private decor = new THREE.Group();
   private size = { w: 1, h: 1, top: 0, bottom: 0 };
   private raycaster = new THREE.Raycaster();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -103,9 +127,13 @@ export class Renderer3D {
   private dpr = 1;
   private perf = { time: 0, frames: 0 };
   private lamp!: THREE.SpotLight;
+  /** Post-processing (glow on lanterns, grade, vignette); skipped at lower quality steps. */
+  private composer: EffectComposer;
+  private bloom: UnrealBloomPass;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -113,6 +141,13 @@ export class Renderer3D {
     this.renderer.toneMappingExposure = 0.92;
     this.scene.background = new THREE.Color(C.bg);
     this.scene.fog = new THREE.Fog(C.bg, 2200, 4200);
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.55, 0.95);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+    this.composer.addPass(new ShaderPass(GradeShader));
 
     this.addEnvironmentMap();
     this.addLights();
@@ -242,12 +277,13 @@ export class Renderer3D {
       this.scene.add(leg);
     }
 
-    // Potted ferns around the table
+    // Potted ferns around the table (replaced by planters and props once the models load)
     for (const [x, z, size, seed] of [[-HW - 210, -HH - 40, 2.6, 1], [HW + 200, -HH - 70, 2.3, 2], [-HW - 230, HH + 130, 2.8, 3], [HW + 240, HH + 110, 2.2, 4]]) {
       const f = fern(size, seed);
       f.position.set(x, FLOOR_Y, z);
-      this.scene.add(f);
+      this.decor.add(f);
     }
+    this.scene.add(this.decor);
   }
 
   private addTable() {
@@ -318,8 +354,45 @@ export class Renderer3D {
       g.add(l.group);
       this.globalAnims.push(l);
       g.position.set(sx * (HW + RAIL - 14), RAIL_H + 2, sz * (HH + RAIL - 14));
+      this.corners.push(g);
       this.scene.add(g);
     }
+  }
+
+  /** Swap the procedural table dressing for the Blender models once they have loaded. */
+  applyModels(m: Models) {
+    this.globalAnims = [];
+    for (const g of this.corners) {
+      g.clear();
+      g.add(clonePiece(m, 'Lantern'));
+      const glow = lanternGlow();
+      glow.group.position.y = 41;
+      g.add(glow.group);
+      this.globalAnims.push(glow);
+    }
+    // Floor dressing: planted ferns in oak planters, barrels and rocks, all well clear of the table
+    this.decor.clear();
+    const put = (o: THREE.Object3D, x: number, z: number, rot = 0, scale = 1) => {
+      o.position.set(x, FLOOR_Y, z);
+      o.rotation.y = rot;
+      o.scale.setScalar(scale);
+      this.decor.add(o);
+      return o;
+    };
+    for (const [x, z, s, seed] of [[-HW - 200, -HH - 30, 2.4, 1], [HW + 210, -HH - 60, 2.2, 2], [-HW - 230, HH + 140, 2.6, 3]] as const) {
+      const planter = put(clonePiece(m, 'Planter'), x, z, seed * 0.4, 2.1);
+      const f = fern(s * 0.75 / 2.1, seed, 'bowl');
+      f.position.y = 30;
+      planter.add(f);
+    }
+    put(clonePiece(m, 'Barrel'), HW + 250, HH + 90, 0.3, 2.6);
+    put(clonePiece(m, 'Barrel'), HW + 330, HH + 30, 1.4, 2.4);
+    put(clonePiece(m, 'Barrel'), -HW - 330, -HH + 120, 2.1, 2.5);
+    put(clonePiece(m, 'Rocks3'), HW + 170, HH + 200, 0.5, 2.4);
+    put(clonePiece(m, 'Rocks1'), -HW - 150, HH + 230, 1.2, 2.2);
+    put(clonePiece(m, 'Rocks2'), -HW - 300, -HH - 120, 2.5, 2.6);
+    // Floor dressing sits outside the lamp's pool of light: skip it in the shadow pass
+    this.decor.traverse((o) => { o.castShadow = false; });
   }
 
   private buildCue() {
@@ -355,6 +428,7 @@ export class Renderer3D {
     this.levelAnims = [];
     const L = world.level;
     const premium = L.art === 'premium';
+    const models = premium ? getModels() : null;
     const add = (o: THREE.Object3D) => { this.levelGroup.add(o); return o; };
 
     // Felt with the cup cut out
@@ -377,7 +451,12 @@ export class Renderer3D {
     // Cup with a brass rim
     this.cupPos = to3(L.cup[0], L.cup[1]);
     if (premium) {
-      const cup = brassCup(CUP_R);
+      if (models) {
+        const cupModel = clonePiece(models, 'Cup');
+        cupModel.position.copy(this.cupPos);
+        add(cupModel);
+      }
+      const cup = brassCup(CUP_R, !models);
       cup.group.position.copy(this.cupPos);
       add(cup.group);
       this.levelAnims.push(cup);
@@ -445,7 +524,21 @@ export class Renderer3D {
       add(w);
     }
 
-    if (premium) {
+    if (models) {
+      // Blender wall kit laid along the exact collision capsules: stone for walls, brick for bars
+      const batch = new PieceBatch(models);
+      const wallSegs = (L.walls ?? []).reduce((n, line) => n + line.length - 1, 0);
+      world.segs.forEach((s, i) => {
+        const a = to3(s.ax, s.ay);
+        const b = to3(s.bx, s.by);
+        batch.wall(a, b, i < wallSegs ? 'Stone' : 'Brick', i * 0.06);
+        const strip = contactStrip(a.distanceTo(b) + s.r * 2 + 34, s.r * 2 + 30);
+        strip.position.copy(a).add(b).multiplyScalar(0.5).setY(0.45);
+        strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+        add(strip);
+      });
+      add(batch.build());
+    } else if (premium) {
       // Stone walls with oak caps on the exact capsule footprint, brass rivets in one draw call
       const rivets: THREE.Vector3[] = [];
       for (const s of world.segs) {
@@ -485,6 +578,15 @@ export class Renderer3D {
 
     world.spinners.forEach((s, i) => {
       if (!premium) return;
+      if (models) {
+        const rig = windmillRig(models);
+        rig.root.position.copy(to3(s.x, s.y));
+        const disc = contactDisc(56);
+        rig.root.add(disc);
+        this.spinnerAnims[i] = { group: rig.root, update: (angle) => rig.update(angle) };
+        add(rig.root);
+        return;
+      }
       const pond = (L.water ?? []).find((z) => z.kind === 'circle' && inZone(z, s.x, s.y));
       const mill = windmill(s.len, SPINNER_R, pond && pond.kind === 'circle' ? pond.r : 44);
       mill.group.position.copy(to3(s.x, s.y));
@@ -540,6 +642,8 @@ export class Renderer3D {
     this.dpr = dpr;
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(w, h, false);
+    this.composer.setPixelRatio(this.pixelRatio());
+    this.composer.setSize(w, h);
     this.fitCamera();
   }
 
@@ -557,6 +661,8 @@ export class Renderer3D {
     this.quality++;
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(this.size.w, this.size.h, false);
+    this.composer.setPixelRatio(this.pixelRatio());
+    this.composer.setSize(this.size.w, this.size.h);
     if (this.quality >= 2) {
       this.lamp.shadow.mapSize.set(1024, 1024);
       this.lamp.shadow.map?.dispose();
@@ -608,9 +714,11 @@ export class Renderer3D {
   }
 
   private updateCamera(world: World, dt: number, time: number, aiming: boolean) {
-    if (Math.abs(this.tilt - this.tiltTarget) > 0.001) {
-      this.tilt += (this.tiltTarget - this.tilt) * Math.min(1, dt * 9);
-      if (Math.abs(this.tilt - this.tiltTarget) < 0.002) this.tilt = this.tiltTarget;
+    // The menu uses a lower, more cinematic angle; play uses the chosen view
+    const tiltGoal = this.mode === 'title' ? TILT_TITLE : this.tiltTarget;
+    if (Math.abs(this.tilt - tiltGoal) > 0.001) {
+      this.tilt += (tiltGoal - this.tilt) * Math.min(1, dt * (this.mode === 'title' ? 3 : 9));
+      if (Math.abs(this.tilt - tiltGoal) < 0.002) this.tilt = tiltGoal;
       this.fitCamera();
     }
 
@@ -687,6 +795,7 @@ export class Renderer3D {
   // ---------- per frame ----------
 
   render(world: World, aim: AimState, cue: CueState, fx: FX, time: number, dt: number) {
+    this.renderer.info.reset(); // stats cover the whole frame, including post-processing passes
     this.adaptQuality(dt);
     this.updateCamera(world, dt, time, aim.active);
 
@@ -734,7 +843,8 @@ export class Renderer3D {
 
     this.updateAim(world, aim);
     this.updateCue(world, cue);
-    this.renderer.render(this.scene, this.camera);
+    if (this.quality <= 1) this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
   }
 
   private updateBall(world: World, fx: FX, dt: number) {

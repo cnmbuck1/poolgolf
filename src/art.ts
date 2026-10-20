@@ -438,13 +438,13 @@ function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, shadows: 'both' | 
 }
 
 /** Soft dark patch on the turf under an object so it reads as touching the ground. */
-function contactStrip(len: number, width: number) {
+export function contactStrip(len: number, width: number) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(len, width).rotateX(-Math.PI / 2), mats.shadowStrip);
   m.position.y = 0.45;
   m.renderOrder = 1;
   return m;
 }
-function contactDisc(r: number) {
+export function contactDisc(r: number) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(r * 2, r * 2).rotateX(-Math.PI / 2), mats.shadowDisc);
   m.position.y = 0.45;
   m.renderOrder = 1;
@@ -486,7 +486,7 @@ export function wallRivets(len: number, r: number) {
   return pts;
 }
 
-export interface Animated { group: THREE.Group; update(angle: number, time: number): void }
+export interface Animated { group: THREE.Object3D; update(angle: number, time: number): void }
 
 /**
  * Brick windmill on a stone island in its pond. The low wooden sweepers at ball height
@@ -619,23 +619,23 @@ export function windmill(len: number, armR: number, pondR: number): Animated {
   };
 }
 
-/** Brass-rimmed cup with a white pin and a waving red flag. */
-export function brassCup(cupR: number): Animated {
+/** Brass-rimmed cup with a white pin and a waving red flag. `withCup: false` gives just the pin and flag. */
+export function brassCup(cupR: number, withCup = true): Animated {
   const g = new THREE.Group();
-  const liner = mesh(new THREE.CylinderGeometry(cupR, cupR, 30, 36, 1, true), mats.cupLiner, 'none');
-  liner.position.y = -15;
-  g.add(liner);
-  const bottom = new THREE.Mesh(new THREE.CircleGeometry(cupR, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x030405 }));
-  bottom.position.y = -29;
-  g.add(bottom);
-  const rim = merge([
-    new THREE.TorusGeometry(cupR + 1.8, 2.2, 10, 48).rotateX(Math.PI / 2),
-    new THREE.RingGeometry(cupR + 1, cupR + 7, 48).rotateX(-Math.PI / 2).translate(0, 0.35, 0),
-    new THREE.CylinderGeometry(cupR + 0.2, cupR + 0.2, 6, 36, 1, true).translate(0, -3, 0),
-  ]);
-  const rimMesh = mesh(rim, mats.brass, 'receive');
-  rimMesh.material = mats.brass;
-  g.add(rimMesh);
+  if (withCup) {
+    const liner = mesh(new THREE.CylinderGeometry(cupR, cupR, 30, 36, 1, true), mats.cupLiner, 'none');
+    liner.position.y = -15;
+    g.add(liner);
+    const bottom = new THREE.Mesh(new THREE.CircleGeometry(cupR, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x030405 }));
+    bottom.position.y = -29;
+    g.add(bottom);
+    const rim = merge([
+      new THREE.TorusGeometry(cupR + 1.8, 2.2, 10, 48).rotateX(Math.PI / 2),
+      new THREE.RingGeometry(cupR + 1, cupR + 7, 48).rotateX(-Math.PI / 2).translate(0, 0.35, 0),
+      new THREE.CylinderGeometry(cupR + 0.2, cupR + 0.2, 6, 36, 1, true).translate(0, -3, 0),
+    ]);
+    g.add(mesh(rim, mats.brass, 'receive'));
+  }
 
   const pinX = cupR * 0.32, pinZ = -cupR * 0.2, PIN_H = 104;
   const pin = mesh(new THREE.CylinderGeometry(1.3, 1.5, PIN_H, 8).translate(pinX, PIN_H / 2 - 18, pinZ), mats.pin, 'cast');
@@ -734,4 +734,96 @@ export function fern(size: number, seed: number, potStyle: 'tall' | 'bowl' = 'ta
   g.add(leaves);
   g.scale.setScalar(size);
   return g;
+}
+
+// ---------- materials for the Blender models (src/assets/models) ----------
+
+/** Fine rock surface (the stones themselves are modelled, so this is just grain and pitting). */
+function rockTextures() {
+  return cached('rock', () => {
+    const r = rng(41);
+    const draw = (g: CanvasRenderingContext2D, bump: boolean) => {
+      g.fillStyle = bump ? '#808080' : '#a39d94';
+      g.fillRect(0, 0, 512, 512);
+      // soft blotches, then grain, then pits
+      for (let i = 0; i < 260; i++) {
+        const x = r() * 512, y = r() * 512, rad = 10 + r() * 40;
+        const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+        const v = bump ? (r() > 0.5 ? '255,255,255' : '0,0,0') : (r() > 0.5 ? '205,198,186' : '118,110,100');
+        gr.addColorStop(0, `rgba(${v},${bump ? 0.18 : 0.35})`);
+        gr.addColorStop(1, `rgba(${v},0)`);
+        g.fillStyle = gr;
+        g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      }
+      for (let i = 0; i < 26000; i++) {
+        g.fillStyle = `rgba(${r() > 0.5 ? '255,255,255' : '0,0,0'},${r() * (bump ? 0.35 : 0.12)})`;
+        g.fillRect(r() * 512, r() * 512, 1.4, 1.4);
+      }
+      for (let i = 0; i < 500; i++) {
+        g.fillStyle = bump ? 'rgba(0,0,0,0.6)' : 'rgba(60,55,50,0.35)';
+        g.beginPath(); g.arc(r() * 512, r() * 512, 0.8 + r() * 1.8, 0, Math.PI * 2); g.fill();
+      }
+    };
+    return [tex(canvas(512, 512, (g) => draw(g, false)), true, [3, 3]), tex(canvas(512, 512, (g) => draw(g, true)), false, [3, 3])] as const;
+  });
+}
+
+function clayTexture() {
+  return cached('clay', () => {
+    const r = rng(17);
+    const c = canvas(256, 256, (g) => {
+      g.fillStyle = '#ffffff';
+      g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 9000; i++) {
+        g.fillStyle = `rgba(${r() > 0.5 ? '90,30,15' : '255,235,215'},${r() * 0.18})`;
+        g.fillRect(r() * 256, r() * 256, 1.5, 1.5);
+      }
+    });
+    return tex(c, true, [4, 4]);
+  });
+}
+
+/** Library keyed by the material names used in the Blender scripts. All use the baked AO vertex colours. */
+export function modelMaterials(): Record<string, THREE.Material> {
+  return cached('m:models', () => {
+    const [rock, rockBump] = rockTextures();
+    const grain = (key: string, base: string, light: string, dark: string, rep: number) => {
+      const t = woodGrain(key, base, light, dark, 512, 128).clone();
+      t.repeat.set(rep, rep * 3);
+      t.needsUpdate = true;
+      return t;
+    };
+    const lib: Record<string, THREE.Material> = {
+      Stone: new THREE.MeshStandardMaterial({ map: rock, bumpMap: rockBump, bumpScale: 1.6, roughness: 0.9, vertexColors: true }),
+      Mortar: new THREE.MeshStandardMaterial({ color: 0x4a443c, roughness: 0.97, vertexColors: true }),
+      Brick: new THREE.MeshStandardMaterial({ color: 0xa4523a, map: clayTexture(), roughness: 0.85, vertexColors: true }),
+      Oak: new THREE.MeshPhysicalMaterial({ map: grain('m-oak', '#93542a', '#c07a42', '#55290f', 1.4), roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.22, vertexColors: true }),
+      DarkWood: new THREE.MeshStandardMaterial({ map: grain('m-dark', '#4a2412', '#6d3a1d', '#26100a', 2), roughness: 0.6, vertexColors: true }),
+      Plank: new THREE.MeshStandardMaterial({ map: grain('m-plank', '#b06a34', '#d08a4c', '#6a3818', 1.6), roughness: 0.62, vertexColors: true }),
+      Shingle: new THREE.MeshStandardMaterial({ map: grain('m-shingle', '#7a3d1c', '#9c5528', '#3e1a08', 3), roughness: 0.78, vertexColors: true }),
+      Brass: new THREE.MeshStandardMaterial({ color: P.brass, metalness: 1, roughness: 0.26, vertexColors: true }),
+      Iron: new THREE.MeshStandardMaterial({ color: 0x2b2826, metalness: 0.75, roughness: 0.42, vertexColors: true }),
+      Glass: mats.glass,
+      Hole: new THREE.MeshBasicMaterial({ color: 0x050403 }),
+    };
+    for (const m of Object.values(lib)) m.userData.shared = true;
+    return lib;
+  });
+}
+
+/** Glow halo for a lantern (no real light, so it costs almost nothing). */
+export function lanternGlow(): Animated {
+  const g = new THREE.Group();
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.85 }));
+  halo.scale.set(80, 80, 1);
+  g.add(halo);
+  const seed = Math.random() * 10;
+  return {
+    group: g,
+    update(_a, time) {
+      const f = 0.9 + Math.sin(time * 7.3 + seed) * 0.05 + Math.sin(time * 13.1 + seed * 2) * 0.04;
+      halo.scale.set(80 * f, 80 * f, 1);
+      (halo.material as THREE.SpriteMaterial).opacity = 0.7 * f;
+    },
+  };
 }

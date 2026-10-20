@@ -296,6 +296,9 @@ svg { width: 22px; height: 22px; flex: none; }
 }
 .sq-btn svg { width: 24px; height: 24px; }
 .sq-btn:active { transform: translateY(1px); }
+.loading { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.loading i { flex: 1; max-width: 160px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.loading b { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.2s; }
 .best { margin: 2px 0 0; color: var(--gold-hi); font-size: 13px; min-height: 1em; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8); }
 
 /* Panels */
