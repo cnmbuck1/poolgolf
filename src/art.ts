@@ -876,6 +876,74 @@ export function modelMaterials(): Record<string, THREE.Material> {
   });
 }
 
+/** The model materials without baked-shading colours, for pieces built in code (which have none). */
+export function plainMaterials(): Record<string, THREE.Material> {
+  return cached('m:plain', () => {
+    const out: Record<string, THREE.Material> = {};
+    for (const [k, m] of Object.entries(modelMaterials())) {
+      const c = m.clone();
+      (c as THREE.MeshStandardMaterial).vertexColors = false;
+      c.userData.shared = true;
+      out[k] = c;
+    }
+    return out;
+  });
+}
+
+/** Raked bunker sand: fine grain with long soft rake furrows. Returns [colour, bump]. */
+export function rakedSandTextures() {
+  return cached('rakedSand', () => {
+    const r = rng(77);
+    const draw = (g: CanvasRenderingContext2D, bump: boolean) => {
+      g.fillStyle = bump ? '#808080' : '#e3cf9a';
+      g.fillRect(0, 0, 512, 512);
+      // Rake furrows: gently wavy parallel grooves
+      for (let y = 4; y < 512; y += 9) {
+        g.strokeStyle = bump ? 'rgba(0,0,0,0.55)' : 'rgba(150,120,70,0.28)';
+        g.lineWidth = 3;
+        g.beginPath();
+        for (let x = -10; x <= 522; x += 16) {
+          const yy = y + Math.sin(x * 0.012 + y * 0.03) * 6;
+          if (x < 0) g.moveTo(x, yy); else g.lineTo(x, yy);
+        }
+        g.stroke();
+        g.strokeStyle = bump ? 'rgba(255,255,255,0.45)' : 'rgba(255,248,225,0.3)';
+        g.lineWidth = 1.5;
+        g.beginPath();
+        for (let x = -10; x <= 522; x += 16) {
+          const yy = y + 3 + Math.sin(x * 0.012 + y * 0.03) * 6;
+          if (x < 0) g.moveTo(x, yy); else g.lineTo(x, yy);
+        }
+        g.stroke();
+      }
+      for (let i = 0; i < 26000; i++) {
+        g.fillStyle = `rgba(${r() > 0.5 ? '255,250,235' : '120,95,55'},${r() * (bump ? 0.3 : 0.25)})`;
+        g.fillRect(r() * 512, r() * 512, 1.3, 1.3);
+      }
+    };
+    return [tex(canvas(512, 512, (g) => draw(g, false)), true), tex(canvas(512, 512, (g) => draw(g, true)), false)] as const;
+  });
+}
+
+/** Lily pad: a green disc with a notch and veins, on transparent background. */
+export function lilyPadTexture() {
+  return cached('lily', () => tex(canvas(128, 128, (g) => {
+    g.translate(64, 64);
+    const grd = g.createRadialGradient(0, 0, 4, 0, 0, 60);
+    grd.addColorStop(0, '#6fa34a');
+    grd.addColorStop(1, '#3d6e2a');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.arc(0, 0, 60, 0.18, Math.PI * 2 - 0.18);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(200,230,150,0.35)';
+    g.lineWidth = 1.5;
+    for (let a = 0.5; a < Math.PI * 2 - 0.4; a += 0.5) { g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 55, Math.sin(a) * 55); g.stroke(); }
+  }), true));
+}
+
 /** Glow halo for a lantern (no real light, so it costs almost nothing). */
 export function lanternGlow(): Animated {
   const g = new THREE.Group();

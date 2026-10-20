@@ -43,8 +43,13 @@ export function buildSky() {
   return sky;
 }
 
-export function buildLawn() {
-  const lawn = new THREE.Mesh(new THREE.CircleGeometry(5000, 64).rotateX(-Math.PI / 2), lawnMaterial());
+/** The lawn around a hole, with the fairway's outline cut out so dips in the course show through. */
+export function buildLawn(outline: [number, number][], toScene: (x: number, y: number) => THREE.Vector3) {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, 5000, 0, Math.PI * 2, false);
+  const hole = new THREE.Path(outline.map(([x, y]) => { const p = toScene(x, y); return new THREE.Vector2(p.x, -p.z); }));
+  shape.holes.push(hole);
+  const lawn = new THREE.Mesh(new THREE.ShapeGeometry(shape, 48).rotateX(-Math.PI / 2), lawnMaterial());
   lawn.position.y = LAWN_Y;
   lawn.receiveShadow = true;
   return lawn;

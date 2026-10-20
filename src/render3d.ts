@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Animated } from './art';
 import { buildCourse, Course, disposeGroup, HH, HW, to3, woodTexture } from './course';
-import { buildLawn, buildSky, FOG_COLOR, skyEnvironment, SUN_DIR } from './garden';
+import { buildSky, FOG_COLOR, skyEnvironment, SUN_DIR } from './garden';
 import { getModels } from './models';
 import { BALL_R, CUP_R, heightAt, World } from './physics';
 
@@ -121,7 +121,7 @@ export class Renderer3D {
     this.composer.addPass(new ShaderPass(GradeShader));
 
     // Garden: sky, lawn, evening sun with sky fill
-    this.scene.add(buildSky(), buildLawn());
+    this.scene.add(buildSky());
     this.scene.environment = skyEnvironment(this.renderer);
     this.scene.add(new THREE.HemisphereLight(0xcfe0f5, 0x4e5a2c, 0.9));
     const sun = (this.sun = new THREE.DirectionalLight(0xffd6a0, 2.6));

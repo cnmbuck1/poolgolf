@@ -23,6 +23,9 @@ const ROCK_E = 0.55;
 export const BRIDGE_H = 6;
 export const BRIDGE_RAMP = 55;
 export const BRIDGE_RAIL_R = 4;
+/** Bunkers are dished: this deep in the middle, easing in over BUNKER_EASE from the rim. */
+export const BUNKER_DEPTH = 3;
+const BUNKER_EASE = 22;
 // Fraction of the sliding (tangential) speed a surface grabs on contact.
 const RAIL_GRIP = 0.04;
 const WALL_GRIP = 0.07;
@@ -317,6 +320,24 @@ export function inZone(z: Zone, x: number, y: number) {
   return inside;
 }
 
+/** Distance from a point to a zone's edge: positive inside, negative outside. */
+export function zoneDepth(z: Zone, x: number, y: number) {
+  if (z.kind === 'circle') return z.r - Math.hypot(x - z.x, y - z.y);
+  if (z.kind === 'rect') {
+    const dx = Math.min(x - z.x, z.x + z.w - x), dy = Math.min(y - z.y, z.y + z.h - y);
+    return Math.min(dx, dy);
+  }
+  let best = Infinity;
+  const p = z.pts;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [ax, ay] = p[j], [bx, by] = p[i];
+    const vx = bx - ax, vy = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1)));
+    best = Math.min(best, Math.hypot(x - ax - vx * t, y - ay - vy * t));
+  }
+  return inZone(z, x, y) ? best : -best;
+}
+
 /** Bridge-local coordinates: u along the deck from its centre, v across it. */
 function bridgeLocal(br: Bridge, x: number, y: number) {
   const a = (br.angle * Math.PI) / 180;
@@ -350,6 +371,10 @@ const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 /** Terrain height at a point (0 = flat). Shared by physics and the renderer so what you see is what rolls. */
 export function heightAt(level: LevelDef, x: number, y: number) {
   let h = 0;
+  for (const z of level.sand ?? []) {
+    const d = zoneDepth(z, x, y);
+    if (d > 0) h -= BUNKER_DEPTH * smooth(d / BUNKER_EASE);
+  }
   for (const br of level.bridges ?? []) {
     const { u, v } = bridgeLocal(br, x, y);
     if (Math.abs(v) > br.width / 2 + BRIDGE_RAIL_R * 2 || Math.abs(u) > br.len / 2) continue;
@@ -378,7 +403,7 @@ export function heightAt(level: LevelDef, x: number, y: number) {
 
 /** Terrain gradient (dh/dx, dh/dy). */
 export function slopeAt(level: LevelDef, x: number, y: number): [number, number] {
-  if (!level.slopes?.length && !level.bridges?.length) return [0, 0];
+  if (!level.slopes?.length && !level.bridges?.length && !level.sand?.length) return [0, 0];
   const e = 0.5;
   return [
     (heightAt(level, x + e, y) - heightAt(level, x - e, y)) / (2 * e),

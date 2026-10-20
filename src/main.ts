@@ -589,6 +589,7 @@ if (import.meta.env.DEV) {
       world.shoot(Math.cos(a) * MAX_SHOT_SPEED * power, Math.sin(a) * MAX_SHOT_SPEED * power);
     },
     stats: () => view3d.stats,
+    view: () => view3d,
     place: (x: number, y: number) => { world.ball.x = x; world.ball.y = y; },
     cam: (x: number, y: number, dist: number, yaw: number) => view3d.debugView(x, y, dist, yaw),
     state: () => ({ phase, holeIdx, strokes, ball: { ...world.ball }, moving: world.moving, dt: lastFrameDt }),

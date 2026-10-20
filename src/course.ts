@@ -1,10 +1,11 @@
 // Builds everything specific to one hole: the shaped, sloped fairway, its timber edging,
 // obstacles, cup and the garden dressing around it. Purely visual; collision is physics.ts.
 import * as THREE from 'three';
-import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lanternGlow, mats, modelMaterials, stoneWall, turnstile, TURF_TILE, wallRivets, windmill } from './art';
+import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lanternGlow, lilyPadTexture, mats, plainMaterials, rakedSandTextures, stoneWall, turnstile, TURF_TILE, wallRivets, windmill } from './art';
 import { Bridge, Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
-import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, slopeAt, SPINNER_R, WALL_R, World } from './physics';
+import { buildLawn } from './garden';
+import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, onBridge, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -49,6 +50,7 @@ export function buildCourse(world: World, models: Models | null): Course {
 
   // ---- Fairway turf, shaped to the slopes, with arrows showing which way it falls ----
   add(fairwayMesh(L, outline));
+  add(buildLawn(outline, to3));
   const arrows = slopeArrows(world, outline);
   if (arrows) { add(arrows.group); anims.push(arrows); }
 
@@ -104,32 +106,26 @@ export function buildCourse(world: World, models: Models | null): Course {
   const cupPulse = add(new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false })));
   cupPulse.position.copy(cupPos).setY(cupPos.y + 0.5);
 
-  // ---- Sand and water (kept on flat ground) ----
-  for (const z of L.sand ?? []) {
-    const c = zoneCentre(z);
-    const lip = add(new THREE.Mesh(zoneGeometry(z, 3), new THREE.MeshStandardMaterial({ color: 0xbfa970, roughness: 1 })));
-    lip.position.y = heightAt(L, c[0], c[1]) + 0.2;
-    const tex = sandTexture();
-    const m = add(new THREE.Mesh(zoneGeometry(z, 0, 140), new THREE.MeshStandardMaterial({ color: C.sand, roughness: 1, map: tex, bumpMap: tex, bumpScale: 1.2 })));
-    m.position.y = lip.position.y + 0.1;
+  // ---- Bunkers: dished sand with rake lines, sitting just above the dipped turf ----
+  const [sandMap, sandBump] = rakedSandTextures();
+  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: 0xf2e2b6 });
+  sandMat.userData.shared = true;
+  (L.sand ?? []).forEach((z, i) => {
+    const m = add(new THREE.Mesh(zoneSurface(z, (x, y) => heightAt(L, x, y) + 0.35, 1 / 120, i * 0.9), sandMat));
     m.receiveShadow = true;
-  }
+  });
+
+  // ---- Water: sunken below the turf, with muddy banks, depth tint, lily pads and reeds ----
   const waterMats: THREE.MeshPhysicalMaterial[] = [];
   for (const z of L.water ?? []) {
-    const c = zoneCentre(z);
-    const y = heightAt(L, c[0], c[1]);
-    const hasMill = world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y));
-    if (!hasMill) {
-      const bank = add(new THREE.Mesh(zoneGeometry(z, 5), new THREE.MeshStandardMaterial({ color: 0x4d7a57, roughness: 1 })));
-      bank.position.y = y + 0.25;
-    }
-    const deep = add(new THREE.Mesh(zoneGeometry(z, -10), new THREE.MeshBasicMaterial({ color: C.waterDeep })));
-    deep.position.y = y + 0.35;
-    const mat = new THREE.MeshPhysicalMaterial({ color: C.water, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.82, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.35, 0.35), clearcoat: 1 });
+    // Water sits below the lowest point of its bank (bridges don't count)
+    const rim = z.kind === 'poly' ? z.pts : [zoneCentre(z)];
+    const y = Math.min(...rim.filter(([x, yy]) => !(L.bridges ?? []).some((br) => onBridge(br, x, yy))).map(([x, yy]) => heightAt(L, x, yy)), 0);
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0x2f6470, roughness: 0.04, metalness: 0.15, transparent: true, opacity: 0.78, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 1 });
     waterMats.push(mat);
-    const w = add(new THREE.Mesh(zoneGeometry(z, 0, 160), mat));
-    w.position.y = y + 0.5;
+    const w = add(new THREE.Mesh(zoneSurface(z, () => y - WATER_LEVEL, 1 / 160), mat));
     w.receiveShadow = true;
+    if (!world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y))) add(pondLife(L, z, y - WATER_LEVEL));
   }
 
   // ---- Walls and bars (outline edging is drawn above, so skip the rail segments) ----
@@ -191,6 +187,10 @@ export function buildCourse(world: World, models: Models | null): Course {
     if (isMill(s) && models) {
       const r = windmillRig(models);
       r.root.add(contactDisc(56));
+      // Stone footing so the island meets the sunken water instead of floating above it
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(40.5, 44, 18, 32, 1, true).translate(0, -9, 0), plainMaterials().Stone);
+      foot.receiveShadow = true;
+      r.root.add(foot);
       rig = { group: r.root, update: (angle) => r.update(angle) };
     } else if (isMill(s)) {
       const pond = (L.water ?? []).find((z) => z.kind === 'circle' && inZone(z, s.x, s.y));
@@ -219,7 +219,7 @@ export function buildCourse(world: World, models: Models | null): Course {
     add(batch.build());
   } else {
     for (const rk of L.rocks ?? []) {
-      const m = add(new THREE.Mesh(new THREE.DodecahedronGeometry(rk.r, 1), modelMaterials().Stone));
+      const m = add(new THREE.Mesh(new THREE.DodecahedronGeometry(rk.r, 1), plainMaterials().Stone));
       m.position.copy(at(rk.x, rk.y, rk.r * 0.5));
       m.castShadow = m.receiveShadow = true;
     }
@@ -263,13 +263,19 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
   for (let i = 0; i < pos.length / 3; i++) {
     const x = pos[i * 3] + HW, y = pos[i * 3 + 2] + HH;
     const hgt = heightAt(L, x, y);
-    pos[i * 3 + 1] = hgt;
+    const dip = waterDip(L, x, y);
+    pos[i * 3 + 1] = hgt - dip;
     uv[i * 2] = x / TURF_TILE;
     uv[i * 2 + 1] = y / TURF_TILE;
     // Mowing stripes (diagonal bands), plus a light lift on rises and shade in dips so slopes read
     const band = Math.floor((x + y * 0.35) / 70) % 2 === 0 ? 1.0 : 0.86;
     const shade = Math.max(0.75, Math.min(1.25, 1 + hgt * 0.035));
-    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = band * shade;
+    // Banks fade from turf to mud and then to a dark bed as they drop into the water
+    const wet = Math.min(1, dip / 5), deep = Math.min(1, dip / WATER_BED);
+    const base = band * shade * (1 - 0.35 * deep);
+    col[i * 3] = base * (1 - wet * 0.15);
+    col[i * 3 + 1] = base * (1 - wet * 0.45);
+    col[i * 3 + 2] = base * (1 - wet * 0.55);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -282,11 +288,122 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
   return m;
 }
 
+// ---------- water and sand surfaces ----------
+
+/** Water surface sits this far below the surrounding turf; the bed is deeper still. */
+const WATER_LEVEL = 5;
+const WATER_BED = 14;
+const BANK_EASE = 18;
+
+/** Visual-only dip for the turf inside a water zone (the ball is out as soon as it crosses the edge). */
+function waterDip(L: LevelDef, x: number, y: number) {
+  let dip = 0;
+  for (const z of L.water ?? []) {
+    const d = zoneDepth(z, x, y);
+    if (d > 0) dip = Math.max(dip, WATER_BED * smoothstep(d / BANK_EASE));
+  }
+  return dip;
+}
+
+const smoothstep = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+
+/** Split triangles until no edge is longer than `max`, so a flat outline can follow terrain. */
+function subdivide(src: Float32Array, max: number) {
+  const out: number[] = [];
+  const stack: number[][] = [];
+  for (let i = 0; i < src.length; i += 9) stack.push(Array.from(src.slice(i, i + 9)));
+  while (stack.length) {
+    const t = stack.pop()!;
+    const d = (i: number, j: number) => Math.hypot(t[i * 3] - t[j * 3], t[i * 3 + 2] - t[j * 3 + 2]);
+    const e = [d(0, 1), d(1, 2), d(2, 0)];
+    const k = e.indexOf(Math.max(...e));
+    if (e[k] <= max) { out.push(...t); continue; }
+    const a = k, b = (k + 1) % 3, c = (k + 2) % 3;
+    const m = [0, 1, 2].map((q) => (t[a * 3 + q] + t[b * 3 + q]) / 2);
+    const P = (i: number) => t.slice(i * 3, i * 3 + 3);
+    stack.push([...P(a), ...m, ...P(c)], [...m, ...P(b), ...P(c)]);
+  }
+  return new Float32Array(out);
+}
+
+/** A zone's outline as a surface whose height comes from `yAt`; UVs in world units × uvScale, turned by `rot`. */
+function zoneSurface(z: Zone, yAt: (x: number, y: number) => number, uvScale: number, rot = 0) {
+  const flat = zoneGeometry(z, 0).toNonIndexed();
+  const pos = subdivide(flat.attributes.position.array as Float32Array, 12);
+  flat.dispose();
+  const uv = new Float32Array((pos.length / 3) * 2);
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  for (let i = 0; i < pos.length / 3; i++) {
+    const x = pos[i * 3] + HW, y = pos[i * 3 + 2] + HH;
+    pos[i * 3 + 1] = yAt(x, y);
+    uv[i * 2] = (x * cr - y * sr) * uvScale;
+    uv[i * 2 + 1] = (x * sr + y * cr) * uvScale;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Lily pads (some flowering) and clumps of reeds, kept clear of bridges. */
+function pondLife(L: LevelDef, z: Zone, waterY: number) {
+  const g = new THREE.Group();
+  let seed = 5 + Math.round(zoneCentre(z)[0]);
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const nearBridge = (x: number, y: number) => (L.bridges ?? []).some((br) => onBridge({ ...br, len: br.len + 30, width: br.width + 40 }, x, y));
+  // Sample the zone's bounding box
+  const pts = z.kind === 'poly' ? z.pts : z.kind === 'circle' ? [[z.x - z.r, z.y - z.r], [z.x + z.r, z.y + z.r]] : [[z.x, z.y], [z.x + z.w, z.y + z.h]];
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const pads: [number, number, number][] = [];
+  const reeds: [number, number][] = [];
+  for (let i = 0; i < 400 && (pads.length < 14 || reeds.length < 40); i++) {
+    const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
+    const d = zoneDepth(z, x, y);
+    if (d <= 0 || nearBridge(x, y)) continue;
+    if (d > 22 && pads.length < 14 && pads.every(([px, py]) => Math.hypot(px - x, py - y) > 26)) pads.push([x, y, 7 + rnd() * 6]);
+    else if (d > 4 && d < 13 && reeds.length < 40 && rnd() < 0.35) reeds.push([x, y]);
+  }
+  const padMat = new THREE.MeshStandardMaterial({ map: lilyPadTexture(), alphaTest: 0.5, roughness: 0.55, side: THREE.DoubleSide });
+  const padMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2), padMat, Math.max(1, pads.length));
+  padMesh.count = pads.length;
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  pads.forEach(([x, y, r], i) => {
+    q.setFromAxisAngle(up, rnd() * 6.28);
+    padMesh.setMatrixAt(i, m4.compose(to3(x, y).setY(waterY + 0.25), q, new THREE.Vector3(r, 1, r)));
+  });
+  padMesh.receiveShadow = true;
+  g.add(padMesh);
+  const flowers = pads.filter((_, i) => i % 3 === 0);
+  if (flowers.length) {
+    const fl = new THREE.InstancedMesh(new THREE.ConeGeometry(2.6, 3.2, 6, 1, true).rotateX(Math.PI), new THREE.MeshStandardMaterial({ color: 0xf6b8c8, roughness: 0.6, side: THREE.DoubleSide }), flowers.length);
+    flowers.forEach(([x, y], i) => fl.setMatrixAt(i, m4.makeTranslation(to3(x, y).x + 2, waterY + 2, to3(x, y).z - 1)));
+    g.add(fl);
+  }
+  if (reeds.length) {
+    const stems = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.35, 0.8, 1, 5).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: 0x5f7f34, roughness: 0.8 }), reeds.length * 3);
+    const heads = new THREE.InstancedMesh(new THREE.CapsuleGeometry(1.1, 4, 3, 6), new THREE.MeshStandardMaterial({ color: 0x6b4426, roughness: 0.9 }), reeds.length);
+    reeds.forEach(([x, y], i) => {
+      for (let k = 0; k < 3; k++) {
+        const h = 16 + rnd() * 18;
+        const p = to3(x + (rnd() - 0.5) * 6, y + (rnd() - 0.5) * 6).setY(waterY - 1);
+        q.setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.25, 0, (rnd() - 0.5) * 0.25));
+        stems.setMatrixAt(i * 3 + k, m4.compose(p, q, new THREE.Vector3(1, h, 1)));
+        if (k === 0) heads.setMatrixAt(i, m4.makeTranslation(p.x, p.y + h - 2, p.z));
+      }
+    });
+    stems.castShadow = true;
+    g.add(stems, heads);
+  }
+  return g;
+}
+
 // ---------- bridges ----------
 
 /** Humped plank footbridge with posts and handrails, following the deck height used by the physics. */
 function bridgeMesh(L: LevelDef, br: Bridge) {
-  const lib = modelMaterials();
+  const lib = plainMaterials();
   const g = new THREE.Group();
   const a = (br.angle * Math.PI) / 180;
   const ux = Math.cos(a), uy = Math.sin(a);
@@ -663,12 +780,6 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   return t;
 }
 
-function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, rgb: string, maxA: number, size = 1.5) {
-  for (let i = 0; i < n; i++) {
-    g.fillStyle = `rgba(${rgb},${Math.random() * maxA})`;
-    g.fillRect(Math.random() * w, Math.random() * h, size, size);
-  }
-}
 
 function poolBallTexture(color: string, n: number) {
   return canvasTex(256, 128, (g) => {
@@ -686,14 +797,6 @@ function poolBallTexture(color: string, n: number) {
   });
 }
 
-function sandTexture() {
-  return canvasTex(128, 128, (g) => {
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 128, 128);
-    speckle(g, 128, 128, 1400, '140,110,50', 0.45, 1.6);
-    speckle(g, 128, 128, 600, '255,250,235', 0.6, 1.2);
-  });
-}
 
 /** Soft overlapping ripples encoded as a tileable normal map. */
 function waterNormal() {

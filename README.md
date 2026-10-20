@@ -5,14 +5,14 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
 
 ## What's in the prototype
 
-- 6 holes (par 20), each confirmed solvable at or under par by a shot simulator
+- 6 holes (par 19), each confirmed solvable at or under par by a shot simulator
   1. **Break Shot**: a dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be timed through its sweepers; a brick wall under it closes the low lane. The lane from the tee falls gently toward the bottom edge, a hill sits on the top bank route, and the green is a shallow bowl. Drifting arrows on the turf show which way it falls (Settings → Slope arrows)
-  2. **Bank Street**: bank off the cushion around a divider
-  3. **Bumper Pool**: pool balls work as bumpers
-  4. **Water Hazard**: water costs +1 stroke and puts the ball back where it was
-  5. **Windmills**: an S-shaped course with rotating spinners
-  6. **The Rack**: a racked triangle guarding the pocket
-- **3D table** (Three.js) in a lamp-lit billiard room: wood floor, rug, turned legs, felt cushions, glossy pool balls, a flag in each cup.
+  2. **Lily Pond**: a sunken lily pond crosses the fairway. Take the plank bridge, or risk the bunker strip along the bottom; a boulder guards the cup
+  3. **Rock Garden**: an oval green with boulders, three pool-ball bumpers, a central rise and a bunker short of the cup
+  4. **The Creek**: a winding creek with two footbridges, a green tilted toward the water and a bunker by the cup
+  5. **Turnstiles**: three lanes joined by stone walls, with turnstiles sweeping two of the gaps
+  6. **Eight Ball**: brick walls funnel toward a racked set of pool balls in front of a raised green, with bunkers on both sides
+- **Garden setting** (Three.js): evening sky and sun, mown fairways with timber edging, hedges, flowers, lamp posts and trees, sunken ponds and creeks with lily pads and reeds, raked bunkers, plank footbridges and boulders.
 - **Camera**: a shot camera sits behind the ball and turns with the aim, then follows the rolling ball; it swoops in at the start of each hole and moves in when the ball drops. The **TABLE** button switches to the whole-table view (and **BALL** back).
 - **Cue**: draws back with power, strikes the ball, then follows through and fades.
 - **Physics**: harder hits lose more energy, cushions and walls grip some of the ball's sideways speed, lip-outs, and visual skid-then-roll spin plus a small hop off hard hits.
@@ -37,7 +37,7 @@ npm run assets                                             # build + quantize in
 
 ## Course shapes and slopes
 
-Each hole can define an `outline` (the fairway edging, as a polygon) and `slopes` (`hill` bumps or bowls, and `tilt` planes) in `src/levels.ts`. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
+Each hole can define an `outline` (the fairway edging, as a polygon), `slopes` (`hill` bumps or bowls, and `tilt` planes), `water` and `sand` (organic shapes from `blob()` and `creek()`), `bridges`, `rocks` and `spinners` (windmill or turnstile) in `src/levels.ts`. Bunkers are dished into the terrain; water is sunk below the turf with sloped banks. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
 
 ## Project layout
 
