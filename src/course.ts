@@ -1,10 +1,10 @@
 // Builds everything specific to one hole: the shaped, sloped fairway, its timber edging,
 // obstacles, cup and the garden dressing around it. Purely visual; collision is physics.ts.
 import * as THREE from 'three';
-import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lanternGlow, mats, stoneWall, TURF_TILE, wallRivets, windmill } from './art';
-import { Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
+import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lanternGlow, mats, modelMaterials, stoneWall, turnstile, TURF_TILE, wallRivets, windmill } from './art';
+import { Bridge, Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
-import { BALL_R, closestOnSeg, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, slopeAt, SPINNER_R, WALL_R, World } from './physics';
+import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, slopeAt, SPINNER_R, WALL_R, World } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -37,7 +37,8 @@ const C = {
 
 export function buildCourse(world: World, models: Models | null): Course {
   const L = world.level;
-  const premium = L.art === 'premium';
+  const premium = true; // every hole now uses the detailed models
+  const isMill = (s: { style?: string }) => s.style === 'windmill';
   const group = new THREE.Group();
   const add = <T extends THREE.Object3D>(o: T) => { group.add(o); return o; };
   const at = (x: number, y: number, lift = 0) => to3(x, y).setY(heightAt(L, x, y) + lift);
@@ -117,7 +118,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const z of L.water ?? []) {
     const c = zoneCentre(z);
     const y = heightAt(L, c[0], c[1]);
-    const hasMill = premium && world.spinners.some((s) => inZone(z, s.x, s.y));
+    const hasMill = world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y));
     if (!hasMill) {
       const bank = add(new THREE.Mesh(zoneGeometry(z, 5), new THREE.MeshStandardMaterial({ color: 0x4d7a57, roughness: 1 })));
       bank.position.y = y + 0.25;
@@ -132,7 +133,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   }
 
   // ---- Walls and bars (outline edging is drawn above, so skip the rail segments) ----
-  const segs = world.segs.filter((s) => s.kind !== 'rail');
+  const segs = world.segs.filter((s) => !s.kind || s.kind === 'wall'); // edging and bridge rails draw themselves
   const wallSegs = (L.walls ?? []).reduce((n, line) => n + line.length - 1, 0);
   if (premium && models) {
     const batch = new PieceBatch(models);
@@ -177,41 +178,52 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const bp of L.bumpers ?? []) {
     const m = add(bumperMesh(bp));
     m.position.y += heightAt(L, bp.x, bp.y);
+    const ring = add(new THREE.Mesh(new THREE.TorusGeometry(bp.r * 0.8, 2, 8, 28).rotateX(Math.PI / 2), mats.brass));
+    ring.position.copy(at(bp.x, bp.y, 2));
+    ring.castShadow = true;
   }
 
-  // ---- Spinners: the Blender windmill on premium holes, simple crosses elsewhere ----
+  // ---- Spinners: the Blender windmill where there's room, turnstiles elsewhere ----
   const spinnerAnims: (Animated | undefined)[] = [];
   const legacySpinners: THREE.Group[] = [];
   world.spinners.forEach((s, i) => {
-    if (premium && models) {
-      const rig = windmillRig(models);
-      rig.root.position.copy(at(s.x, s.y));
-      rig.root.add(contactDisc(56));
-      spinnerAnims[i] = { group: rig.root, update: (angle) => rig.update(angle) };
-      add(rig.root);
-    } else if (premium) {
+    let rig: Animated;
+    if (isMill(s) && models) {
+      const r = windmillRig(models);
+      r.root.add(contactDisc(56));
+      rig = { group: r.root, update: (angle) => r.update(angle) };
+    } else if (isMill(s)) {
       const pond = (L.water ?? []).find((z) => z.kind === 'circle' && inZone(z, s.x, s.y));
-      const mill = windmill(s.len, SPINNER_R, pond && pond.kind === 'circle' ? pond.r : 44);
-      mill.group.position.copy(at(s.x, s.y));
-      spinnerAnims[i] = mill;
-      add(mill.group);
+      rig = windmill(s.len, SPINNER_R, pond && pond.kind === 'circle' ? pond.r : 44);
     } else {
-      const g = new THREE.Group();
-      const mat = new THREE.MeshPhysicalMaterial({ color: C.spinner, roughness: 0.35, clearcoat: 0.8 });
-      for (const rot of [0, Math.PI / 2]) {
-        const arm = new THREE.Mesh(new THREE.CapsuleGeometry(SPINNER_R, s.len * 2, 6, 14).rotateZ(Math.PI / 2), mat);
-        arm.rotation.y = rot;
-        arm.castShadow = true;
-        g.add(arm);
-      }
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(11, 13, SPINNER_R * 2 + 8, 24), mats.brass);
-      hub.castShadow = true;
-      g.add(hub);
-      g.position.copy(at(s.x, s.y, SPINNER_R + 4));
-      legacySpinners[i] = g;
-      add(g);
+      rig = turnstile(s.len, SPINNER_R);
     }
+    rig.group.position.copy(at(s.x, s.y));
+    spinnerAnims[i] = rig;
+    add(rig.group);
   });
+
+  // ---- Bridges and boulders ----
+  for (const br of L.bridges ?? []) add(bridgeMesh(L, br));
+  if (models && L.rocks?.length) {
+    const batch = new PieceBatch(models);
+    L.rocks.forEach((rk, i) => {
+      const p = at(rk.x, rk.y);
+      batch.add(`Boulder${(i % 3) + 1}`, new THREE.Matrix4().makeTranslation(p.x, p.y - rk.r * 0.08, p.z)
+        .multiply(new THREE.Matrix4().makeRotationY(i * 2.4))
+        .multiply(new THREE.Matrix4().makeScale(rk.r * 1.04, rk.r * 1.1, rk.r * 1.04)));
+      const shadow = contactDisc(rk.r + 14);
+      shadow.position.copy(p).setY(p.y + 0.45);
+      add(shadow);
+    });
+    add(batch.build());
+  } else {
+    for (const rk of L.rocks ?? []) {
+      const m = add(new THREE.Mesh(new THREE.DodecahedronGeometry(rk.r, 1), modelMaterials().Stone));
+      m.position.copy(at(rk.x, rk.y, rk.r * 0.5));
+      m.castShadow = m.receiveShadow = true;
+    }
+  }
 
   // ---- Garden dressing around the hole ----
   if (models) dressGarden(L, outline, models, group, anims);
@@ -270,6 +282,81 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
   return m;
 }
 
+// ---------- bridges ----------
+
+/** Humped plank footbridge with posts and handrails, following the deck height used by the physics. */
+function bridgeMesh(L: LevelDef, br: Bridge) {
+  const lib = modelMaterials();
+  const g = new THREE.Group();
+  const a = (br.angle * Math.PI) / 180;
+  const ux = Math.cos(a), uy = Math.sin(a);
+  const pt = (u: number, v: number): [number, number] => [br.x + ux * u - uy * v, br.y + uy * u + ux * v];
+  const yaw = -a;
+  // Deck planks (one instanced draw call)
+  const n = Math.round(br.len / 6.5);
+  const planks = new THREE.InstancedMesh(new THREE.BoxGeometry(5.6, 2.6, br.width + 10), lib.Plank, n);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s3 = new THREE.Vector3(1, 1, 1);
+  for (let i = 0; i < n; i++) {
+    const u = -br.len / 2 + (i + 0.5) * (br.len / n);
+    const [x, y] = pt(u, 0);
+    const h0 = heightAt(L, ...pt(u - 3, 0)), h1 = heightAt(L, ...pt(u + 3, 0));
+    q.setFromEuler(new THREE.Euler(0, yaw, Math.atan2(h1 - h0, 6) + (i % 3 - 1) * 0.01, 'YZX'));
+    planks.setMatrixAt(i, m4.compose(to3(x, y).setY(heightAt(L, x, y) - 1.0), q, s3));
+  }
+  planks.castShadow = planks.receiveShadow = true;
+  g.add(planks);
+  // Stringers under the deck edges
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 6; k++) {
+      const u0 = -br.len / 2 + (k * br.len) / 6, u1 = u0 + br.len / 6;
+      const [x0, y0] = pt(u0, side * (br.width / 2 + 3)), [x1, y1] = pt(u1, side * (br.width / 2 + 3));
+      const p0 = to3(x0, y0).setY(heightAt(L, ...pt(u0, 0)) - 4), p1 = to3(x1, y1).setY(heightAt(L, ...pt(u1, 0)) - 4);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(p0.distanceTo(p1) + 1, 4, 3), lib.DarkWood);
+      beam.position.copy(p0).add(p1).multiplyScalar(0.5);
+      beam.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), p1.clone().sub(p0).normalize());
+      beam.castShadow = true;
+      g.add(beam);
+    }
+  }
+  // Posts and handrails on the collision rails
+  for (const side of [-1, 1]) {
+    const [ax, ay, bx, by] = bridgeEdge(br, side);
+    const posts = Math.max(2, Math.round(br.len / 40) + 1);
+    const tops: THREE.Vector3[] = [];
+    for (let k = 0; k < posts; k++) {
+      const t = k / (posts - 1);
+      const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+      const base = heightAt(L, ...pt(-br.len / 2 + br.len * t, 0));
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 22, 10), lib.Timber);
+      post.position.copy(to3(x, y)).setY(base + 9);
+      post.castShadow = true;
+      g.add(post);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(2.8, 10, 6), mats.brass);
+      cap.position.copy(post.position).setY(base + 21);
+      g.add(cap);
+      tops.push(to3(x, y).setY(base + 17));
+    }
+    for (let k = 0; k < tops.length - 1; k++) {
+      const p0 = tops[k], p1 = tops[k + 1];
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(p0.distanceTo(p1), 3, 3.2), lib.Oak);
+      rail.position.copy(p0).add(p1).multiplyScalar(0.5);
+      rail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), p1.clone().sub(p0).normalize());
+      rail.castShadow = true;
+      g.add(rail);
+    }
+  }
+  // Stone footings at both ends
+  for (const end of [-1, 1]) {
+    const [x, y] = pt(end * (br.len / 2 + 4), 0);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(10, 8, br.width + 16), lib.Stone);
+    foot.position.copy(to3(x, y)).setY(heightAt(L, x, y) - 2);
+    foot.rotation.y = yaw;
+    foot.receiveShadow = true;
+    g.add(foot);
+  }
+  return g;
+}
+
 // ---------- slope arrows ----------
 
 /**
@@ -320,13 +407,14 @@ function slopeArrows(world: World, outline: [number, number][]): Animated | null
         const phase = (time * 0.45 + i * 0.37) % 1;
         const d = (phase - 0.5) * 18;
         const x = s.x + s.ux * d, y = s.y + s.uy * d;
-        const a = Math.sin(phase * Math.PI) * (0.18 + 0.32 * s.k);
+        // Understated: a faint, warm chalk mark rather than a bright sign
+        const a = Math.sin(phase * Math.PI) * (0.07 + 0.13 * s.k);
         q.setFromAxisAngle(up, -Math.atan2(s.uy, s.ux));
-        const size = 0.75 + 0.45 * s.k;
+        const size = 0.62 + 0.3 * s.k;
         sc.set(size, 1, size);
         pos.copy(to3(x, y)).setY(heightAt(L, x, y) + 0.6);
         mesh.setMatrixAt(i, m.compose(pos, q, sc));
-        mesh.setColorAt(i, col.setRGB(a, a, a * 0.85));
+        mesh.setColorAt(i, col.setRGB(a, a * 0.97, a * 0.84));
       });
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -481,7 +569,10 @@ function pointInPolygon(x: number, y: number, p: [number, number][]) {
 // ---------- helpers (moved from the old table renderer) ----------
 
 function zoneCentre(z: Zone): [number, number] {
-  return z.kind === 'circle' ? [z.x, z.y] : [z.x + z.w / 2, z.y + z.h / 2];
+  if (z.kind === 'circle') return [z.x, z.y];
+  if (z.kind === 'rect') return [z.x + z.w / 2, z.y + z.h / 2];
+  const n = z.pts.length;
+  return [z.pts.reduce((a, p) => a + p[0], 0) / n, z.pts.reduce((a, p) => a + p[1], 0) / n];
 }
 
 export function roundRectShape(w: number, h: number, r: number) {
@@ -502,11 +593,24 @@ export function roundRectShape(w: number, h: number, r: number) {
 /** Flat geometry for a zone, grown (or shrunk, if negative) by `grow`. UVs tile every `uvSize` units. */
 function zoneGeometry(z: Zone, grow: number, uvSize = 0) {
   let shape: THREE.Shape;
+  const [cx0, cy0] = zoneCentre(z);
   if (z.kind === 'circle') {
     shape = new THREE.Shape();
     shape.absarc(0, 0, Math.max(2, z.r + grow), 0, Math.PI * 2, false);
-  } else {
+  } else if (z.kind === 'rect') {
     shape = roundRectShape(z.w + grow * 2, z.h + grow * 2, Math.max(4, 26 + grow));
+  } else {
+    // Push each point out along its averaged edge normal (smooth outlines keep their shape)
+    const p = z.pts, n = p.length;
+    const ccw = p.reduce((a, [x1, y1], i) => { const [x2, y2] = p[(i + 1) % n]; return a + x1 * y2 - x2 * y1; }, 0) > 0;
+    const pts = p.map(([x, y], i) => {
+      const [ax, ay] = p[(i + n - 1) % n], [bx, by] = p[(i + 1) % n];
+      let tx = bx - ax, ty = by - ay;
+      const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+      const s = ccw ? 1 : -1;
+      return new THREE.Vector2(x - cx0 + ty * grow * s, -(y - cy0 - tx * grow * s));
+    });
+    shape = new THREE.Shape(pts);
   }
   const g = new THREE.ShapeGeometry(shape, 32).rotateX(-Math.PI / 2);
   if (uvSize) {

@@ -9,7 +9,7 @@ RAW="$(mktemp -d)"
 "$PY" assets-src/blender/windmill.py -- "$RAW"
 "$PY" assets-src/blender/props.py -- "$RAW"
 "$PY" assets-src/blender/garden.py -- "$RAW"
-for f in windmill walls cup lantern rocks decor garden; do
+for f in windmill walls cup lantern rocks boulders decor garden; do
   # Quantize only (KHR_mesh_quantization): ~35% smaller and needs no WebAssembly decoder,
   # so it also works on hosts whose security policy blocks WASM.
   npx gltf-transform quantize "$RAW/$f.glb" "src/assets/models/$f.glb"

@@ -6,6 +6,7 @@ walls.glb    modular wall kit (pieces are 48 units long, 26 wide, footprint = ph
 cup.glb      brass-rimmed cup with a visibly deep liner (cup radius 21)
 lantern.glb  brass carriage lantern on a mahogany corner post (Glass is emissive)
 rocks.glb    three small rock clusters for decoration (Rocks1..3)
+boulders.glb three unit-radius boulders (Boulder1..3), scaled to each rock obstacle
 decor.glb    Barrel (oak staves, iron hoops) and Planter (oak box, brass caps)
 
 Run: python props.py -- <out_dir> [--preview]
@@ -254,6 +255,23 @@ def rock_cluster(name, n, spread, size):
     return p
 
 
+def boulder(name, seed):
+    """A single boulder of radius ~1 (scaled to the physics rock radius in game), flat underneath."""
+    p = Part(name)
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.0)
+    ph = [seed * 1.3, seed * 2.1, seed * 0.7]
+    for v in bm.verts:
+        x, y, z = v.co
+        k = 1 + 0.16 * math.sin(3 * x + ph[0]) * math.cos(2 * y + ph[1]) + 0.08 * math.sin(5 * z + ph[2]) + rnd.uniform(-0.03, 0.03)
+        v.co *= k
+        if v.co.z < -0.25:
+            v.co.z = -0.25 + (v.co.z + 0.25) * 0.15  # flatten the base so it sits on the turf
+    bmesh.ops.scale(bm, vec=(1.0, 0.92, 0.78), verts=bm.verts)
+    p.add(bm, T(0, 0, 0.2), 'Stone')
+    return p
+
+
 def export_set(name, parts, ao=26.0):
     reset()
     pivots = []
@@ -278,6 +296,7 @@ def main():
     export_set('cup', [cup()], ao=20.0)
     export_set('lantern', [lantern_post()], ao=10.0)
     export_set('rocks', [rock_cluster('Rocks1', 5, 10, 9), rock_cluster('Rocks2', 3, 6, 7), rock_cluster('Rocks3', 7, 16, 8)], ao=12.0)
+    export_set('boulders', [boulder('Boulder1', 1), boulder('Boulder2', 2), boulder('Boulder3', 3)], ao=0.6)
     export_set('decor', [barrel(), planter()], ao=16.0)
     if '--preview' in sys.argv:
         # Lay out a sample wall run (two sections + both ends, stone and brick) for a visual check

@@ -93,6 +93,9 @@ export class Renderer3D {
   private blend = 0; // 0 = whole-hole rig, 1 = shot camera
   private camPos = new THREE.Vector3(0, 1400, 1400);
   private camLook = new THREE.Vector3();
+  /** Where the shot camera rests between shots: null = face the cup; set when an aim is let go without a shot. */
+  private restYaw: number | null = null;
+  private wasMoving = false;
 
   // Adaptive quality: step down resolution and shadow detail if frames run slow.
   private quality = 0;
@@ -257,6 +260,8 @@ export class Renderer3D {
     return { fwd, right: { x: -fwd.y, y: fwd.x } };
   }
   setMode(m: CamMode) { this.mode = m; }
+  /** Keep the shot camera facing the current aim after a drag that didn't shoot. */
+  holdAim() { this.restYaw = this.shotYaw; }
   shake(amount: number) { this.shakeAmt = Math.min(10, this.shakeAmt + amount); }
 
   /** Dev only: frame a table point up close. */
@@ -272,6 +277,7 @@ export class Renderer3D {
     this.distMul = 1.5;
     this.focus.copy(this.centre);
     this.blend = 0;
+    this.restYaw = null;
     const L = world.level;
     this.shotYaw = Math.atan2(L.cup[1] - L.tee[1], L.cup[0] - L.tee[0]);
   }
@@ -401,11 +407,13 @@ export class Renderer3D {
     if (aim.active && aim.power > 0.02) { yawGoal = Math.atan2(aim.dy, aim.dx); yawRate = 7; }
     else if (world.moving && speed > 150) { yawGoal = Math.atan2(b.vy, b.vx); yawRate = 1.2; }
     else if (!world.moving && !aim.active) {
-      // At rest, turn to face the cup so a straight pull-back aims at the pin
+      // At rest, face the cup (or hold the direction you last turned to without shooting)
       const [cx, cy] = world.level.cup;
-      yawGoal = Math.atan2(cy - b.y, cx - b.x);
+      yawGoal = this.restYaw ?? Math.atan2(cy - b.y, cx - b.x);
       yawRate = 2;
     }
+    if (world.moving) this.wasMoving = true;
+    else if (this.wasMoving) { this.wasMoving = false; this.restYaw = null; }
     const dy = Math.atan2(Math.sin(yawGoal - this.shotYaw), Math.cos(yawGoal - this.shotYaw));
     this.shotYaw += dy * Math.min(1, dt * yawRate);
     const dir = new THREE.Vector3(Math.cos(this.shotYaw), 0, Math.sin(this.shotYaw));

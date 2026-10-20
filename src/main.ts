@@ -9,6 +9,8 @@ import { loadModels } from './models';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
 
 const MAX_STROKES = 10;
+/** Aim turn per pixel of sideways drag on the shot camera (radians). */
+const AIM_TURN = 0.004;
 const native = Capacitor.isNativePlatform();
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -286,20 +288,28 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
-  // Pull back like a cue: the shot goes opposite to the drag. Dragging down the screen
-  // shoots "into" the view; sideways turns the aim. Power is how far the finger moved.
+  // Pull back like a cue: dragging down the screen shoots "into" the view.
   const mx = e.clientX - drag.sx;
   const my = e.clientY - drag.sy;
-  const len = Math.hypot(mx, my);
   const maxDrag = Math.min(window.innerHeight * 0.45, 260);
-  if (len > 4) {
-    const { fwd, right } = drag.basis;
-    const dx = fwd.x * my - right.x * mx;
-    const dy = fwd.y * my - right.y * mx;
-    const wl = Math.hypot(dx, dy);
-    if (wl > 0.01) { aim.dx = dx / wl; aim.dy = dy / wl; }
+  const { fwd, right } = drag.basis;
+  if (!view3d.isOverview) {
+    // Shot camera: down sets power, sideways turns the aim gently (about 23° per 100 px)
+    const yaw = Math.atan2(fwd.y, fwd.x) - mx * AIM_TURN;
+    aim.dx = Math.cos(yaw);
+    aim.dy = Math.sin(yaw);
+    aim.power = Math.min(1, Math.max(0, my) / maxDrag);
+  } else {
+    // Whole-hole view: the shot goes straight opposite the drag
+    const len = Math.hypot(mx, my);
+    if (len > 4) {
+      const dx = fwd.x * my - right.x * mx;
+      const dy = fwd.y * my - right.y * mx;
+      const wl = Math.hypot(dx, dy);
+      if (wl > 0.01) { aim.dx = dx / wl; aim.dy = dy / wl; }
+    }
+    aim.power = Math.min(1, len / maxDrag);
   }
-  aim.power = Math.min(1, len / maxDrag);
   updatePower();
 });
 
@@ -316,6 +326,7 @@ function endDrag(e: PointerEvent, cancel: boolean) {
     cue.oy = world.ball.y;
   } else {
     cue.visible = false;
+    view3d.holdAim(); // let go without shooting: keep looking where you turned
   }
   updateHud();
 }
@@ -454,7 +465,7 @@ click('btn-cues', () => comingSoon('Cues & Balls', 'i-cue', 'Unlock new cues and
 click('btn-achievements', () => comingSoon('Achievements', 'i-trophy', 'Earn trophies for bank shots, aces and clean rounds.'));
 click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
-click('btn-more', () => sheet('How to play', `<p><b>Pull back</b> anywhere on the table to aim the cue, then <b>release</b> to shoot. Pull further for more power.</p>
+click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim, then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());

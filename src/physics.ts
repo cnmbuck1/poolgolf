@@ -1,4 +1,4 @@
-import { LevelDef, Pt, WORLD_H, WORLD_W, Zone } from './levels';
+import { Bridge, LevelDef, Pt, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -18,14 +18,19 @@ const SINK_SPEED = 560; // faster than this and the ball lips out / skims over
 const RAIL_E = 0.78;
 const WALL_E = 0.7;
 const BUMPER_E = 0.95;
+const ROCK_E = 0.55;
+/** Bridge deck: height of the hump, length of the ramp at each end, and the handrail radius. */
+export const BRIDGE_H = 6;
+export const BRIDGE_RAMP = 55;
+export const BRIDGE_RAIL_R = 4;
 // Fraction of the sliding (tangential) speed a surface grabs on contact.
 const RAIL_GRIP = 0.04;
 const WALL_GRIP = 0.07;
 const BUMPER_GRIP = 0.02;
 
-export interface Seg { ax: number; ay: number; bx: number; by: number; r: number; kind?: 'wall' | 'rail' }
+export interface Seg { ax: number; ay: number; bx: number; by: number; r: number; kind?: 'wall' | 'rail' | 'bridge' }
 
-export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number }
+export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number; style?: 'windmill' | 'turnstile' }
 
 export interface AimPath { pts: { x: number; y: number }[]; contacts: number; cup: boolean }
 
@@ -63,6 +68,11 @@ export class World {
       const dx = (Math.cos(a) * b.len) / 2;
       const dy = (Math.sin(a) * b.len) / 2;
       this.segs.push({ ax: b.x - dx, ay: b.y - dy, bx: b.x + dx, by: b.y + dy, r: WALL_R });
+    }
+    // Bridge handrails along both long sides of each deck
+    for (const br of level.bridges ?? []) for (const side of [-1, 1]) {
+      const [ax, ay, bx, by] = bridgeEdge(br, side);
+      this.segs.push({ ax, ay, bx, by, r: BRIDGE_RAIL_R, kind: 'bridge' });
     }
     const outline = fairwayOutline(level);
     outline.forEach(([ax, ay], i) => {
@@ -148,8 +158,8 @@ export class World {
         b.vy += (dcy / (dc || 1)) * pull;
       }
 
-      // Water
-      if ((this.level.water ?? []).some((z) => inZone(z, b.x, b.y))) {
+      // Water (unless the ball is on a bridge deck)
+      if ((this.level.water ?? []).some((z) => inZone(z, b.x, b.y)) && !(this.level.bridges ?? []).some((br) => onBridge(br, b.x, b.y))) {
         events.push({ type: 'water' });
         this.moving = false;
         b.vx = b.vy = 0;
@@ -161,6 +171,7 @@ export class World {
         this.collideSeg(s, rail ? RAIL_E : WALL_E, 0, 0, 0, events, rail ? 'rail' : 'wall');
       }
       for (const bp of this.level.bumpers ?? []) this.collideCircle(bp.x, bp.y, bp.r, BUMPER_E, events);
+      for (const rk of this.level.rocks ?? []) this.collideCircle(rk.x, rk.y, rk.r, ROCK_E, events, 'wall');
       this.collideSpinners(events, h);
 
       // Stop when slow, unless the slope is steep enough to keep it rolling
@@ -219,7 +230,7 @@ export class World {
     if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
 
-  private collideCircle(x: number, y: number, r: number, e: number, events: Event[]) {
+  private collideCircle(x: number, y: number, r: number, e: number, events: Event[], kind: 'bumper' | 'wall' = 'bumper') {
     const b = this.ball;
     let nx = b.x - x;
     let ny = b.y - y;
@@ -229,8 +240,8 @@ export class World {
     nx /= d; ny /= d;
     b.x = x + nx * minD;
     b.y = y + ny * minD;
-    const hit = this.bounce(nx, ny, 0, 0, e, BUMPER_GRIP);
-    if (hit > 30) { events.push({ type: 'bumper', speed: hit }); this.contacts++; }
+    const hit = this.bounce(nx, ny, 0, 0, e, kind === 'wall' ? WALL_GRIP : BUMPER_GRIP);
+    if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
 
   /**
@@ -277,6 +288,10 @@ export class World {
       const d = Math.hypot(x - bp.x, y - bp.y);
       if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
     }
+    for (const rk of this.level.rocks ?? []) {
+      const d = Math.hypot(x - rk.x, y - rk.y);
+      if (d < BALL_R + rk.r) return { x: (x - rk.x) / d, y: (y - rk.y) / d, e: ROCK_E };
+    }
     return null;
   }
 }
@@ -292,7 +307,35 @@ export function closestOnSeg(s: Seg, x: number, y: number) {
 
 export function inZone(z: Zone, x: number, y: number) {
   if (z.kind === 'circle') return Math.hypot(x - z.x, y - z.y) < z.r;
-  return x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h;
+  if (z.kind === 'rect') return x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h;
+  let inside = false;
+  const p = z.pts;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [xi, yi] = p[i], [xj, yj] = p[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Bridge-local coordinates: u along the deck from its centre, v across it. */
+function bridgeLocal(br: Bridge, x: number, y: number) {
+  const a = (br.angle * Math.PI) / 180;
+  const dx = x - br.x, dy = y - br.y;
+  return { u: dx * Math.cos(a) + dy * Math.sin(a), v: -dx * Math.sin(a) + dy * Math.cos(a) };
+}
+
+export function onBridge(br: Bridge, x: number, y: number) {
+  const { u, v } = bridgeLocal(br, x, y);
+  return Math.abs(u) <= br.len / 2 && Math.abs(v) <= br.width / 2;
+}
+
+/** One long edge of a deck (side = -1 or 1), as [ax, ay, bx, by]; the handrail runs along it. */
+export function bridgeEdge(br: Bridge, side: number): [number, number, number, number] {
+  const a = (br.angle * Math.PI) / 180;
+  const ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
+  const o = side * (br.width / 2 + BRIDGE_RAIL_R);
+  const cx = br.x + vx * o, cy = br.y + vy * o;
+  return [cx - (ux * br.len) / 2, cy - (uy * br.len) / 2, cx + (ux * br.len) / 2, cy + (uy * br.len) / 2];
 }
 
 /** The hole's edging polygon; holes without one keep the original rectangle (same playable area). */
@@ -307,6 +350,12 @@ const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 /** Terrain height at a point (0 = flat). Shared by physics and the renderer so what you see is what rolls. */
 export function heightAt(level: LevelDef, x: number, y: number) {
   let h = 0;
+  for (const br of level.bridges ?? []) {
+    const { u, v } = bridgeLocal(br, x, y);
+    if (Math.abs(v) > br.width / 2 + BRIDGE_RAIL_R * 2 || Math.abs(u) > br.len / 2) continue;
+    // A hump: ramps up from each end, flat across the middle
+    h += BRIDGE_H * smooth((br.len / 2 - Math.abs(u)) / BRIDGE_RAMP);
+  }
   for (const s of level.slopes ?? []) {
     if (s.kind === 'hill') {
       const sig = s.r / 2;
@@ -329,7 +378,7 @@ export function heightAt(level: LevelDef, x: number, y: number) {
 
 /** Terrain gradient (dh/dx, dh/dy). */
 export function slopeAt(level: LevelDef, x: number, y: number): [number, number] {
-  if (!level.slopes?.length) return [0, 0];
+  if (!level.slopes?.length && !level.bridges?.length) return [0, 0];
   const e = 0.5;
   return [
     (heightAt(level, x + e, y) - heightAt(level, x - e, y)) / (2 * e),

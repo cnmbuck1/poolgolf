@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import cupUrl from './assets/models/cup.glb?url';
+import boulderUrl from './assets/models/boulders.glb?url';
 import decorUrl from './assets/models/decor.glb?url';
 import gardenUrl from './assets/models/garden.glb?url';
 import lanternUrl from './assets/models/lantern.glb?url';
@@ -29,12 +30,12 @@ export function loadModels(onProgress?: (p: number) => void): Promise<Models> {
   if (loading) return loading;
   const loader = new GLTFLoader();
   const lib = modelMaterials();
-  const urls = [windmillUrl, wallsUrl, cupUrl, lanternUrl, rocksUrl, decorUrl, gardenUrl];
+  const urls = [windmillUrl, wallsUrl, cupUrl, lanternUrl, rocksUrl, decorUrl, gardenUrl, boulderUrl];
   let done = 0;
   loading = Promise.all(urls.map((u) => loader.loadAsync(u).then((g) => { onProgress?.(++done / urls.length); return g; })))
-    .then(([windmill, walls, cup, lantern, rocks, decor, garden]) => {
+    .then(([windmill, walls, cup, lantern, rocks, decor, garden, boulders]) => {
       const pieces = new Map<string, THREE.Object3D>();
-      for (const gltf of [windmill, walls, cup, lantern, rocks, decor, garden]) {
+      for (const gltf of [windmill, walls, cup, lantern, rocks, decor, garden, boulders]) {
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
             const name = (o.material as THREE.Material).name;
