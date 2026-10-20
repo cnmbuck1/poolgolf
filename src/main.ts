@@ -26,6 +26,7 @@ const aim: AimState = { active: false, dx: 1, dy: 0, power: 0, guide: 'full' };
 const cue: CueState = { visible: false, dx: 1, dy: 0, pull: 0, alpha: 0 };
 const fx: FX = { ripples: [] };
 let drag: { id: number; sx: number; sy: number; wx: number; wy: number } | null = null;
+let practice = false; // playing a single hole from the Courses menu
 let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash reset)
 let time = 0;
 let lastFrameDt = 1 / 60;
@@ -53,7 +54,26 @@ function syncSettingsUi() {
   $('set-sound').setAttribute('aria-pressed', String(settings.sound));
   $('set-guide').setAttribute('aria-pressed', String(settings.guide));
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
-  $('btn-view').textContent = view3d.isTopView ? '3D' : 'TOP';
+  $('view-label').textContent = view3d.isTopView ? '3D' : 'TOP';
+  const t = $('btn-title-sound');
+  t.querySelector('use')!.setAttribute('href', settings.sound ? '#i-sound' : '#i-mute');
+  t.setAttribute('aria-label', settings.sound ? 'Sound on' : 'Sound off');
+}
+
+/** Set a button's text while keeping its icon. */
+function setLabel(id: string, text: string) {
+  const b = $(id);
+  if (b.firstChild?.nodeType === Node.TEXT_NODE) b.firstChild.textContent = text;
+  else b.prepend(text);
+}
+
+// ---------- Stats ----------
+const stat = (k: string) => Number(localGet(k) ?? 0);
+function recordHole(i: number, score: number) {
+  const best = localGet(`hole${i}`);
+  if (best == null || score < Number(best)) localSet(`hole${i}`, String(score));
+  if (score === 1) localSet('aces', String(stat('aces') + 1));
+  localSet('holes', String(stat('holes') + 1));
 }
 
 // ---------- Haptics ----------
@@ -66,7 +86,7 @@ if (native) void StatusBar.hide().catch(() => {});
 // ---------- Layout ----------
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  const bar = document.querySelector('.hud-bar')!.getBoundingClientRect();
+  const bar = document.querySelector('.hud-card')!.getBoundingClientRect();
   const top = bar.bottom > 0 ? bar.bottom + 2 : 60;
   const bottom = window.innerHeight - document.querySelector('.power')!.getBoundingClientRect().top;
   view3d.resize(window.innerWidth, window.innerHeight, dpr, top, bottom > 0 && bottom < 120 ? bottom + 4 : 40);
@@ -133,7 +153,7 @@ function banner() {
 }
 
 function show(id: string | null) {
-  for (const s of ['screen-title', 'screen-pause', 'screen-hole']) $(s).classList.toggle('hidden', s !== id);
+  for (const s of ['screen-title', 'screen-pause', 'screen-hole', 'screen-sheet']) $(s).classList.toggle('hidden', s !== id);
   $('hud').classList.toggle('hidden', phase === 'title');
 }
 
@@ -175,13 +195,21 @@ function loadHole(i: number) {
 }
 
 function startRound() {
+  practice = false;
   scores = LEVELS.map(() => null);
   loadHole(0);
+}
+
+function playSingle(i: number) {
+  practice = true;
+  scores = LEVELS.map(() => null);
+  loadHole(i);
 }
 
 function finishHole(score: number, pickedUp = false) {
   scores[holeIdx] = score;
   phase = 'holeDone';
+  if (!pickedUp) recordHole(holeIdx, score);
   setRolling(0, false);
   const last = holeIdx === LEVELS.length - 1;
   const par = world.level.par;
@@ -191,9 +219,10 @@ function finishHole(score: number, pickedUp = false) {
   h.className = pickedUp ? 'over' : scoreClass(score, par);
   $('hole-detail').textContent = `${score} stroke${score === 1 ? '' : 's'} on a par ${par}`;
   $('hole-card').innerHTML = scorecardHtml();
-  $('btn-next').textContent = last ? 'Play again' : 'Next hole';
+  setLabel('btn-next', practice ? 'COURSES' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
   if (!pickedUp) sfx.result(score - par, score === 1);
-  if (last) {
+  if (last && !practice) {
+    localSet('rounds', String(stat('rounds') + 1));
     const total = scores.reduce<number>((a, b) => a + (b ?? 0), 0);
     const d = roundToPar();
     $('hole-kicker').textContent = 'ROUND COMPLETE';
@@ -330,20 +359,103 @@ const click = (id: string, fn: () => void) => { $(id).onclick = () => { unlockAu
 click('btn-play', startRound);
 click('btn-pause', pause);
 click('btn-resume', () => { phase = 'play'; show(null); });
-click('btn-view', () => {
+function toggleView() {
   view3d.setTopView(!view3d.isTopView);
   settings.top = view3d.isTopView;
   localSet('view', settings.top ? 'top' : '3d');
   syncSettingsUi();
-});
+}
+function toggleSound() { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); }
+function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.guide ? 'full' : 'short'; localSet('guide', settings.guide ? 'full' : 'short'); syncSettingsUi(); }
+function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
+click('btn-view', toggleView);
 click('btn-restart', () => { if (phase === 'play') loadHole(holeIdx); });
 click('btn-pause-restart', () => loadHole(holeIdx));
 click('btn-replay', () => { scores[holeIdx] = null; loadHole(holeIdx); });
-click('btn-quit', () => { phase = 'title'; view3d.setMode('title'); refreshTitle(); show('screen-title'); });
-click('btn-next', () => (holeIdx === LEVELS.length - 1 ? startRound() : loadHole(holeIdx + 1)));
-click('set-sound', () => { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); });
-click('set-guide', () => { settings.guide = !settings.guide; aim.guide = settings.guide ? 'full' : 'short'; localSet('guide', settings.guide ? 'full' : 'short'); syncSettingsUi(); });
-click('set-follow', () => { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); });
+click('btn-quit', toTitle);
+
+function toTitle() {
+  phase = 'title';
+  practice = false;
+  setRolling(0, false);
+  if (world.level !== LEVELS[0]) { world = new World(LEVELS[0]); view3d.setLevel(world); }
+  view3d.setMode('title');
+  refreshTitle();
+  show('screen-title');
+}
+
+// ---------- Main menu sheets ----------
+function sheet(title: string, html: string) {
+  $('sheet-title').textContent = title;
+  $('sheet-body').innerHTML = html;
+  show('screen-sheet');
+}
+click('btn-sheet-close', () => show('screen-title'));
+
+function openCourses() {
+  const cards = LEVELS.map((l, i) => {
+    const best = localGet(`hole${i}`);
+    return `<button class="course" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${best ? ` · Best ${best}` : ''}</small>${l.art === 'premium' ? '<em class="tag">New look</em>' : ''}</button>`;
+  }).join('');
+  sheet('Courses', `<p>Practise any hole on its own. Scores here count toward your hole bests, not your round.</p><div class="courses">${cards}</div>`);
+  $('sheet-body').querySelectorAll<HTMLButtonElement>('.course').forEach((b) => {
+    b.onclick = () => { sfx.ui(); playSingle(Number(b.dataset.hole)); };
+  });
+}
+
+function openSettings() {
+  sheet('Settings', `<div class="settings">
+    <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound</span><em></em></button>
+    <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
+    <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
+    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Overhead camera</span><em></em></button></div>`);
+  $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
+    b.onclick = () => {
+      sfx.ui();
+      const k = b.dataset.set as 'sound' | 'guide' | 'follow' | 'top';
+      if (k === 'sound') toggleSound();
+      if (k === 'guide') toggleGuide();
+      if (k === 'follow') toggleFollow();
+      if (k === 'top') toggleView();
+      b.setAttribute('aria-pressed', String(settings[k]));
+    };
+  });
+}
+
+function openStats() {
+  const best = localGet('best');
+  const holes = LEVELS.map((l, i) => `<td>${localGet(`hole${i}`) ?? '–'}</td>`).join('');
+  sheet('Stats', `<div class="stats">
+      <div class="stat"><b>${best ?? '–'}</b><span>Best round</span></div>
+      <div class="stat"><b>${stat('rounds')}</b><span>Rounds finished</span></div>
+      <div class="stat"><b>${stat('aces')}</b><span>Holes in one</span></div>
+    </div>
+    <div class="card-wrap"><table class="card"><tr><th>HOLE</th>${LEVELS.map((_, i) => `<td>${i + 1}</td>`).join('')}</tr>
+    <tr><th>PAR</th>${LEVELS.map((l) => `<td>${l.par}</td>`).join('')}</tr><tr><th>BEST</th>${holes}</tr></table></div>
+    <p>Stats are saved on this device only.</p>`);
+}
+
+function comingSoon(title: string, icon: string, what: string) {
+  sheet(title, `<div class="soon"><svg><use href="#${icon}"/></svg><p>${what}</p><p><b>Not in this prototype yet.</b></p></div>`);
+}
+
+click('btn-courses', openCourses);
+click('btn-settings', openSettings);
+click('btn-stats', openStats);
+click('btn-cues', () => comingSoon('Cues & Balls', 'i-cue', 'Unlock new cues and ball designs.'));
+click('btn-achievements', () => comingSoon('Achievements', 'i-trophy', 'Earn trophies for bank shots, aces and clean rounds.'));
+click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
+click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
+click('btn-more', () => sheet('How to play', `<p><b>Pull back</b> anywhere on the table to aim the cue, then <b>release</b> to shoot. Pull further for more power.</p>
+  <p>The dotted guide shows your path through the first two banks. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
+  <p>Tap <b>TOP</b> during play for an overhead view.</p>`));
+click('btn-title-sound', () => toggleSound());
+click('btn-next', () => {
+  if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
+});
+click('set-sound', toggleSound);
+click('set-guide', toggleGuide);
+click('set-follow', toggleFollow);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 syncSettingsUi();
 
@@ -456,6 +568,9 @@ if (import.meta.env.DEV) {
       strokes++;
       world.shoot(Math.cos(a) * MAX_SHOT_SPEED * power, Math.sin(a) * MAX_SHOT_SPEED * power);
     },
+    stats: () => view3d.stats,
+    place: (x: number, y: number) => { world.ball.x = x; world.ball.y = y; },
+    cam: (x: number, y: number, dist: number, yaw: number) => view3d.debugView(x, y, dist, yaw),
     state: () => ({ phase, holeIdx, strokes, ball: { ...world.ball }, moving: world.moving, dt: lastFrameDt }),
   };
 }

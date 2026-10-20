@@ -1,18 +1,21 @@
 import * as THREE from 'three';
 import { Bumper, WORLD_H, WORLD_W, Zone } from './levels';
-import { BALL_R, CUP_R, SPINNER_R, WALL_R, World } from './physics';
+import { BALL_R, CUP_R, inZone, SPINNER_R, WALL_R, World } from './physics';
+import { Animated, brassCup, fern, lantern, mats, merge, rugTexture as persianRug, stoneWall, teePlate, TURF_TILE, wallRivets, windmill } from './art';
 
 // The physics runs on a flat 2D table (x, y). In 3D that table lies on the XZ plane,
 // centred on the origin, with the felt surface at y = 0.
 const RAIL = 38;
-const RAIL_H = 16;
+const RAIL_H = 20;
+const POST_H = 26; // corner posts on the rail that carry the lanterns
+const LANTERN_TOP = RAIL_H + 5 + POST_H + 36;
 const HW = WORLD_W / 2;
 const HH = WORLD_H / 2;
 const FLOOR_Y = -330;
 const to3 = (x: number, y: number) => new THREE.Vector3(x - HW, 0, y - HH);
 
 const C = {
-  bg: 0x0d1622,
+  bg: 0x1a110b,
   floor: 0x5a4030,
   rug: 0x1f3a46,
   rail: 0x364957,
@@ -29,7 +32,7 @@ const C = {
   cue: 0xd9a46a,
   cueButt: 0x3a2416,
   sight: 0xf3ead2,
-  lamp: 0xffe2b0,
+  lamp: 0xffd9a6,
 };
 
 export type GuideMode = 'full' | 'short';
@@ -43,7 +46,7 @@ export interface FX {
   ripples: { x: number; y: number; t: number }[];
 }
 
-export type CamMode = 'title' | 'play' | 'sink';
+export type CamMode = 'title' | 'play' | 'sink' | 'debug';
 
 const TILT_3D = 0.95; // camera elevation in radians (~54°)
 const TILT_TOP = Math.PI / 2 - 0.001;
@@ -52,6 +55,8 @@ const DROPS = 14;
 
 export class Renderer3D {
   private renderer: THREE.WebGLRenderer;
+  /** Draw calls, triangles and texture memory from the last frame (for performance checks). */
+  get stats() { const i = this.renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, quality: this.quality }; }
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(36, 1, 10, 6000);
   private levelGroup = new THREE.Group();
@@ -69,6 +74,10 @@ export class Renderer3D {
   private drops: THREE.InstancedMesh;
   private dropState: { p: THREE.Vector3; v: THREE.Vector3 }[] = [];
   private waterMats: THREE.MeshPhysicalMaterial[] = [];
+  /** Animated props: windmills follow their spinner's angle; the rest just use time. */
+  private spinnerAnims: (Animated | undefined)[] = [];
+  private levelAnims: Animated[] = [];
+  private globalAnims: Animated[] = [];
   private size = { w: 1, h: 1, top: 0, bottom: 0 };
   private raycaster = new THREE.Raycaster();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -161,7 +170,7 @@ export class Renderer3D {
   /** A tiny procedural "room" baked into an environment map for glossy reflections. */
   private addEnvironmentMap() {
     const env = new THREE.Scene();
-    env.background = new THREE.Color(0x0a0f16);
+    env.background = new THREE.Color(0x140c07);
     const panel = (w: number, h: number, color: number, intensity: number, pos: [number, number, number]) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }));
       m.position.set(...pos);
@@ -169,31 +178,33 @@ export class Renderer3D {
       env.add(m);
     };
     panel(6, 2.2, C.lamp, 6, [0, 6, 0]); // the lamp above the table
-    panel(10, 4, 0x6f8aa8, 0.6, [0, 2, -9]); // dim walls
-    panel(10, 4, 0x6f8aa8, 0.4, [-9, 2, 0]);
-    panel(10, 4, 0x8a7458, 0.4, [9, 2, 0]);
+    panel(10, 4, 0x6b4a32, 0.5, [0, 2, -9]); // warm wood-panelled walls
+    panel(10, 4, 0x6b4a32, 0.4, [-9, 2, 0]);
+    panel(10, 4, 0x7a5638, 0.4, [9, 2, 0]);
+    for (const [x, z] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) panel(0.8, 1, 0xffb35a, 5, [x, 1.2, z]); // lanterns
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(env, 0.04).texture;
     pmrem.dispose();
   }
 
   private addLights() {
-    this.scene.add(new THREE.HemisphereLight(0xcfe0f5, 0x2a2018, 0.4));
+    this.scene.add(new THREE.HemisphereLight(0xffe6c4, 0x2e1c10, 0.55));
 
     // Warm billiard lamp: the main light and the only shadow caster
-    const lamp = (this.lamp = new THREE.SpotLight(C.lamp, 3.1, 0, 0.78, 0.6, 0));
-    lamp.position.set(-80, 900, 140);
+    const lamp = (this.lamp = new THREE.SpotLight(C.lamp, 3.0, 0, 0.8, 0.6, 0));
+    lamp.position.set(-80, 900, 160);
     lamp.target.position.set(0, 0, 0);
     lamp.castShadow = true;
     lamp.shadow.mapSize.set(2048, 2048);
     lamp.shadow.camera.near = 300;
     lamp.shadow.camera.far = 1600;
-    lamp.shadow.bias = -0.0004;
+    lamp.shadow.bias = -0.0003;
+    lamp.shadow.normalBias = 0.4;
     lamp.shadow.radius = 5;
     this.scene.add(lamp, lamp.target);
 
-    // Cool rim from behind the table to separate objects from the felt
-    const rim = new THREE.DirectionalLight(0x9cc4ff, 0.7);
+    // Soft warm rim from behind so silhouettes separate from the turf
+    const rim = new THREE.DirectionalLight(0xffc89a, 0.55);
     rim.position.set(300, 400, -700);
     this.scene.add(rim);
   }
@@ -201,7 +212,7 @@ export class Renderer3D {
   private addRoom() {
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(6000, 6000).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: C.floor, roughness: 0.7, map: floorTexture() }),
+      new THREE.MeshPhysicalMaterial({ color: 0x8a5a36, roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.35, map: floorTexture() }),
     );
     floor.position.y = FLOOR_Y;
     floor.receiveShadow = true;
@@ -212,7 +223,7 @@ export class Renderer3D {
     for (let i = 0; i < ruv.count; i++) ruv.setXY(i, ruv.getX(i) / 1700 + 0.5, ruv.getY(i) / 1100 + 0.5);
     const rug = new THREE.Mesh(
       rugGeo.rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: C.rug, roughness: 1, map: rugTexture() }),
+      new THREE.MeshStandardMaterial({ roughness: 1, map: persianRug() }),
     );
     rug.position.y = FLOOR_Y + 1;
     rug.receiveShadow = true;
@@ -223,56 +234,92 @@ export class Renderer3D {
       [[0, 0], [30, 0], [30, 20], [20, 40], [24, 90], [16, 140], [22, 175], [28, 190], [0, 190]].map(([x, y]) => new THREE.Vector2(x, y)),
       20,
     );
-    const legMat = new THREE.MeshStandardMaterial({ color: C.plinth, roughness: 0.45, metalness: 0.05 });
+    const legMat = mats.mahogany;
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const leg = new THREE.Mesh(legGeo, legMat);
       leg.position.set(sx * (HW - 20), FLOOR_Y, sz * (HH - 20));
       leg.castShadow = true;
       this.scene.add(leg);
     }
+
+    // Potted ferns around the table
+    for (const [x, z, size, seed] of [[-HW - 210, -HH - 40, 2.6, 1], [HW + 200, -HH - 70, 2.3, 2], [-HW - 230, HH + 130, 2.8, 3], [HW + 240, HH + 110, 2.2, 4]]) {
+      const f = fern(size, seed);
+      f.position.set(x, FLOOR_Y, z);
+      this.scene.add(f);
+    }
   }
 
   private addTable() {
-    // Apron (table body) in dark wood
-    const apron = new THREE.Mesh(
-      extrudeRoundRect(WORLD_W + RAIL * 2 - 16, WORLD_H + RAIL * 2 - 16, 44, 110),
-      new THREE.MeshStandardMaterial({ color: C.plinth, roughness: 0.4, map: woodTexture() }),
-    );
+    const mahog = mats.mahogany;
+    (mahog.map as THREE.Texture).repeat.set(1 / 420, 1 / 120);
+
+    // Apron (table body)
+    const apron = new THREE.Mesh(extrudeRoundRect(WORLD_W + RAIL * 2 - 16, WORLD_H + RAIL * 2 - 16, 44, 110), mahog);
     apron.position.y = -140;
     apron.castShadow = true;
     apron.receiveShadow = true;
     this.scene.add(apron);
+    // Brass trim line where the rail meets the apron
+    const trim = new THREE.Mesh(new THREE.ExtrudeGeometry(
+      (() => { const o = roundRectShape(WORLD_W + RAIL * 2 - 6, WORLD_H + RAIL * 2 - 6, 44); o.holes.push(roundRectShape(WORLD_W + RAIL * 2 - 14, WORLD_H + RAIL * 2 - 14, 40)); return o; })(),
+      { depth: 4, bevelEnabled: false, curveSegments: 20 }).rotateX(-Math.PI / 2), mats.brass);
+    trim.position.y = -36;
+    this.scene.add(trim);
 
-    // Rails: rounded frame with the felt opening cut out
+    // Rails: thick rounded frame with the play area cut out
     const outer = roundRectShape(WORLD_W + RAIL * 2, WORLD_H + RAIL * 2, 46);
     outer.holes.push(roundRectShape(WORLD_W + 14, WORLD_H + 14, 26));
-    const railGeo = new THREE.ExtrudeGeometry(outer, { depth: RAIL_H + 30, bevelEnabled: true, bevelThickness: 4, bevelSize: 4, bevelSegments: 4, curveSegments: 24 });
+    const railGeo = new THREE.ExtrudeGeometry(outer, { depth: RAIL_H + 26, bevelEnabled: true, bevelThickness: 6, bevelSize: 6, bevelSegments: 5, curveSegments: 28 });
     railGeo.rotateX(-Math.PI / 2);
-    const rail = new THREE.Mesh(railGeo, new THREE.MeshPhysicalMaterial({ color: C.rail, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.3 }));
-    rail.position.y = -30;
+    const rail = new THREE.Mesh(railGeo, mahog);
+    rail.position.y = -32;
     rail.castShadow = true;
     rail.receiveShadow = true;
     this.scene.add(rail);
 
-    // Felt cushions along the inside of the rails
+    // Turf-covered cushions along the inside of the rails
     const cushionShape = roundRectShape(WORLD_W + 16, WORLD_H + 16, 27);
     cushionShape.holes.push(roundRectShape(WORLD_W, WORLD_H, 22));
-    const cushionGeo = new THREE.ExtrudeGeometry(cushionShape, { depth: 40, bevelEnabled: true, bevelThickness: 2, bevelSize: 2, bevelSegments: 2, curveSegments: 20 });
+    const cushionGeo = new THREE.ExtrudeGeometry(cushionShape, { depth: 40, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2.5, bevelSegments: 3, curveSegments: 20 });
     cushionGeo.rotateX(-Math.PI / 2);
-    const cushion = new THREE.Mesh(cushionGeo, new THREE.MeshStandardMaterial({ color: C.cushion, roughness: 0.95 }));
+    scaleUv(cushionGeo, 1 / TURF_TILE);
+    const cushion = new THREE.Mesh(cushionGeo, mats.cushion);
     cushion.position.y = -30;
     cushion.receiveShadow = true;
     cushion.castShadow = true;
     this.scene.add(cushion);
 
-    // Mother-of-pearl diamond sights
-    const diamond = new THREE.Shape([new THREE.Vector2(0, 5.5), new THREE.Vector2(4, 0), new THREE.Vector2(0, -5.5), new THREE.Vector2(-4, 0)]);
-    const dGeo = new THREE.ShapeGeometry(diamond).rotateX(-Math.PI / 2);
-    const dMat = new THREE.MeshStandardMaterial({ color: C.sight, roughness: 0.2, metalness: 0.3 });
-    const yTop = RAIL_H + 4.3;
-    const put = (x: number, z: number) => { const m = new THREE.Mesh(dGeo, dMat); m.position.set(x, yTop, z); this.scene.add(m); };
-    for (let i = 1; i < 8; i++) { put(-HW + (WORLD_W * i) / 8, -HH - RAIL / 2 - 3); put(-HW + (WORLD_W * i) / 8, HH + RAIL / 2 + 3); }
-    for (let i = 1; i < 4; i++) { put(-HW - RAIL / 2 - 3, -HH + (WORLD_H * i) / 4); put(HW + RAIL / 2 + 3, -HH + (WORLD_H * i) / 4); }
+    // Brass studs along the rail tops (one instanced draw call)
+    const studs: THREE.Vector3[] = [];
+    const yTop = RAIL_H + 6.3 - 6;
+    const mid = RAIL / 2 + 4;
+    for (let x = -HW + 30; x <= HW - 30; x += 36) { studs.push(new THREE.Vector3(x, yTop, -HH - mid), new THREE.Vector3(x, yTop, HH + mid)); }
+    for (let z = -HH + 30; z <= HH - 30; z += 36) { studs.push(new THREE.Vector3(-HW - mid, yTop, z), new THREE.Vector3(HW + mid, yTop, z)); }
+    const studMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(2.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mats.brass, studs.length);
+    const m4 = new THREE.Matrix4();
+    studs.forEach((p, i) => studMesh.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z)));
+    this.scene.add(studMesh);
+
+    // Corner posts with carriage lanterns
+    const postGeo = extrudeRoundRect(30, 30, 5, POST_H);
+    const capGeo = merge([new THREE.BoxGeometry(34, 3, 34).translate(0, POST_H + 1.5, 0), new THREE.BoxGeometry(22, 2, 22).translate(0, POST_H + 4, 0)]);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const g = new THREE.Group();
+      const post = new THREE.Mesh(postGeo, mahog);
+      post.castShadow = true;
+      post.receiveShadow = true;
+      g.add(post);
+      const cap = new THREE.Mesh(capGeo, mats.brass);
+      cap.castShadow = true;
+      g.add(cap);
+      const l = lantern();
+      l.group.position.y = POST_H + 5;
+      g.add(l.group);
+      this.globalAnims.push(l);
+      g.position.set(sx * (HW + RAIL - 14), RAIL_H + 2, sz * (HH + RAIL - 14));
+      this.scene.add(g);
+    }
   }
 
   private buildCue() {
@@ -304,7 +351,10 @@ export class Renderer3D {
     disposeGroup(this.levelGroup);
     this.spinners = [];
     this.waterMats = [];
+    this.spinnerAnims = [];
+    this.levelAnims = [];
     const L = world.level;
+    const premium = L.art === 'premium';
     const add = (o: THREE.Object3D) => { this.levelGroup.add(o); return o; };
 
     // Felt with the cup cut out
@@ -314,11 +364,10 @@ export class Renderer3D {
     felt.holes.push(hole);
     const feltMesh = new THREE.Mesh(
       new THREE.ShapeGeometry(felt, 40).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: C.felt, roughness: 0.92, map: feltTexture(), bumpMap: feltBump(), bumpScale: 0.6 }),
+      premium ? mats.turf : new THREE.MeshStandardMaterial({ color: C.felt, roughness: 0.92, map: feltTexture(), bumpMap: feltBump(), bumpScale: 0.6 }),
     );
-    // ShapeGeometry UVs are in world units; scale them so the cloth texture tiles.
-    const uv = feltMesh.geometry.attributes.uv as THREE.BufferAttribute;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 250, uv.getY(i) / 250);
+    // ShapeGeometry UVs are in world units; scale them so the texture tiles.
+    scaleUv(feltMesh.geometry, 1 / (premium ? TURF_TILE : 250));
     feltMesh.receiveShadow = true;
     add(feltMesh);
     const under = new THREE.Mesh(new THREE.BoxGeometry(WORLD_W, 2, WORLD_H), new THREE.MeshBasicMaterial({ color: 0x0c151c }));
@@ -327,6 +376,19 @@ export class Renderer3D {
 
     // Cup with a brass rim
     this.cupPos = to3(L.cup[0], L.cup[1]);
+    if (premium) {
+      const cup = brassCup(CUP_R);
+      cup.group.position.copy(this.cupPos);
+      add(cup.group);
+      this.levelAnims.push(cup);
+      const tee = teePlate(BALL_R + 8);
+      tee.position.copy(to3(L.tee[0], L.tee[1]));
+      add(tee);
+    }
+    this.cupPulse = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false }));
+    this.cupPulse.position.copy(this.cupPos).setY(0.5);
+    add(this.cupPulse);
+    if (!premium) {
     const liner = new THREE.Mesh(new THREE.CylinderGeometry(CUP_R, CUP_R, 30, 40, 1, true), new THREE.MeshStandardMaterial({ color: 0x1a1612, side: THREE.BackSide, roughness: 0.9 }));
     liner.position.copy(this.cupPos).setY(-15);
     add(liner);
@@ -336,9 +398,6 @@ export class Renderer3D {
     const rim = new THREE.Mesh(new THREE.RingGeometry(CUP_R, CUP_R + 3, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C.cupRim, metalness: 0.9, roughness: 0.3 }));
     rim.position.copy(this.cupPos).setY(0.3);
     add(rim);
-    this.cupPulse = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false }));
-    this.cupPulse.position.copy(this.cupPos).setY(0.5);
-    add(this.cupPulse);
     // Flag pin
     const pin = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 90, 8), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.3, metalness: 0.4 }));
     pin.position.copy(this.cupPos).add(new THREE.Vector3(CUP_R * 0.45, 30, -CUP_R * 0.2));
@@ -354,6 +413,7 @@ export class Renderer3D {
     const tee = new THREE.Mesh(new THREE.RingGeometry(BALL_R + 7, BALL_R + 9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
     tee.position.copy(to3(L.tee[0], L.tee[1])).setY(0.4);
     add(tee);
+    }
 
     // Sand traps with a soft lip
     for (const z of L.sand ?? []) {
@@ -368,9 +428,12 @@ export class Renderer3D {
     }
     // Water: grassy bank, dark depth, glossy surface with moving ripples
     for (const z of L.water ?? []) {
-      const bank = new THREE.Mesh(zoneGeometry(z, 5), new THREE.MeshStandardMaterial({ color: 0x4d7a57, roughness: 1 }));
-      bank.position.y = 0.25;
-      add(bank);
+      const hasMill = premium && world.spinners.some((s) => inZone(z, s.x, s.y));
+      if (!hasMill) {
+        const bank = new THREE.Mesh(zoneGeometry(z, 5), new THREE.MeshStandardMaterial({ color: 0x4d7a57, roughness: 1 }));
+        bank.position.y = 0.25;
+        add(bank);
+      }
       const deep = new THREE.Mesh(zoneGeometry(z, -10), new THREE.MeshBasicMaterial({ color: C.waterDeep }));
       deep.position.y = 0.35;
       add(deep);
@@ -382,9 +445,29 @@ export class Renderer3D {
       add(w);
     }
 
+    if (premium) {
+      // Stone walls with oak caps on the exact capsule footprint, brass rivets in one draw call
+      const rivets: THREE.Vector3[] = [];
+      for (const s of world.segs) {
+        const a = to3(s.ax, s.ay);
+        const b = to3(s.bx, s.by);
+        const wall = stoneWall(a.distanceTo(b), s.r);
+        wall.position.copy(a).add(b).multiplyScalar(0.5);
+        wall.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+        wall.updateMatrix();
+        for (const p of wallRivets(a.distanceTo(b), s.r)) rivets.push(p.applyMatrix4(wall.matrix));
+        add(wall);
+      }
+      if (rivets.length) {
+        const rv = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), mats.brass, rivets.length);
+        const m4 = new THREE.Matrix4();
+        rivets.forEach((p, i) => rv.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z)));
+        add(rv);
+      }
+    }
     // Walls and bars: varnished wood capsules lying on the felt
     const woodMat = new THREE.MeshPhysicalMaterial({ color: C.wood, roughness: 0.45, map: woodTexture(), clearcoat: 0.6, clearcoatRoughness: 0.25 });
-    for (const s of world.segs) {
+    for (const s of premium ? [] : world.segs) {
       const a = to3(s.ax, s.ay);
       const b = to3(s.bx, s.by);
       const len = a.distanceTo(b);
@@ -400,7 +483,15 @@ export class Renderer3D {
 
     for (const bp of L.bumpers ?? []) add(bumperMesh(bp));
 
-    for (const s of world.spinners) {
+    world.spinners.forEach((s, i) => {
+      if (!premium) return;
+      const pond = (L.water ?? []).find((z) => z.kind === 'circle' && inZone(z, s.x, s.y));
+      const mill = windmill(s.len, SPINNER_R, pond && pond.kind === 'circle' ? pond.r : 44);
+      mill.group.position.copy(to3(s.x, s.y));
+      this.spinnerAnims[i] = mill;
+      add(mill.group);
+    });
+    for (const s of premium ? [] : world.spinners) {
       const g = new THREE.Group();
       const mat = new THREE.MeshPhysicalMaterial({ color: C.spinner, roughness: 0.35, clearcoat: 0.8 });
       for (const rot of [0, Math.PI / 2]) {
@@ -429,6 +520,13 @@ export class Renderer3D {
   get isTopView() { return this.tiltTarget === TILT_TOP; }
   setMode(m: CamMode) { this.mode = m; }
   shake(amount: number) { this.shakeAmt = Math.min(10, this.shakeAmt + amount); }
+
+  /** Dev only: frame a table point up close. */
+  private debugCam = { x: 0, y: 0, dist: 0.4, yaw: 0 };
+  debugView(x: number, y: number, dist: number, yaw: number) {
+    this.debugCam = { x, y, dist, yaw };
+    this.mode = 'debug';
+  }
 
   /** Swoop in from a high, turned angle at the start of a hole. */
   intro() {
@@ -477,7 +575,7 @@ export class Renderer3D {
     cam.aspect = w / h;
     cam.clearViewOffset();
     const corners: THREE.Vector3[] = [];
-    for (const x of [-HW - RAIL, HW + RAIL]) for (const z of [-HH - RAIL, HH + RAIL]) for (const y of [-30, RAIL_H + 4]) corners.push(new THREE.Vector3(x, y, z));
+    for (const x of [-HW - RAIL, HW + RAIL]) for (const z of [-HH - RAIL, HH + RAIL]) for (const y of [-30, RAIL_H + 4, LANTERN_TOP]) corners.push(new THREE.Vector3(x, y, z));
     const dir = new THREE.Vector3(0, Math.sin(this.tilt), Math.cos(this.tilt));
     const availH = 2 - (2 * (top + 6)) / h - (2 * (bottom + 6)) / h;
     const availW = 2 - (2 * 14) / w;
@@ -519,8 +617,14 @@ export class Renderer3D {
     let yawT = 0, distT = 1;
     const focusT = new THREE.Vector3();
     if (this.mode === 'title') {
-      yawT = Math.sin(time * 0.12) * 0.7;
-      distT = 1.05;
+      // Table framed to the right of the menu, slowly drifting
+      yawT = -0.32 + Math.sin(time * 0.1) * 0.12;
+      distT = 0.9;
+      focusT.set(-HW * 0.42, 0, 10);
+    } else if (this.mode === 'debug') {
+      focusT.copy(to3(this.debugCam.x, this.debugCam.y));
+      distT = this.debugCam.dist;
+      yawT = this.debugCam.yaw;
     } else if (this.mode === 'sink') {
       focusT.copy(this.cupPos).multiplyScalar(0.55);
       distT = 0.72;
@@ -586,7 +690,13 @@ export class Renderer3D {
     this.adaptQuality(dt);
     this.updateCamera(world, dt, time, aim.active);
 
-    world.spinners.forEach((s, i) => { if (this.spinners[i]) this.spinners[i].rotation.y = -s.angle; });
+    world.spinners.forEach((s, i) => {
+      const mill = this.spinnerAnims[i];
+      if (mill) mill.update(s.angle, time);
+      else if (this.spinners[i]) this.spinners[i].rotation.y = -s.angle;
+    });
+    for (const a of this.levelAnims) a.update(0, time);
+    for (const a of this.globalAnims) a.update(0, time);
 
     const pulse = (Math.sin(time * 3) + 1) / 2;
     const ps = CUP_R + 12 + pulse * 6;
@@ -708,6 +818,11 @@ export class Renderer3D {
 
 // ---------- geometry helpers ----------
 
+function scaleUv(g: THREE.BufferGeometry, k: number) {
+  const uv = g.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * k, uv.getY(i) * k);
+}
+
 function roundRectShape(w: number, h: number, r: number) {
   const s = new THREE.Shape();
   const x = -w / 2, y = -h / 2;
@@ -767,8 +882,9 @@ function disposeGroup(g: THREE.Group) {
   g.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.geometry.dispose();
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const mat of mats) {
+      const list = Array.isArray(o.material) ? o.material : [o.material];
+      for (const mat of list) {
+        if (mat.userData.shared) continue;
         const sm = mat as THREE.MeshStandardMaterial;
         sm.map?.dispose(); sm.normalMap?.dispose(); sm.bumpMap?.dispose();
         mat.dispose();
@@ -923,15 +1039,3 @@ function floorTexture() {
   return t;
 }
 
-function rugTexture() {
-  return canvasTex(256, 256, (g) => {
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 256, 256);
-    g.strokeStyle = 'rgba(232,189,119,0.7)';
-    g.lineWidth = 5;
-    g.strokeRect(12, 12, 232, 232);
-    g.lineWidth = 2;
-    g.strokeRect(24, 24, 208, 208);
-    speckle(g, 256, 256, 6000, '0,0,0', 0.12);
-  });
-}

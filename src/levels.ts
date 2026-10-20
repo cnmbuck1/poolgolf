@@ -24,6 +24,8 @@ export interface LevelDef {
   spinners?: Spinner[];
   water?: Zone[];
   sand?: Zone[];
+  /** Visual treatment. 'premium' uses the detailed models from art.ts (Hole 1 is the benchmark). */
+  art?: 'premium';
 }
 
 // Pool-ball colours for bumpers.
@@ -38,6 +40,7 @@ export const LEVELS: LevelDef[] = [
     // Straight from the course concept art.
     name: 'Break Shot',
     par: 3,
+    art: 'premium',
     tee: [140, 370],
     cup: [870, 410],
     walls: [[[337, 0], [337, 285], [440, 285]]],

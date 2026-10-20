@@ -19,6 +19,8 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
 - **Aim guide** follows the shot through two banks (bumpers, walls and cushions), with a ring at each contact.
 - **Sound** (all synthesized): cue tip, cushion thump, wood knock, ball clack, spinner, rolling rumble that follows speed (gritty in sand), cup rattle, splash, and a short result jingle.
 - **Interface**: hole banner, round progress dots, running score to par, power meter, "Bank shot" / "Lipped out" calls, a first-shot tutorial, a scorecard, and settings for sound, the bank guide and camera follow.
+- **Premium art pass (Hole 1 is the benchmark):** `src/art.ts` holds the visual design system: cached procedural textures (turf, mahogany, oak, coursed stone, shingles, planks, fern fronds, Persian rug) and shared materials (polished wood, brass, stone). It also holds detailed props: stone walls with oak caps and brass rivets built on the exact collision capsules, a windmill (stone tower, shingle cap, plank sails, oak sweepers that match the spinner collider), a brass cup with a waving flag, and brass lanterns. A level opts in with `art: 'premium'`; the mahogany table, lanterns, ferns and room apply to every hole.
+- **Main menu** after the concept art: Courses (practise any hole), Settings, Stats and How to play work. Cues & Balls, Achievements, Friends and Shop show a "not in this prototype yet" panel.
 - Quality steps down automatically (resolution, then shadow detail) on slower phones.
 - Native apps are locked to landscape and the status bar is hidden.
 
