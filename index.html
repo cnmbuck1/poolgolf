@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#101b29" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Pool Golf</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- In-game HUD (matches the landscape wireframe) -->
+    <div id="hud" class="hidden">
+      <div class="hud-bar">
+        <span>HOLE <b id="hud-hole">01</b></span>
+        <span>PAR <b id="hud-par">3</b></span>
+        <span>STROKES <b id="hud-strokes">0</b></span>
+        <span class="hud-name" id="hud-name"></span>
+        <span class="hud-spacer"></span>
+        <button id="btn-pause" class="icon-btn" aria-label="Pause">Ⅱ</button>
+        <button id="btn-restart" class="icon-btn" aria-label="Restart hole">↻</button>
+      </div>
+      <div id="hint" class="hint">DRAG TO AIM</div>
+      <div class="power">
+        <div class="power-label">POWER</div>
+        <div class="power-track"><div id="power-fill" class="power-fill"></div></div>
+      </div>
+      <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- Title -->
+    <div id="screen-title" class="screen">
+      <div class="panel">
+        <h1>POOL GOLF</h1>
+        <p class="tagline">Aim • Bank • Avoid • Sink</p>
+        <button class="btn primary" id="btn-play">Play 6 holes</button>
+        <p class="best" id="best"></p>
+        <p class="small">Drag anywhere to pull back the cue, release to shoot.</p>
+      </div>
+    </div>
+
+    <!-- Pause -->
+    <div id="screen-pause" class="screen hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <button class="btn primary" id="btn-resume">Resume</button>
+        <button class="btn" id="btn-pause-restart">Restart hole</button>
+        <button class="btn" id="btn-sound">Sound: On</button>
+        <button class="btn" id="btn-quit">Quit to title</button>
+      </div>
+    </div>
+
+    <!-- Hole complete -->
+    <div id="screen-hole" class="screen hidden">
+      <div class="panel">
+        <h2 id="hole-result">Par</h2>
+        <p id="hole-detail" class="tagline"></p>
+        <div id="hole-card"></div>
+        <button class="btn primary" id="btn-next">Next hole</button>
+      </div>
+    </div>
+
+    <!-- Rotate prompt (web / tablets in portrait) -->
+    <div id="rotate" class="rotate"><div>↻<p>Rotate your device to landscape</p></div></div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
