@@ -1,12 +1,12 @@
 # Pool Golf — prototype
 
-A landscape mini-golf game played on a pool table: **Aim • Bank • Avoid • Sink.**
+A landscape mini-golf game in an evening garden, played with a pool cue and pool ball: **Aim • Bank • Avoid • Sink.**
 One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **Android (Google Play)** with [Capacitor](https://capacitorjs.com).
 
 ## What's in the prototype
 
 - 6 holes (par 20), each confirmed solvable at or under par by a shot simulator
-  1. **Break Shot**: the windmill guards the cup, so the straight line to the pin has to be timed through its sweepers; a brick wall under the windmill closes the low lane, and a stone L frames the top bank route
+  1. **Break Shot**: a dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be timed through its sweepers; a brick wall under it closes the low lane. The lane from the tee falls toward the bottom edge, a hill sits on the top bank route, and the green is a shallow bowl
   2. **Bank Street**: bank off the cushion around a divider
   3. **Bumper Pool**: pool balls work as bumpers
   4. **Water Hazard**: water costs +1 stroke and puts the ball back where it was
@@ -35,12 +35,18 @@ python3 -m venv .bpy && .bpy/bin/pip install bpy==5.2.2   # Blender as a Python 
 npm run assets                                             # build + quantize into src/assets/models
 ```
 
+## Course shapes and slopes
+
+Each hole can define an `outline` (the fairway edging, as a polygon) and `slopes` (`hill` bumps or bowls, and `tilt` planes) in `src/levels.ts`. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
+
 ## Project layout
 
 ```
 src/levels.ts    course data (edit or add holes here)
 src/physics.ts   ball physics, collisions, aim ray-cast
-src/render3d.ts  Three.js scene (table, obstacles, cue, aim guide, camera)
+src/render3d.ts  camera, ball, cue, aim guide, effects
+src/course.ts    builds each hole: sloped turf, timber edging, obstacles, garden dressing
+src/garden.ts    evening sky, sun, lawn
 src/main.ts      game flow, input, HUD, haptics
 src/audio.ts     WebAudio sound effects
 ios/  android/   generated native projects (Capacitor)

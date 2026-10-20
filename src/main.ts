@@ -588,8 +588,7 @@ function loadCourseModels() {
   const fill = bar.querySelector('b') as HTMLElement;
   bar.classList.remove('hidden');
   loadModels((p) => { fill.style.width = `${Math.round(p * 100)}%`; })
-    .then((m) => {
-      view3d.applyModels(m);
+    .then(() => {
       view3d.setLevel(world);
       bar.classList.add('hidden');
     })

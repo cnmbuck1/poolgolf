@@ -783,6 +783,66 @@ function clayTexture() {
   });
 }
 
+/** Dense foliage: overlapping small leaves in several greens (tiles on hedges and canopies). */
+function leafTexture() {
+  return cached('leaf', () => {
+    const r = rng(23);
+    const c = canvas(256, 256, (g) => {
+      g.fillStyle = '#3e6b2a';
+      g.fillRect(0, 0, 256, 256);
+      const greens = ['#2f5a1f', '#4a7f30', '#5f9a3a', '#3a6a26', '#76ad48'];
+      for (let i = 0; i < 1400; i++) {
+        const x = r() * 256, y = r() * 256, a = r() * Math.PI * 2, l = 5 + r() * 6;
+        g.fillStyle = greens[Math.floor(r() * greens.length)];
+        g.save();
+        g.translate(x, y);
+        g.rotate(a);
+        g.beginPath();
+        g.ellipse(0, 0, l, l * 0.45, 0, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+    });
+    return tex(c, true, [2, 2]);
+  });
+}
+
+/** Garden lawn (around the course): rougher, darker and a little yellower than the fairway. */
+export function lawnMaterial() {
+  return cached('m:lawn', () => {
+    const r = rng(31);
+    const c = canvas(512, 512, (g) => {
+      g.fillStyle = '#4c7a2e';
+      g.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 260; i++) {
+        const x = r() * 512, y = r() * 512, rad = 20 + r() * 60;
+        const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+        const v = r() > 0.5 ? '96,140,58' : '58,92,34';
+        gr.addColorStop(0, `rgba(${v},0.35)`);
+        gr.addColorStop(1, `rgba(${v},0)`);
+        g.fillStyle = gr;
+        g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      }
+      g.lineWidth = 1.2;
+      for (let i = 0; i < 14000; i++) {
+        const x = r() * 512, y = r() * 512;
+        g.strokeStyle = r() > 0.5 ? 'rgba(120,160,70,0.5)' : 'rgba(40,70,25,0.5)';
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 3, y - 3 - r() * 5); g.stroke();
+      }
+    });
+    return shared(new THREE.MeshStandardMaterial({ map: tex(c, true, [30, 30]), roughness: 1 }));
+  });
+}
+
+/** Mown fairway: the turf texture with broad light/dark mowing stripes baked in. */
+export function fairwayMaterial() {
+  return cached('m:fairway', () => {
+    const [map, bump] = turfTextures();
+    const m = new THREE.MeshStandardMaterial({ map, bumpMap: bump, bumpScale: 0.8, roughness: 0.95, vertexColors: true });
+    return shared(m);
+  });
+}
+
 /** Library keyed by the material names used in the Blender scripts. All use the baked AO vertex colours. */
 export function modelMaterials(): Record<string, THREE.Material> {
   return cached('m:models', () => {
@@ -805,8 +865,13 @@ export function modelMaterials(): Record<string, THREE.Material> {
       Iron: new THREE.MeshStandardMaterial({ color: 0x2b2826, metalness: 0.75, roughness: 0.42, vertexColors: true }),
       Glass: mats.glass,
       Hole: new THREE.MeshBasicMaterial({ color: 0x050403 }),
+      Timber: new THREE.MeshStandardMaterial({ map: grain('m-timber', '#7a5434', '#9c7350', '#3f2a18', 1.2), roughness: 0.75, vertexColors: true }),
+      Leaf: new THREE.MeshStandardMaterial({ map: leafTexture(), roughness: 0.85, vertexColors: true }),
+      Bark: new THREE.MeshStandardMaterial({ map: grain('m-bark', '#4a3324', '#6b4a33', '#24170e', 3), roughness: 0.95, vertexColors: true }),
+      Petal: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, vertexColors: true }),
+      FlowerCenter: new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.7, vertexColors: true }),
     };
-    for (const m of Object.values(lib)) m.userData.shared = true;
+    for (const [name, m] of Object.entries(lib)) { m.userData.shared = true; if (!m.name) m.name = name; }
     return lib;
   });
 }
@@ -815,15 +880,15 @@ export function modelMaterials(): Record<string, THREE.Material> {
 export function lanternGlow(): Animated {
   const g = new THREE.Group();
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.85 }));
-  halo.scale.set(80, 80, 1);
+  halo.scale.set(46, 46, 1);
   g.add(halo);
   const seed = Math.random() * 10;
   return {
     group: g,
     update(_a, time) {
       const f = 0.9 + Math.sin(time * 7.3 + seed) * 0.05 + Math.sin(time * 13.1 + seed * 2) * 0.04;
-      halo.scale.set(80 * f, 80 * f, 1);
-      (halo.material as THREE.SpriteMaterial).opacity = 0.7 * f;
+      halo.scale.set(46 * f, 46 * f, 1);
+      (halo.material as THREE.SpriteMaterial).opacity = 0.45 * f;
     },
   };
 }

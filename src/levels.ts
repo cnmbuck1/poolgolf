@@ -1,4 +1,5 @@
-// Course data. The playable felt is WORLD_W x WORLD_H units; the rails sit outside it.
+// Course data. Coordinates are table-plane units (the ball has radius 12); holes without an
+// outline use the original WORLD_W x WORLD_H rectangle.
 
 export const WORLD_W = 1000;
 export const WORLD_H = 500;
@@ -13,6 +14,16 @@ export interface Bar { x: number; y: number; len: number; angle: number } // ang
 export interface Bumper { x: number; y: number; r: number; color: string; n: number }
 export interface Spinner { x: number; y: number; len: number; speed: number } // speed in rad/s
 
+/**
+ * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
+ *   hill  smooth bump (negative h makes a bowl), radius r is roughly where it fades out
+ *   tilt  a plane that drops `drop` units across the rect in direction `dir` (degrees),
+ *         fading smoothly to flat over `feather` units outside the rect
+ */
+export type Slope =
+  | { kind: 'hill'; x: number; y: number; r: number; h: number }
+  | { kind: 'tilt'; x: number; y: number; w: number; h: number; dir: number; drop: number; feather: number };
+
 export interface LevelDef {
   name: string;
   par: number;
@@ -24,6 +35,9 @@ export interface LevelDef {
   spinners?: Spinner[];
   water?: Zone[];
   sand?: Zone[];
+  /** Fairway border: centre line of the edging, as a closed polygon. Defaults to the original rectangle. */
+  outline?: Pt[];
+  slopes?: Slope[];
   /** Visual treatment. 'premium' uses the detailed models from art.ts (Hole 1 is the benchmark). */
   art?: 'premium';
 }
@@ -37,18 +51,24 @@ const ball = (n: keyof typeof BALL, x: number, y: number, r = 18): Bumper => ({ 
 
 export const LEVELS: LevelDef[] = [
   {
-    // The windmill guards the cup: the straight line to the pin runs through its sweepers.
-    // A brick wall under the windmill closes the low lane; the stone L frames the top bank route.
+    // A dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be
+    // timed through its sweepers; the brick "leg" under it closes the low lane. The lane from the tee
+    // falls away toward the bottom edge (aim a little high), a hill sits on the top bank route, and the
+    // green is a shallow bowl around the cup.
     name: 'Break Shot',
     par: 3,
     art: 'premium',
     tee: [110, 390],
     cup: [895, 350],
-    walls: [[[340, 0], [340, 230], [450, 230]]],
-    // The windmill's "leg": its top end sits where the sweepers reach, so no path slips past outside them
-    bars: [{ x: 700, y: 444, len: 112, angle: 90 }],
+    outline: [[80, 260], [420, 260], [480, 120], [560, 60], [900, 60], [960, 120], [960, 420], [900, 480], [40, 480], [40, 300]],
+    bars: [{ x: 700, y: 439, len: 102, angle: 90 }],
     water: [{ kind: 'circle', x: 700, y: 265, r: 62 }],
     spinners: [{ x: 700, y: 265, len: 82, speed: 0.8 }],
+    slopes: [
+      { kind: 'tilt', x: 150, y: 270, w: 420, h: 200, dir: 90, drop: 7, feather: 50 },
+      { kind: 'hill', x: 620, y: 112, r: 80, h: 9 },
+      { kind: 'hill', x: 895, y: 350, r: 60, h: -3.5 },
+    ],
   },
   {
     name: 'Bank Street',

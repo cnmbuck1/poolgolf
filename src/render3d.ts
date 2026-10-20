@@ -1,59 +1,34 @@
 import * as THREE from 'three';
-import { Bumper, WORLD_H, WORLD_W, Zone } from './levels';
-import { BALL_R, CUP_R, inZone, SPINNER_R, WALL_R, World } from './physics';
-import { Animated, brassCup, contactDisc, contactStrip, fern, lantern, lanternGlow, mats, merge, rugTexture as persianRug, stoneWall, teePlate, TURF_TILE, wallRivets, windmill } from './art';
-import { clonePiece, getModels, Models, PieceBatch, windmillRig } from './models';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { Animated } from './art';
+import { buildCourse, Course, disposeGroup, HH, HW, to3, woodTexture } from './course';
+import { buildLawn, buildSky, FOG_COLOR, skyEnvironment, SUN_DIR } from './garden';
+import { getModels } from './models';
+import { BALL_R, CUP_R, heightAt, World } from './physics';
 
 /** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, vignette: { value: 0.32 } },
+  uniforms: { tDiffuse: { value: null }, vignette: { value: 0.3 } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette; varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
-      vec3 col = c.rgb * vec3(1.03, 1.0, 0.95);
-      col = (col - 0.5) * 1.06 + 0.5;
+      vec3 col = c.rgb * vec3(1.03, 1.0, 0.96);
+      col = (col - 0.5) * 1.05 + 0.5;
       float d = distance(vUv, vec2(0.5));
-      col *= 1.0 - vignette * smoothstep(0.42, 0.85, d);
+      col *= 1.0 - vignette * smoothstep(0.45, 0.88, d);
       gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
     }`,
 };
 
-// The physics runs on a flat 2D table (x, y). In 3D that table lies on the XZ plane,
-// centred on the origin, with the felt surface at y = 0.
-const RAIL = 38;
-const RAIL_H = 20;
-const POST_H = 26; // corner posts on the rail that carry the lanterns
-const LANTERN_TOP = RAIL_H + 5 + POST_H + 36;
-const HW = WORLD_W / 2;
-const HH = WORLD_H / 2;
-const FLOOR_Y = -330;
-const to3 = (x: number, y: number) => new THREE.Vector3(x - HW, 0, y - HH);
-
 const C = {
-  bg: 0x1a110b,
-  floor: 0x5a4030,
-  rug: 0x1f3a46,
-  rail: 0x364957,
-  plinth: 0x2a1d16,
-  felt: 0x58a262,
-  cushion: 0x4a8f55,
-  wood: 0xe8bd77,
-  water: 0x2d5d66,
-  waterDeep: 0x1d3c4a,
-  sand: 0xe6d29c,
-  spinner: 0xe8e1ca,
-  cupRim: 0x9a8a62,
   aim: 0xfdf4a4,
   cue: 0xd9a46a,
   cueButt: 0x3a2416,
-  sight: 0xf3ead2,
-  lamp: 0xffd9a6,
 };
 
 export type GuideMode = 'full' | 'short';
@@ -69,7 +44,7 @@ export interface FX {
 
 export type CamMode = 'title' | 'play' | 'sink' | 'debug';
 
-const TILT_3D = 0.95; // camera elevation in radians (~54°)
+const TILT_3D = 0.95; // whole-hole view elevation (~54°)
 const TILT_TITLE = 0.72;
 const MAX_DOTS = 160;
 const DROPS = 14;
@@ -79,61 +54,52 @@ export class Renderer3D {
   /** Draw calls, triangles and texture memory from the last frame (for performance checks). */
   get stats() { const i = this.renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, quality: this.quality }; }
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(36, 1, 10, 6000);
+  private camera = new THREE.PerspectiveCamera(36, 1, 10, 12000);
   private levelGroup = new THREE.Group();
+  private course: Course | null = null;
+  private level: World['level'] | null = null;
   private ball: THREE.Mesh;
   private ballShadowFake: THREE.Mesh;
-  private spinners: THREE.Group[] = [];
   private dots: THREE.InstancedMesh;
   private ghosts: THREE.Mesh[] = [];
   private cue = new THREE.Group();
   private cuePitch = new THREE.Group();
   private cueMats: THREE.MeshStandardMaterial[] = [];
-  private cupPulse!: THREE.Mesh;
-  private cupPos = new THREE.Vector3();
   private rippleMeshes: THREE.Mesh[] = [];
   private drops: THREE.InstancedMesh;
   private dropState: { p: THREE.Vector3; v: THREE.Vector3 }[] = [];
-  private waterMats: THREE.MeshPhysicalMaterial[] = [];
-  /** Animated props: windmills follow their spinner's angle; the rest just use time. */
-  private spinnerAnims: (Animated | undefined)[] = [];
-  private levelAnims: Animated[] = [];
-  private globalAnims: Animated[] = [];
-  private corners: THREE.Group[] = [];
-  private decor = new THREE.Group();
+  private sun: THREE.DirectionalLight;
   private size = { w: 1, h: 1, top: 0, bottom: 0 };
-  private raycaster = new THREE.Raycaster();
-  private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   // Ball spin: angular velocity eases toward pure rolling, so a hard shot skids first.
   private spin = new THREE.Vector3();
   private hop = { y: 0, v: 0 };
 
-  // Camera rig
+  // Whole-hole rig
   private tilt = TILT_3D;
   private baseDist = 1500;
   private offsetY = 0;
   private yaw = 0;
   private distMul = 1;
   private focus = new THREE.Vector3();
+  private centre = new THREE.Vector3();
+  private span = 1000;
   private mode: CamMode = 'title';
   private shakeAmt = 0;
   follow = true;
-  // Shot camera: sits behind the ball and turns with the aim. `overview` shows the whole table instead.
+  // Shot camera: sits behind the ball and turns with the aim. `overview` shows the whole hole instead.
   private overview = false;
   private shotYaw = 0;
-  private blend = 0; // 0 = whole-table rig, 1 = shot camera
-  private camPos = new THREE.Vector3(0, 900, 900);
+  private blend = 0; // 0 = whole-hole rig, 1 = shot camera
+  private camPos = new THREE.Vector3(0, 1400, 1400);
   private camLook = new THREE.Vector3();
 
   // Adaptive quality: step down resolution and shadow detail if frames run slow.
   private quality = 0;
   private dpr = 1;
   private perf = { time: 0, frames: 0 };
-  private lamp!: THREE.SpotLight;
-  /** Post-processing (glow on lanterns, grade, vignette); skipped at lower quality steps. */
+  /** Post-processing (glow, grade, vignette); skipped at lower quality steps. */
   private composer: EffectComposer;
-  private bloom: UnrealBloomPass;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -142,21 +108,26 @@ export class Renderer3D {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.92;
-    this.scene.background = new THREE.Color(C.bg);
-    this.scene.fog = new THREE.Fog(C.bg, 2200, 4200);
+    this.renderer.toneMappingExposure = 1.0;
+    this.scene.fog = new THREE.Fog(FOG_COLOR, 2600, 7000);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.55, 0.95);
-    this.composer.addPass(this.bloom);
+    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.55, 0.95));
     this.composer.addPass(new OutputPass());
     this.composer.addPass(new ShaderPass(GradeShader));
 
-    this.addEnvironmentMap();
-    this.addLights();
-    this.addRoom();
-    this.addTable();
+    // Garden: sky, lawn, evening sun with sky fill
+    this.scene.add(buildSky(), buildLawn());
+    this.scene.environment = skyEnvironment(this.renderer);
+    this.scene.add(new THREE.HemisphereLight(0xcfe0f5, 0x4e5a2c, 0.9));
+    const sun = (this.sun = new THREE.DirectionalLight(0xffd6a0, 2.6));
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.6;
+    sun.shadow.radius = 4;
+    this.scene.add(sun, sun.target);
     this.scene.add(this.levelGroup);
 
     this.ball = new THREE.Mesh(
@@ -165,7 +136,7 @@ export class Renderer3D {
     );
     this.ball.castShadow = true;
     this.scene.add(this.ball);
-    // Soft contact shadow so the ball sits on the cloth even where the shadow map is blurry
+    // Soft contact shadow so the ball sits on the turf even where the shadow map is blurry
     this.ballShadowFake = new THREE.Mesh(
       new THREE.CircleGeometry(BALL_R * 1.1, 24).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.55 }),
@@ -208,201 +179,6 @@ export class Renderer3D {
     this.scene.add(this.drops);
   }
 
-  // ---------- static scene ----------
-
-  /** A tiny procedural "room" baked into an environment map for glossy reflections. */
-  private addEnvironmentMap() {
-    const env = new THREE.Scene();
-    env.background = new THREE.Color(0x140c07);
-    const panel = (w: number, h: number, color: number, intensity: number, pos: [number, number, number]) => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }));
-      m.position.set(...pos);
-      m.lookAt(0, 0, 0);
-      env.add(m);
-    };
-    panel(6, 2.2, C.lamp, 6, [0, 6, 0]); // the lamp above the table
-    panel(10, 4, 0x6b4a32, 0.5, [0, 2, -9]); // warm wood-panelled walls
-    panel(10, 4, 0x6b4a32, 0.4, [-9, 2, 0]);
-    panel(10, 4, 0x7a5638, 0.4, [9, 2, 0]);
-    for (const [x, z] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) panel(0.8, 1, 0xffb35a, 5, [x, 1.2, z]); // lanterns
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(env, 0.04).texture;
-    pmrem.dispose();
-  }
-
-  private addLights() {
-    this.scene.add(new THREE.HemisphereLight(0xffe6c4, 0x2e1c10, 0.55));
-
-    // Warm billiard lamp: the main light and the only shadow caster
-    const lamp = (this.lamp = new THREE.SpotLight(C.lamp, 3.0, 0, 0.8, 0.6, 0));
-    lamp.position.set(-80, 900, 160);
-    lamp.target.position.set(0, 0, 0);
-    lamp.castShadow = true;
-    lamp.shadow.mapSize.set(2048, 2048);
-    lamp.shadow.camera.near = 300;
-    lamp.shadow.camera.far = 1600;
-    lamp.shadow.bias = -0.0003;
-    lamp.shadow.normalBias = 0.4;
-    lamp.shadow.radius = 5;
-    this.scene.add(lamp, lamp.target);
-
-    // Soft warm rim from behind so silhouettes separate from the turf
-    const rim = new THREE.DirectionalLight(0xffc89a, 0.55);
-    rim.position.set(300, 400, -700);
-    this.scene.add(rim);
-  }
-
-  private addRoom() {
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(6000, 6000).rotateX(-Math.PI / 2),
-      new THREE.MeshPhysicalMaterial({ color: 0x8a5a36, roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.35, map: floorTexture() }),
-    );
-    floor.position.y = FLOOR_Y;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
-
-    const rugGeo = new THREE.ShapeGeometry(roundRectShape(1700, 1100, 40), 12);
-    const ruv = rugGeo.attributes.uv as THREE.BufferAttribute;
-    for (let i = 0; i < ruv.count; i++) ruv.setXY(i, ruv.getX(i) / 1700 + 0.5, ruv.getY(i) / 1100 + 0.5);
-    const rug = new THREE.Mesh(
-      rugGeo.rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ roughness: 1, map: persianRug() }),
-    );
-    rug.position.y = FLOOR_Y + 1;
-    rug.receiveShadow = true;
-    this.scene.add(rug);
-
-    // Turned legs
-    const legGeo = new THREE.LatheGeometry(
-      [[0, 0], [30, 0], [30, 20], [20, 40], [24, 90], [16, 140], [22, 175], [28, 190], [0, 190]].map(([x, y]) => new THREE.Vector2(x, y)),
-      20,
-    );
-    const legMat = mats.mahogany;
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(sx * (HW - 20), FLOOR_Y, sz * (HH - 20));
-      leg.castShadow = true;
-      this.scene.add(leg);
-    }
-
-    // Potted ferns around the table (replaced by planters and props once the models load)
-    for (const [x, z, size, seed] of [[-HW - 210, -HH - 40, 2.6, 1], [HW + 200, -HH - 70, 2.3, 2], [-HW - 230, HH + 130, 2.8, 3], [HW + 240, HH + 110, 2.2, 4]]) {
-      const f = fern(size, seed);
-      f.position.set(x, FLOOR_Y, z);
-      this.decor.add(f);
-    }
-    this.scene.add(this.decor);
-  }
-
-  private addTable() {
-    const mahog = mats.mahogany;
-    (mahog.map as THREE.Texture).repeat.set(1 / 420, 1 / 120);
-
-    // Apron (table body)
-    const apron = new THREE.Mesh(extrudeRoundRect(WORLD_W + RAIL * 2 - 16, WORLD_H + RAIL * 2 - 16, 44, 110), mahog);
-    apron.position.y = -140;
-    apron.castShadow = true;
-    apron.receiveShadow = true;
-    this.scene.add(apron);
-    // Brass trim line where the rail meets the apron
-    const trim = new THREE.Mesh(new THREE.ExtrudeGeometry(
-      (() => { const o = roundRectShape(WORLD_W + RAIL * 2 - 6, WORLD_H + RAIL * 2 - 6, 44); o.holes.push(roundRectShape(WORLD_W + RAIL * 2 - 14, WORLD_H + RAIL * 2 - 14, 40)); return o; })(),
-      { depth: 4, bevelEnabled: false, curveSegments: 20 }).rotateX(-Math.PI / 2), mats.brass);
-    trim.position.y = -36;
-    this.scene.add(trim);
-
-    // Rails: thick rounded frame with the play area cut out
-    const outer = roundRectShape(WORLD_W + RAIL * 2, WORLD_H + RAIL * 2, 46);
-    outer.holes.push(roundRectShape(WORLD_W + 14, WORLD_H + 14, 26));
-    const railGeo = new THREE.ExtrudeGeometry(outer, { depth: RAIL_H + 26, bevelEnabled: true, bevelThickness: 6, bevelSize: 6, bevelSegments: 5, curveSegments: 28 });
-    railGeo.rotateX(-Math.PI / 2);
-    const rail = new THREE.Mesh(railGeo, mahog);
-    rail.position.y = -32;
-    rail.castShadow = true;
-    rail.receiveShadow = true;
-    this.scene.add(rail);
-
-    // Turf-covered cushions along the inside of the rails
-    const cushionShape = roundRectShape(WORLD_W + 16, WORLD_H + 16, 27);
-    cushionShape.holes.push(roundRectShape(WORLD_W, WORLD_H, 22));
-    const cushionGeo = new THREE.ExtrudeGeometry(cushionShape, { depth: 40, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2.5, bevelSegments: 3, curveSegments: 20 });
-    cushionGeo.rotateX(-Math.PI / 2);
-    scaleUv(cushionGeo, 1 / TURF_TILE);
-    const cushion = new THREE.Mesh(cushionGeo, mats.cushion);
-    cushion.position.y = -30;
-    cushion.receiveShadow = true;
-    cushion.castShadow = true;
-    this.scene.add(cushion);
-
-    // Brass studs along the rail tops (one instanced draw call)
-    const studs: THREE.Vector3[] = [];
-    const yTop = RAIL_H + 6.3 - 6;
-    const mid = RAIL / 2 + 4;
-    for (let x = -HW + 30; x <= HW - 30; x += 36) { studs.push(new THREE.Vector3(x, yTop, -HH - mid), new THREE.Vector3(x, yTop, HH + mid)); }
-    for (let z = -HH + 30; z <= HH - 30; z += 36) { studs.push(new THREE.Vector3(-HW - mid, yTop, z), new THREE.Vector3(HW + mid, yTop, z)); }
-    const studMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(2.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mats.brass, studs.length);
-    const m4 = new THREE.Matrix4();
-    studs.forEach((p, i) => studMesh.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z)));
-    this.scene.add(studMesh);
-
-    // Corner posts with carriage lanterns
-    const postGeo = extrudeRoundRect(30, 30, 5, POST_H);
-    const capGeo = merge([new THREE.BoxGeometry(34, 3, 34).translate(0, POST_H + 1.5, 0), new THREE.BoxGeometry(22, 2, 22).translate(0, POST_H + 4, 0)]);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const g = new THREE.Group();
-      const post = new THREE.Mesh(postGeo, mahog);
-      post.castShadow = true;
-      post.receiveShadow = true;
-      g.add(post);
-      const cap = new THREE.Mesh(capGeo, mats.brass);
-      cap.castShadow = true;
-      g.add(cap);
-      const l = lantern();
-      l.group.position.y = POST_H + 5;
-      g.add(l.group);
-      this.globalAnims.push(l);
-      g.position.set(sx * (HW + RAIL - 14), RAIL_H + 2, sz * (HH + RAIL - 14));
-      this.corners.push(g);
-      this.scene.add(g);
-    }
-  }
-
-  /** Swap the procedural table dressing for the Blender models once they have loaded. */
-  applyModels(m: Models) {
-    this.globalAnims = [];
-    for (const g of this.corners) {
-      g.clear();
-      g.add(clonePiece(m, 'Lantern'));
-      const glow = lanternGlow();
-      glow.group.position.y = 41;
-      g.add(glow.group);
-      this.globalAnims.push(glow);
-    }
-    // Floor dressing: planted ferns in oak planters, barrels and rocks, all well clear of the table
-    this.decor.clear();
-    const put = (o: THREE.Object3D, x: number, z: number, rot = 0, scale = 1) => {
-      o.position.set(x, FLOOR_Y, z);
-      o.rotation.y = rot;
-      o.scale.setScalar(scale);
-      this.decor.add(o);
-      return o;
-    };
-    for (const [x, z, s, seed] of [[-HW - 200, -HH - 30, 2.4, 1], [HW + 210, -HH - 60, 2.2, 2], [-HW - 230, HH + 140, 2.6, 3]] as const) {
-      const planter = put(clonePiece(m, 'Planter'), x, z, seed * 0.4, 2.1);
-      const f = fern(s * 0.75 / 2.1, seed, 'bowl');
-      f.position.y = 30;
-      planter.add(f);
-    }
-    put(clonePiece(m, 'Barrel'), HW + 250, HH + 90, 0.3, 2.6);
-    put(clonePiece(m, 'Barrel'), HW + 330, HH + 30, 1.4, 2.4);
-    put(clonePiece(m, 'Barrel'), -HW - 330, -HH + 120, 2.1, 2.5);
-    put(clonePiece(m, 'Rocks3'), HW + 170, HH + 200, 0.5, 2.4);
-    put(clonePiece(m, 'Rocks1'), -HW - 150, HH + 230, 1.2, 2.2);
-    put(clonePiece(m, 'Rocks2'), -HW - 300, -HH - 120, 2.5, 2.6);
-    // Floor dressing sits outside the lamp's pool of light: skip it in the shadow pass
-    this.decor.traverse((o) => { o.castShadow = false; });
-  }
-
   private buildCue() {
     const len = 320;
     const mk = (geo: THREE.BufferGeometry, color: number, x: number, extra: THREE.MeshStandardMaterialParameters = {}) => {
@@ -430,193 +206,22 @@ export class Renderer3D {
   /** Rebuild everything specific to a hole. */
   setLevel(world: World) {
     disposeGroup(this.levelGroup);
-    this.spinners = [];
-    this.waterMats = [];
-    this.spinnerAnims = [];
-    this.levelAnims = [];
-    const L = world.level;
-    const premium = L.art === 'premium';
-    const models = premium ? getModels() : null;
-    const add = (o: THREE.Object3D) => { this.levelGroup.add(o); return o; };
+    this.level = world.level;
+    this.course = buildCourse(world, getModels());
+    this.levelGroup.add(this.course.group);
 
-    // Felt with the cup cut out
-    const felt = roundRectShape(WORLD_W + 2, WORLD_H + 2, 22);
-    const hole = new THREE.Path();
-    hole.absarc(L.cup[0] - HW, -(L.cup[1] - HH), CUP_R, 0, Math.PI * 2, true);
-    felt.holes.push(hole);
-    const feltMesh = new THREE.Mesh(
-      new THREE.ShapeGeometry(felt, 40).rotateX(-Math.PI / 2),
-      premium ? mats.turf : new THREE.MeshStandardMaterial({ color: C.felt, roughness: 0.92, map: feltTexture(), bumpMap: feltBump(), bumpScale: 0.6 }),
-    );
-    // ShapeGeometry UVs are in world units; scale them so the texture tiles.
-    scaleUv(feltMesh.geometry, 1 / (premium ? TURF_TILE : 250));
-    feltMesh.receiveShadow = true;
-    add(feltMesh);
-    const under = new THREE.Mesh(new THREE.BoxGeometry(WORLD_W, 2, WORLD_H), new THREE.MeshBasicMaterial({ color: 0x0c151c }));
-    under.position.y = -31;
-    add(under);
-
-    // Cup with a brass rim
-    this.cupPos = to3(L.cup[0], L.cup[1]);
-    if (premium) {
-      if (models) {
-        const cupModel = clonePiece(models, 'Cup');
-        cupModel.position.copy(this.cupPos);
-        add(cupModel);
-      }
-      const cup = brassCup(CUP_R, !models);
-      cup.group.position.copy(this.cupPos);
-      add(cup.group);
-      this.levelAnims.push(cup);
-      const tee = teePlate(BALL_R + 8);
-      tee.position.copy(to3(L.tee[0], L.tee[1]));
-      add(tee);
-    }
-    this.cupPulse = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false }));
-    this.cupPulse.position.copy(this.cupPos).setY(0.5);
-    add(this.cupPulse);
-    if (!premium) {
-    const liner = new THREE.Mesh(new THREE.CylinderGeometry(CUP_R, CUP_R, 30, 40, 1, true), new THREE.MeshStandardMaterial({ color: 0x1a1612, side: THREE.BackSide, roughness: 0.9 }));
-    liner.position.copy(this.cupPos).setY(-15);
-    add(liner);
-    const cupBottom = new THREE.Mesh(new THREE.CircleGeometry(CUP_R, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x030405 }));
-    cupBottom.position.copy(this.cupPos).setY(-29);
-    add(cupBottom);
-    const rim = new THREE.Mesh(new THREE.RingGeometry(CUP_R, CUP_R + 3, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C.cupRim, metalness: 0.9, roughness: 0.3 }));
-    rim.position.copy(this.cupPos).setY(0.3);
-    add(rim);
-    // Flag pin
-    const pin = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 90, 8), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.3, metalness: 0.4 }));
-    pin.position.copy(this.cupPos).add(new THREE.Vector3(CUP_R * 0.45, 30, -CUP_R * 0.2));
-    pin.castShadow = true;
-    add(pin);
-    const flag = new THREE.Mesh(flagGeometry(), new THREE.MeshStandardMaterial({ color: 0xffcb67, side: THREE.DoubleSide, roughness: 0.7 }));
-    flag.position.copy(pin.position).add(new THREE.Vector3(0, 44, 0));
-    flag.castShadow = true;
-    flag.name = 'flag';
-    add(flag);
-
-    // Tee marker
-    const tee = new THREE.Mesh(new THREE.RingGeometry(BALL_R + 7, BALL_R + 9, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
-    tee.position.copy(to3(L.tee[0], L.tee[1])).setY(0.4);
-    add(tee);
-    }
-
-    // Sand traps with a soft lip
-    for (const z of L.sand ?? []) {
-      const lip = new THREE.Mesh(zoneGeometry(z, 3), new THREE.MeshStandardMaterial({ color: 0xbfa970, roughness: 1 }));
-      lip.position.y = 0.2;
-      add(lip);
-      const tex = sandTexture();
-      const m = new THREE.Mesh(zoneGeometry(z, 0, 140), new THREE.MeshStandardMaterial({ color: C.sand, roughness: 1, map: tex, bumpMap: tex, bumpScale: 1.2 }));
-      m.position.y = 0.3;
-      m.receiveShadow = true;
-      add(m);
-    }
-    // Water: grassy bank, dark depth, glossy surface with moving ripples
-    for (const z of L.water ?? []) {
-      const hasMill = premium && world.spinners.some((s) => inZone(z, s.x, s.y));
-      if (!hasMill) {
-        const bank = new THREE.Mesh(zoneGeometry(z, 5), new THREE.MeshStandardMaterial({ color: 0x4d7a57, roughness: 1 }));
-        bank.position.y = 0.25;
-        add(bank);
-      }
-      const deep = new THREE.Mesh(zoneGeometry(z, -10), new THREE.MeshBasicMaterial({ color: C.waterDeep }));
-      deep.position.y = 0.35;
-      add(deep);
-      const mat = new THREE.MeshPhysicalMaterial({ color: C.water, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.82, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.35, 0.35), clearcoat: 1 });
-      this.waterMats.push(mat);
-      const w = new THREE.Mesh(zoneGeometry(z, 0, 160), mat);
-      w.position.y = 0.5;
-      w.receiveShadow = true;
-      add(w);
-    }
-
-    if (models) {
-      // Blender wall kit laid along the exact collision capsules: stone for walls, brick for bars
-      const batch = new PieceBatch(models);
-      const wallSegs = (L.walls ?? []).reduce((n, line) => n + line.length - 1, 0);
-      world.segs.forEach((s, i) => {
-        const a = to3(s.ax, s.ay);
-        const b = to3(s.bx, s.by);
-        batch.wall(a, b, i < wallSegs ? 'Stone' : 'Brick', i * 0.06);
-        const strip = contactStrip(a.distanceTo(b) + s.r * 2 + 34, s.r * 2 + 30);
-        strip.position.copy(a).add(b).multiplyScalar(0.5).setY(0.45);
-        strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-        add(strip);
-      });
-      add(batch.build());
-    } else if (premium) {
-      // Stone walls with oak caps on the exact capsule footprint, brass rivets in one draw call
-      const rivets: THREE.Vector3[] = [];
-      for (const s of world.segs) {
-        const a = to3(s.ax, s.ay);
-        const b = to3(s.bx, s.by);
-        const wall = stoneWall(a.distanceTo(b), s.r);
-        wall.position.copy(a).add(b).multiplyScalar(0.5);
-        wall.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-        wall.updateMatrix();
-        for (const p of wallRivets(a.distanceTo(b), s.r)) rivets.push(p.applyMatrix4(wall.matrix));
-        add(wall);
-      }
-      if (rivets.length) {
-        const rv = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), mats.brass, rivets.length);
-        const m4 = new THREE.Matrix4();
-        rivets.forEach((p, i) => rv.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z)));
-        add(rv);
-      }
-    }
-    // Walls and bars: varnished wood capsules lying on the felt
-    const woodMat = new THREE.MeshPhysicalMaterial({ color: C.wood, roughness: 0.45, map: woodTexture(), clearcoat: 0.6, clearcoatRoughness: 0.25 });
-    for (const s of premium ? [] : world.segs) {
-      const a = to3(s.ax, s.ay);
-      const b = to3(s.bx, s.by);
-      const len = a.distanceTo(b);
-      const geo = new THREE.CapsuleGeometry(s.r, len, 6, 18).rotateZ(Math.PI / 2);
-      const m = new THREE.Mesh(geo, woodMat);
-      m.position.copy(a).add(b).multiplyScalar(0.5).setY(WALL_R);
-      m.scale.y = 1.25;
-      m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      add(m);
-    }
-
-    for (const bp of L.bumpers ?? []) add(bumperMesh(bp));
-
-    world.spinners.forEach((s, i) => {
-      if (!premium) return;
-      if (models) {
-        const rig = windmillRig(models);
-        rig.root.position.copy(to3(s.x, s.y));
-        const disc = contactDisc(56);
-        rig.root.add(disc);
-        this.spinnerAnims[i] = { group: rig.root, update: (angle) => rig.update(angle) };
-        add(rig.root);
-        return;
-      }
-      const pond = (L.water ?? []).find((z) => z.kind === 'circle' && inZone(z, s.x, s.y));
-      const mill = windmill(s.len, SPINNER_R, pond && pond.kind === 'circle' ? pond.r : 44);
-      mill.group.position.copy(to3(s.x, s.y));
-      this.spinnerAnims[i] = mill;
-      add(mill.group);
-    });
-    for (const s of premium ? [] : world.spinners) {
-      const g = new THREE.Group();
-      const mat = new THREE.MeshPhysicalMaterial({ color: C.spinner, roughness: 0.35, clearcoat: 0.8 });
-      for (const rot of [0, Math.PI / 2]) {
-        const arm = new THREE.Mesh(new THREE.CapsuleGeometry(SPINNER_R, s.len * 2, 6, 14).rotateZ(Math.PI / 2), mat);
-        arm.rotation.y = rot;
-        arm.castShadow = true;
-        g.add(arm);
-      }
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(11, 13, SPINNER_R * 2 + 8, 24), new THREE.MeshStandardMaterial({ color: 0xc9a85c, roughness: 0.3, metalness: 0.85 }));
-      hub.castShadow = true;
-      g.add(hub);
-      g.position.copy(to3(s.x, s.y)).setY(SPINNER_R + 4);
-      this.spinners.push(g);
-      add(g);
-    }
+    // Frame the camera and the sun's shadow on this hole's shape
+    const b = this.course.bounds;
+    this.centre.copy(to3((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2));
+    this.span = Math.max(b.maxX - b.minX, b.maxY - b.minY);
+    const r = this.span * 0.62 + 140;
+    const sc = this.sun.shadow.camera;
+    sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r;
+    sc.near = 50; sc.far = 4000;
+    sc.updateProjectionMatrix();
+    this.sun.target.position.copy(this.centre);
+    this.sun.position.copy(this.centre).addScaledVector(SUN_DIR, 1800);
+    this.fitCamera();
 
     this.ball.quaternion.identity();
     this.spin.set(0, 0, 0);
@@ -624,9 +229,11 @@ export class Renderer3D {
     this.drops.count = 0;
   }
 
+  private h(x: number, y: number) { return this.level ? heightAt(this.level, x, y) : 0; }
+
   // ---------- camera ----------
 
-  /** Whole-table view instead of the shot camera. */
+  /** Whole-hole view instead of the shot camera. */
   setOverview(on: boolean) { this.overview = on; }
   get isOverview() { return this.overview; }
 
@@ -654,7 +261,7 @@ export class Renderer3D {
   intro(world: World) {
     this.yaw = 0.55;
     this.distMul = 1.5;
-    this.focus.set(0, 0, 0);
+    this.focus.copy(this.centre);
     this.blend = 0;
     const L = world.level;
     this.shotYaw = Math.atan2(L.cup[1] - L.tee[1], L.cup[0] - L.tee[0]);
@@ -687,9 +294,9 @@ export class Renderer3D {
     this.composer.setPixelRatio(this.pixelRatio());
     this.composer.setSize(this.size.w, this.size.h);
     if (this.quality >= 2) {
-      this.lamp.shadow.mapSize.set(1024, 1024);
-      this.lamp.shadow.map?.dispose();
-      this.lamp.shadow.map = null;
+      this.sun.shadow.mapSize.set(1024, 1024);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
     }
     if (this.quality >= 3) {
       this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -697,14 +304,16 @@ export class Renderer3D {
     }
   }
 
-  /** Find the camera distance (and vertical image shift) that fits the table between the HUD bars. */
+  /** Find the camera distance (and vertical image shift) that fits the hole between the HUD bars. */
   private fitCamera() {
     const { w, h, top, bottom } = this.size;
     const cam = this.camera;
     cam.aspect = w / h;
     cam.clearViewOffset();
     const corners: THREE.Vector3[] = [];
-    for (const x of [-HW - RAIL, HW + RAIL]) for (const z of [-HH - RAIL, HH + RAIL]) for (const y of [-30, RAIL_H + 4, LANTERN_TOP]) corners.push(new THREE.Vector3(x, y, z));
+    const b = this.course?.bounds ?? { minX: 0, maxX: 1000, minY: 0, maxY: 500 };
+    const m = 30; // edging and a little turf beyond it
+    for (const x of [b.minX - m, b.maxX + m]) for (const y of [b.minY - m, b.maxY + m]) for (const z of [-5, 20]) corners.push(to3(x, y).setY(z).sub(this.centre));
     const dir = new THREE.Vector3(0, Math.sin(this.tilt), Math.cos(this.tilt));
     const availH = 2 - (2 * (top + 6)) / h - (2 * (bottom + 6)) / h;
     const availW = 2 - (2 * 14) / w;
@@ -723,7 +332,7 @@ export class Renderer3D {
       }
       return { minX, maxX, minY, maxY };
     };
-    let lo = 300, hi = 6000;
+    let lo = 300, hi = 8000;
     for (let i = 0; i < 28; i++) {
       const mid = (lo + hi) / 2;
       const r = project(mid);
@@ -737,7 +346,7 @@ export class Renderer3D {
   }
 
   private updateCamera(world: World, dt: number, time: number, aim: AimState) {
-    // The menu uses a lower, more cinematic angle; play uses the chosen view
+    // The menu uses a lower, more cinematic angle
     const tiltGoal = this.mode === 'title' ? TILT_TITLE : TILT_3D;
     if (Math.abs(this.tilt - tiltGoal) > 0.001) {
       this.tilt += (tiltGoal - this.tilt) * Math.min(1, dt * (this.mode === 'title' ? 3 : 9));
@@ -746,22 +355,22 @@ export class Renderer3D {
     }
 
     let yawT = 0, distT = 1;
-    const focusT = new THREE.Vector3();
+    const focusT = this.centre.clone();
     if (this.mode === 'title') {
-      // Table framed to the right of the menu, slowly drifting
+      // Hole framed to the right of the menu, slowly drifting
       yawT = -0.32 + Math.sin(time * 0.1) * 0.12;
       distT = 0.9;
-      focusT.set(-HW * 0.42, 0, 10);
+      focusT.x -= this.span * 0.42;
+      focusT.z += 10;
     } else if (this.mode === 'debug') {
       focusT.copy(to3(this.debugCam.x, this.debugCam.y));
       distT = this.debugCam.dist;
       yawT = this.debugCam.yaw;
-    } else if (this.mode === 'sink') {
-      focusT.copy(this.cupPos).multiplyScalar(0.55);
+    } else if (this.mode === 'sink' && this.course) {
+      focusT.lerp(this.course.cupPos, 0.55);
       distT = 0.72;
     } else if (this.follow && world.moving && !aim.active) {
-      // Lean toward the ball while it rolls, without ever losing the table
-      focusT.copy(to3(world.ball.x, world.ball.y)).multiplyScalar(0.2);
+      focusT.lerp(to3(world.ball.x, world.ball.y), 0.2);
       distT = 0.93;
     }
     const k = Math.min(1, dt * (this.mode === 'title' ? 1.2 : 1.8));
@@ -769,7 +378,7 @@ export class Renderer3D {
     this.distMul += (distT - this.distMul) * k;
     this.focus.lerp(focusT, k);
 
-    // Whole-table rig
+    // Whole-hole rig
     const d = this.baseDist * this.distMul;
     const ct = Math.cos(this.tilt);
     const posO = new THREE.Vector3(this.focus.x + Math.sin(this.yaw) * ct * d, this.focus.y + Math.sin(this.tilt) * d, this.focus.z + Math.cos(this.yaw) * ct * d);
@@ -777,7 +386,7 @@ export class Renderer3D {
 
     // Shot camera: behind the ball along the aim, looking down the line
     const b = world.ball;
-    const ball = to3(b.x, b.y).setY(BALL_R);
+    const ball = to3(b.x, b.y).setY(this.h(b.x, b.y) + BALL_R);
     const speed = Math.hypot(b.vx, b.vy);
     let yawGoal = this.shotYaw, yawRate = 0;
     if (aim.active && aim.power > 0.02) { yawGoal = Math.atan2(aim.dy, aim.dx); yawRate = 7; }
@@ -795,7 +404,7 @@ export class Renderer3D {
     let target = ball, back = 380, elev = 0.62, ahead = 120;
     if (aim.active) { back = 380 + aim.power * 30; ahead = 120 + aim.power * 80; }
     else if (world.moving) { back = 420; elev = 0.8; ahead = 40; }
-    if (this.mode === 'sink') { target = this.cupPos.clone().setY(0); back = 230; elev = 0.82; ahead = 0; }
+    if (this.mode === 'sink' && this.course) { target = this.course.cupPos.clone(); back = 230; elev = 0.82; ahead = 0; }
     const posS = target.clone().addScaledVector(dir, -back * Math.cos(elev)).setY(target.y + back * Math.sin(elev));
     const lookS = target.clone().addScaledVector(dir, ahead);
 
@@ -818,32 +427,23 @@ export class Renderer3D {
     cam.updateMatrixWorld();
   }
 
-  /** Convert a screen point to table coordinates (or null if it misses the table plane). */
-  pick(clientX: number, clientY: number): { x: number; y: number } | null {
-    const rect = this.canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.camera);
-    const p = new THREE.Vector3();
-    if (!this.raycaster.ray.intersectPlane(this.plane, p)) return null;
-    return { x: p.x + HW, y: p.z + HH };
-  }
-
   /** Screen position of a table point (for UI hints). */
   project(x: number, y: number) {
-    const v = to3(x, y).setY(BALL_R).project(this.camera);
+    const v = to3(x, y).setY(this.h(x, y) + BALL_R).project(this.camera);
     const rect = this.canvas.getBoundingClientRect();
     return { x: rect.left + ((v.x + 1) / 2) * rect.width, y: rect.top + ((1 - v.y) / 2) * rect.height };
   }
 
-  /** Kick the ball up off the cloth after a hard hit. */
+  /** Kick the ball up off the turf after a hard hit. */
   bounceBall(speed: number) { if (speed > 650) this.hop.v = Math.max(this.hop.v, Math.min(90, (speed - 600) / 9)); }
 
   splash(x: number, y: number) {
     this.dropState = [];
+    const y0 = this.h(x, y) + 2;
     for (let i = 0; i < DROPS; i++) {
       const a = Math.random() * Math.PI * 2;
       const s = 40 + Math.random() * 70;
-      this.dropState.push({ p: to3(x, y).setY(2), v: new THREE.Vector3(Math.cos(a) * s, 120 + Math.random() * 140, Math.sin(a) * s) });
+      this.dropState.push({ p: to3(x, y).setY(y0), v: new THREE.Vector3(Math.cos(a) * s, 120 + Math.random() * 140, Math.sin(a) * s) });
     }
     this.drops.count = DROPS;
   }
@@ -855,22 +455,20 @@ export class Renderer3D {
     this.adaptQuality(dt);
     this.updateCamera(world, dt, time, aim);
 
-    world.spinners.forEach((s, i) => {
-      const mill = this.spinnerAnims[i];
-      if (mill) mill.update(s.angle, time);
-      else if (this.spinners[i]) this.spinners[i].rotation.y = -s.angle;
-    });
-    for (const a of this.levelAnims) a.update(0, time);
-    for (const a of this.globalAnims) a.update(0, time);
-
-    const pulse = (Math.sin(time * 3) + 1) / 2;
-    const ps = CUP_R + 12 + pulse * 6;
-    this.cupPulse.scale.set(ps, 1, ps);
-    (this.cupPulse.material as THREE.MeshBasicMaterial).opacity = 0.12 + pulse * 0.18;
-    const flag = this.levelGroup.getObjectByName('flag');
-    if (flag) flag.rotation.y = Math.sin(time * 1.7) * 0.25;
-
-    for (const m of this.waterMats) m.normalMap?.offset.set(time * 0.02, time * 0.013);
+    const course = this.course;
+    if (course) {
+      world.spinners.forEach((s, i) => {
+        const mill: Animated | undefined = course.spinnerAnims[i];
+        if (mill) mill.update(s.angle, time);
+        else if (course.legacySpinners[i]) course.legacySpinners[i].rotation.y = -s.angle;
+      });
+      for (const a of course.anims) a.update(0, time);
+      const pulse = (Math.sin(time * 3) + 1) / 2;
+      const ps = CUP_R + 12 + pulse * 6;
+      course.cupPulse.scale.set(ps, 1, ps);
+      (course.cupPulse.material as THREE.MeshBasicMaterial).opacity = 0.12 + pulse * 0.18;
+      for (const m of course.waterMats) m.normalMap?.offset.set(time * 0.02, time * 0.013);
+    }
 
     this.updateBall(world, fx, dt);
 
@@ -878,7 +476,7 @@ export class Renderer3D {
       const r = fx.ripples[i];
       m.visible = !!r && r.t > 0;
       if (!r || r.t <= 0) return;
-      m.position.copy(to3(r.x, r.y)).setY(1);
+      m.position.copy(to3(r.x, r.y)).setY(this.h(r.x, r.y) + 1);
       const s = 10 + r.t * 55;
       m.scale.set(s, 1, s);
       (m.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - r.t);
@@ -915,17 +513,19 @@ export class Renderer3D {
     this.hop.y = Math.max(0, this.hop.y + this.hop.v * dt);
     if (this.hop.y === 0) this.hop.v = this.hop.v < -80 ? -this.hop.v * 0.35 : 0;
 
-    let bx = b.x, by = b.y, bh = BALL_R + this.hop.y;
+    let bx = b.x, by = b.y;
+    const ground = this.h(b.x, b.y);
+    let bh = ground + BALL_R + this.hop.y;
     if (fx.sink) {
       const t = Math.min(1, fx.sink.t);
       bx += (world.level.cup[0] - bx) * Math.min(1, t * 2);
       by += (world.level.cup[1] - by) * Math.min(1, t * 2);
-      bh = BALL_R - t * t * 36;
+      bh = this.h(world.level.cup[0], world.level.cup[1]) + BALL_R - t * t * 36;
     }
     this.ball.position.copy(to3(bx, by)).setY(bh);
     this.ball.visible = !fx.splash || fx.splash.t < 0.03;
     this.ballShadowFake.visible = this.ball.visible && !fx.sink;
-    this.ballShadowFake.position.copy(to3(bx, by)).setY(0.6);
+    this.ballShadowFake.position.copy(to3(bx, by)).setY(ground + 0.6);
     const sh = 1 + this.hop.y / 40;
     this.ballShadowFake.scale.set(sh, 1, sh);
     (this.ballShadowFake.material as THREE.MeshBasicMaterial).opacity = 0.55 / sh;
@@ -950,9 +550,10 @@ export class Renderer3D {
       const fade = [1, 0.7, 0.45][Math.min(2, s)];
       for (let d = carry; d < len && n < MAX_DOTS; d += spacing) {
         const t = d / len;
-        const p = to3(a.x + (c.x - a.x) * t, a.y + (c.y - a.y) * t);
+        const x = a.x + (c.x - a.x) * t, y = a.y + (c.y - a.y) * t;
+        const p = to3(x, y);
         const sc = 1 - 0.2 * Math.min(2, s);
-        m.makeScale(sc, 1, sc).setPosition(p.x, 1.2, p.z);
+        m.makeScale(sc, 1, sc).setPosition(p.x, this.h(x, y) + 1.2, p.z);
         this.dots.setMatrixAt(n, m);
         col.copy(base).multiplyScalar(fade);
         this.dots.setColorAt(n, col);
@@ -962,7 +563,7 @@ export class Renderer3D {
       if (s < path.contacts && s < this.ghosts.length) {
         const g = this.ghosts[s];
         g.visible = true;
-        g.position.copy(to3(c.x, c.y)).setY(1.3);
+        g.position.copy(to3(c.x, c.y)).setY(this.h(c.x, c.y) + 1.3);
         (g.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
       }
     }
@@ -975,125 +576,25 @@ export class Renderer3D {
     this.cue.visible = cue.visible && cue.alpha > 0.01;
     if (!this.cue.visible) return;
     const b = world.ball;
-    this.cue.position.copy(to3(cue.ox ?? b.x, cue.oy ?? b.y)).setY(BALL_R + 2);
+    const x = cue.ox ?? b.x, y = cue.oy ?? b.y;
+    this.cue.position.copy(to3(x, y)).setY(this.h(x, y) + BALL_R + 2);
     this.cue.rotation.y = -Math.atan2(cue.dy, cue.dx);
     this.cuePitch.position.x = -(BALL_R + cue.pull);
     for (const m of this.cueMats) m.opacity = cue.alpha;
   }
 }
 
-// ---------- geometry helpers ----------
-
-function scaleUv(g: THREE.BufferGeometry, k: number) {
-  const uv = g.attributes.uv as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * k, uv.getY(i) * k);
-}
-
-function roundRectShape(w: number, h: number, r: number) {
-  const s = new THREE.Shape();
-  const x = -w / 2, y = -h / 2;
-  s.moveTo(x + r, y);
-  s.lineTo(x + w - r, y);
-  s.quadraticCurveTo(x + w, y, x + w, y + r);
-  s.lineTo(x + w, y + h - r);
-  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  s.lineTo(x + r, y + h);
-  s.quadraticCurveTo(x, y + h, x, y + h - r);
-  s.lineTo(x, y + r);
-  s.quadraticCurveTo(x, y, x + r, y);
-  return s;
-}
-
-function extrudeRoundRect(w: number, h: number, r: number, depth: number) {
-  const g = new THREE.ExtrudeGeometry(roundRectShape(w, h, r), { depth, bevelEnabled: true, bevelThickness: 3, bevelSize: 3, bevelSegments: 2, curveSegments: 16 });
-  return g.rotateX(-Math.PI / 2);
-}
-
-/** Flat geometry for a zone, grown (or shrunk, if negative) by `grow`. UVs tile every `uvSize` units. */
-function zoneGeometry(z: Zone, grow: number, uvSize = 0) {
-  let shape: THREE.Shape;
-  if (z.kind === 'circle') {
-    shape = new THREE.Shape();
-    shape.absarc(0, 0, Math.max(2, z.r + grow), 0, Math.PI * 2, false);
-  } else {
-    shape = roundRectShape(z.w + grow * 2, z.h + grow * 2, Math.max(4, 26 + grow));
-  }
-  const g = new THREE.ShapeGeometry(shape, 32).rotateX(-Math.PI / 2);
-  if (uvSize) {
-    const uv = g.attributes.uv as THREE.BufferAttribute;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / uvSize, uv.getY(i) / uvSize);
-  }
-  const c = z.kind === 'circle' ? to3(z.x, z.y) : to3(z.x + z.w / 2, z.y + z.h / 2);
-  return g.translate(c.x, 0, c.z);
-}
-
-function flagGeometry() {
-  const s = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(30, -9), new THREE.Vector2(0, -18)]);
-  return new THREE.ShapeGeometry(s);
-}
-
-function bumperMesh(bp: Bumper) {
-  const m = new THREE.Mesh(
-    new THREE.SphereGeometry(bp.r, 36, 22),
-    new THREE.MeshPhysicalMaterial({ map: poolBallTexture(bp.color, bp.n), roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05 }),
-  );
-  m.position.copy(to3(bp.x, bp.y)).setY(bp.r);
-  m.rotation.z = Math.PI / 2; // turn the number disc to face up
-  m.rotation.x = 0.35;
-  m.castShadow = true;
-  return m;
-}
-
-function disposeGroup(g: THREE.Group) {
-  g.traverse((o) => {
-    if (o instanceof THREE.Mesh) {
-      o.geometry.dispose();
-      const list = Array.isArray(o.material) ? o.material : [o.material];
-      for (const mat of list) {
-        if (mat.userData.shared) continue;
-        const sm = mat as THREE.MeshStandardMaterial;
-        sm.map?.dispose(); sm.normalMap?.dispose(); sm.bumpMap?.dispose();
-        mat.dispose();
-      }
-    }
-  });
-  g.clear();
-}
-
 // ---------- procedural textures ----------
 
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, color = true) {
+function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   draw(c.getContext('2d')!);
   const t = new THREE.CanvasTexture(c);
-  if (color) t.colorSpace = THREE.SRGBColorSpace;
+  t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 4;
   return t;
-}
-
-function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, rgb: string, maxA: number, size = 1.5) {
-  for (let i = 0; i < n; i++) {
-    g.fillStyle = `rgba(${rgb},${Math.random() * maxA})`;
-    g.fillRect(Math.random() * w, Math.random() * h, size, size);
-  }
-}
-
-function poolBallTexture(color: string, n: number) {
-  return canvasTex(256, 128, (g) => {
-    g.fillStyle = color;
-    g.fillRect(0, 0, 256, 128);
-    g.fillStyle = '#fbf6e8';
-    g.beginPath(); g.arc(128, 64, 26, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#1a1a1a';
-    g.font = 'bold 34px Arial';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.translate(128, 64);
-    g.rotate(Math.PI / 2); // the sphere is turned on its side so the disc faces up
-    g.fillText(String(n), 0, 2);
-  });
 }
 
 function cueBallTexture() {
@@ -1115,93 +616,5 @@ function blobTexture() {
   });
 }
 
-function feltTexture() {
-  return canvasTex(256, 256, (g) => {
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 256, 256);
-    speckle(g, 256, 256, 9000, '0,0,0', 0.06);
-    speckle(g, 256, 256, 3000, '255,255,255', 0.05);
-  });
-}
-
-function feltBump() {
-  return canvasTex(256, 256, (g) => {
-    g.fillStyle = '#808080';
-    g.fillRect(0, 0, 256, 256);
-    speckle(g, 256, 256, 12000, '0,0,0', 0.25, 1);
-    speckle(g, 256, 256, 12000, '255,255,255', 0.25, 1);
-  }, false);
-}
-
-function sandTexture() {
-  return canvasTex(128, 128, (g) => {
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 128, 128);
-    speckle(g, 128, 128, 1400, '140,110,50', 0.45, 1.6);
-    speckle(g, 128, 128, 600, '255,250,235', 0.6, 1.2);
-  });
-}
-
-/** Soft overlapping ripples encoded as a tileable normal map. */
-function waterNormal() {
-  return canvasTex(128, 128, (g) => {
-    const img = g.createImageData(128, 128);
-    for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
-      const a = (x / 128) * Math.PI * 2, b = (y / 128) * Math.PI * 2;
-      const nx = Math.cos(a * 3 + Math.sin(b * 2)) * 0.5 + Math.cos(a * 5 + b * 2) * 0.25;
-      const ny = Math.cos(b * 3 + Math.sin(a * 2)) * 0.5 + Math.cos(b * 4 - a) * 0.25;
-      const i = (y * 128 + x) * 4;
-      img.data[i] = 128 + nx * 90;
-      img.data[i + 1] = 128 + ny * 90;
-      img.data[i + 2] = 255;
-      img.data[i + 3] = 255;
-    }
-    g.putImageData(img, 0, 0);
-  }, false);
-}
-
-/** Neutral grain; tinted by each material's colour. */
-function woodTexture() {
-  return canvasTex(256, 64, (g) => {
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 256, 64);
-    for (let i = 0; i < 22; i++) {
-      g.strokeStyle = `rgba(120,80,30,${0.06 + Math.random() * 0.14})`;
-      g.lineWidth = 0.8 + Math.random() * 1.5;
-      g.beginPath();
-      const y = Math.random() * 64;
-      g.moveTo(0, y);
-      g.bezierCurveTo(80, y + 4, 170, y - 4, 256, y + 1);
-      g.stroke();
-    }
-  });
-}
-
-function floorTexture() {
-  const t = canvasTex(512, 512, (g) => {
-    const plankH = 64;
-    for (let row = 0; row < 8; row++) {
-      const offset = (row * 173) % 512;
-      for (let k = -1; k < 2; k++) {
-        const shade = 0.85 + Math.random() * 0.25;
-        g.fillStyle = `rgb(${Math.round(255 * shade)},${Math.round(240 * shade)},${Math.round(225 * shade)})`;
-        g.fillRect(offset + k * 512, row * plankH, 512, plankH);
-        g.fillStyle = 'rgba(0,0,0,0.35)';
-        g.fillRect(offset + k * 512, row * plankH, 2, plankH);
-      }
-      g.fillStyle = 'rgba(0,0,0,0.3)';
-      g.fillRect(0, row * plankH, 512, 2);
-      for (let i = 0; i < 10; i++) {
-        g.strokeStyle = `rgba(90,60,30,${0.05 + Math.random() * 0.1})`;
-        g.beginPath();
-        const y = row * plankH + 6 + Math.random() * (plankH - 12);
-        g.moveTo(0, y);
-        g.bezierCurveTo(170, y + 3, 340, y - 3, 512, y);
-        g.stroke();
-      }
-    }
-  });
-  t.repeat.set(10, 10);
-  return t;
-}
-
+// Keep the old table-centre constants visible to callers that position UI hints.
+export { HH, HW };

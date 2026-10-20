@@ -1,10 +1,14 @@
-import { LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
+import { LevelDef, Pt, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
 export const WALL_R = 13; // half thickness of wooden walls/bars
 export const SPINNER_R = 8;
 export const MAX_SHOT_SPEED = 1450;
+/** Half-width of the fairway edging; the outline is its centre line. */
+export const EDGE_R = 10;
+/** How hard slopes pull the ball (units/s² per unit of gradient), roughly 5/7·g for a rolling ball. */
+const SLOPE_G = 3000;
 
 const ROLL_DECEL = 120; // constant rolling resistance (units/s^2)
 const LIN_DAMP = 0.55; // proportional damping (1/s)
@@ -19,7 +23,7 @@ const RAIL_GRIP = 0.04;
 const WALL_GRIP = 0.07;
 const BUMPER_GRIP = 0.02;
 
-export interface Seg { ax: number; ay: number; bx: number; by: number; r: number }
+export interface Seg { ax: number; ay: number; bx: number; by: number; r: number; kind?: 'wall' | 'rail' }
 
 export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number }
 
@@ -60,6 +64,11 @@ export class World {
       const dy = (Math.sin(a) * b.len) / 2;
       this.segs.push({ ax: b.x - dx, ay: b.y - dy, bx: b.x + dx, by: b.y + dy, r: WALL_R });
     }
+    const outline = fairwayOutline(level);
+    outline.forEach(([ax, ay], i) => {
+      const [bx, by] = outline[(i + 1) % outline.length];
+      this.segs.push({ ax, ay, bx, by, r: EDGE_R, kind: 'rail' });
+    });
     this.spinners = (level.spinners ?? []).map((s) => ({ ...s, angle: 0 }));
     this.ball = { x: level.tee[0], y: level.tee[1], vx: 0, vy: 0 };
   }
@@ -100,6 +109,11 @@ export class World {
 
       b.x += b.vx * h;
       b.y += b.vy * h;
+
+      // Slopes pull the ball downhill
+      const [gx, gy] = slopeAt(this.level, b.x, b.y);
+      b.vx -= SLOPE_G * gx * h;
+      b.vy -= SLOPE_G * gy * h;
 
       // Friction
       const sp = Math.hypot(b.vx, b.vy);
@@ -142,12 +156,15 @@ export class World {
         return events;
       }
 
-      this.collideRails(events);
-      for (const s of this.segs) this.collideSeg(s, WALL_E, 0, 0, 0, events, 'wall');
+      for (const s of this.segs) {
+        const rail = s.kind === 'rail';
+        this.collideSeg(s, rail ? RAIL_E : WALL_E, 0, 0, 0, events, rail ? 'rail' : 'wall');
+      }
       for (const bp of this.level.bumpers ?? []) this.collideCircle(bp.x, bp.y, bp.r, BUMPER_E, events);
       this.collideSpinners(events, h);
 
-      if (Math.hypot(b.vx, b.vy) < REST_SPEED) {
+      // Stop when slow, unless the slope is steep enough to keep it rolling
+      if (Math.hypot(b.vx, b.vy) < REST_SPEED && SLOPE_G * Math.hypot(gx, gy) < ROLL_DECEL * 1.1) {
         b.vx = b.vy = 0;
         this.moving = false;
         events.push({ type: 'stop' });
@@ -161,17 +178,6 @@ export class World {
     for (const s of this.spinners) {
       for (const seg of this.spinnerSegs(s)) this.collideSeg(seg, 0.85, s.x, s.y, s.speed, events, 'spinner');
     }
-  }
-
-  private collideRails(events: Event[]) {
-    const b = this.ball;
-    let hit = 0;
-    const side = (nx: number, ny: number) => { hit = Math.max(hit, this.bounce(nx, ny, 0, 0, RAIL_E, RAIL_GRIP)); };
-    if (b.x < BALL_R) { b.x = BALL_R; side(1, 0); }
-    if (b.x > WORLD_W - BALL_R) { b.x = WORLD_W - BALL_R; side(-1, 0); }
-    if (b.y < BALL_R) { b.y = BALL_R; side(0, 1); }
-    if (b.y > WORLD_H - BALL_R) { b.y = WORLD_H - BALL_R; side(0, -1); }
-    if (hit > 30) { events.push({ type: 'rail', speed: hit }); this.contacts++; }
   }
 
   /**
@@ -194,7 +200,7 @@ export class World {
   }
 
   /** Capsule collision. (cx, cy, omega) describe rotation for moving spinner arms. */
-  private collideSeg(s: Seg, e: number, cx: number, cy: number, omega: number, events: Event[], kind: 'wall' | 'spinner') {
+  private collideSeg(s: Seg, e: number, cx: number, cy: number, omega: number, events: Event[], kind: 'wall' | 'rail' | 'spinner') {
     const b = this.ball;
     const p = closestOnSeg(s, b.x, b.y);
     let nx = b.x - p.x;
@@ -208,7 +214,7 @@ export class World {
     // Surface velocity of a rotating arm at the contact point: omega x r
     const wvx = -omega * (p.y - cy);
     const wvy = omega * (p.x - cx);
-    const hit = this.bounce(nx, ny, wvx, wvy, e, kind === 'wall' ? WALL_GRIP : 0.05);
+    const hit = this.bounce(nx, ny, wvx, wvy, e, kind === 'wall' ? WALL_GRIP : kind === 'rail' ? RAIL_GRIP : 0.05);
     if (hit > 0) this.moving = true;
     if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
@@ -262,14 +268,10 @@ export class World {
   }
 
   private staticNormal(x: number, y: number): { x: number; y: number; e: number } | null {
-    if (x < BALL_R) return { x: 1, y: 0, e: RAIL_E };
-    if (x > WORLD_W - BALL_R) return { x: -1, y: 0, e: RAIL_E };
-    if (y < BALL_R) return { x: 0, y: 1, e: RAIL_E };
-    if (y > WORLD_H - BALL_R) return { x: 0, y: -1, e: RAIL_E };
     for (const s of this.segs) {
       const p = closestOnSeg(s, x, y);
       const d = Math.hypot(x - p.x, y - p.y);
-      if (d < BALL_R + s.r) return { x: (x - p.x) / (d || 1), y: (y - p.y) / (d || 1), e: WALL_E };
+      if (d < BALL_R + s.r) return { x: (x - p.x) / (d || 1), y: (y - p.y) / (d || 1), e: s.kind === 'rail' ? RAIL_E : WALL_E };
     }
     for (const bp of this.level.bumpers ?? []) {
       const d = Math.hypot(x - bp.x, y - bp.y);
@@ -291,4 +293,46 @@ export function closestOnSeg(s: Seg, x: number, y: number) {
 export function inZone(z: Zone, x: number, y: number) {
   if (z.kind === 'circle') return Math.hypot(x - z.x, y - z.y) < z.r;
   return x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h;
+}
+
+/** The hole's edging polygon; holes without one keep the original rectangle (same playable area). */
+export function fairwayOutline(level: LevelDef): Pt[] {
+  if (level.outline) return level.outline;
+  const m = EDGE_R; // edging centre line sits just outside the old boundary, so play is unchanged
+  return [[-m, -m], [WORLD_W + m, -m], [WORLD_W + m, WORLD_H + m], [-m, WORLD_H + m]];
+}
+
+const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+
+/** Terrain height at a point (0 = flat). Shared by physics and the renderer so what you see is what rolls. */
+export function heightAt(level: LevelDef, x: number, y: number) {
+  let h = 0;
+  for (const s of level.slopes ?? []) {
+    if (s.kind === 'hill') {
+      const sig = s.r / 2;
+      h += s.h * Math.exp(-((x - s.x) ** 2 + (y - s.y) ** 2) / (2 * sig * sig));
+    } else {
+      const a = (s.dir * Math.PI) / 180;
+      const ux = Math.cos(a), uy = Math.sin(a);
+      const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+      // Span of the rect along the fall direction, so `drop` is the total fall across it
+      const span = Math.abs(s.w * ux) + Math.abs(s.h * uy) || 1;
+      const along = ((x - cx) * ux + (y - cy) * uy) / span; // -0.5 .. 0.5 inside
+      const outX = Math.max(s.x - x, 0, x - (s.x + s.w));
+      const outY = Math.max(s.y - y, 0, y - (s.y + s.h));
+      const fade = 1 - smooth(Math.hypot(outX, outY) / s.feather);
+      h += -s.drop * Math.max(-0.5, Math.min(0.5, along)) * fade;
+    }
+  }
+  return h;
+}
+
+/** Terrain gradient (dh/dx, dh/dy). */
+export function slopeAt(level: LevelDef, x: number, y: number): [number, number] {
+  if (!level.slopes?.length) return [0, 0];
+  const e = 0.5;
+  return [
+    (heightAt(level, x + e, y) - heightAt(level, x - e, y)) / (2 * e),
+    (heightAt(level, x, y + e) - heightAt(level, x, y - e)) / (2 * e),
+  ];
 }
