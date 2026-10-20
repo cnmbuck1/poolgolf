@@ -4,7 +4,7 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
 import { LEVELS } from './levels';
 import { MAX_SHOT_SPEED, World } from './physics';
-import { AimState, computeView, FX, render, View } from './render';
+import { AimState, FX, Renderer3D } from './render3d';
 import { setSound, sfx, soundOn, unlockAudio } from './audio';
 
 const MAX_STROKES = 10;
@@ -12,7 +12,7 @@ const native = Capacitor.isNativePlatform();
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('game');
-const g = canvas.getContext('2d')!;
+const view3d = new Renderer3D(canvas);
 
 type Phase = 'title' | 'play' | 'paused' | 'holeDone';
 
@@ -22,10 +22,9 @@ let world = new World(LEVELS[0]);
 let strokes = 0;
 let scores: (number | null)[] = LEVELS.map(() => null);
 let lastRest = { x: 0, y: 0 };
-let view: View = { scale: 1, ox: 0, oy: 0, dpr: 1 };
 const aim: AimState = { active: false, dx: 1, dy: 0, power: 0 };
 const fx: FX = { ripples: [] };
-let drag: { id: number; sx: number; sy: number } | null = null;
+let drag: { id: number; sx: number; sy: number; wx: number; wy: number } | null = null;
 let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash reset)
 let time = 0;
 
@@ -38,13 +37,11 @@ if (native) void StatusBar.hide().catch(() => {});
 
 // ---------- Layout ----------
 function resize() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  canvas.width = Math.round(window.innerWidth * dpr);
-  canvas.height = Math.round(window.innerHeight * dpr);
+  const dpr = window.devicePixelRatio || 1;
   const bar = document.querySelector('.hud-bar')!.getBoundingClientRect();
   const top = bar.bottom > 0 ? bar.bottom + 2 : 60;
   const bottom = window.innerHeight - document.querySelector('.power')!.getBoundingClientRect().top;
-  view = computeView(window.innerWidth, window.innerHeight, dpr, top, bottom > 0 && bottom < 120 ? bottom + 4 : 36);
+  view3d.resize(window.innerWidth, window.innerHeight, dpr, top, bottom > 0 && bottom < 120 ? bottom + 4 : 36);
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
@@ -80,6 +77,7 @@ function show(id: string | null) {
 function loadHole(i: number) {
   holeIdx = i;
   world = new World(LEVELS[i]);
+  view3d.setLevel(world);
   strokes = 0;
   lastRest = { x: world.ball.x, y: world.ball.y };
   fx.sink = undefined;
@@ -158,7 +156,9 @@ const canAim = () => phase === 'play' && !world.moving && busyTimer <= 0;
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
   if (!canAim() || drag) return;
-  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY };
+  const w = view3d.pick(e.clientX, e.clientY);
+  if (!w) return;
+  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, wx: w.x, wy: w.y };
   canvas.setPointerCapture(e.pointerId);
   aim.active = true;
   aim.power = 0;
@@ -166,12 +166,18 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
-  // Pull back like a cue: the shot goes opposite to the drag.
-  const dx = drag.sx - e.clientX;
-  const dy = drag.sy - e.clientY;
-  const len = Math.hypot(dx, dy);
+  // Pull back like a cue: the shot goes opposite to the drag. Direction comes from
+  // the table point under the finger (so it follows the 3D perspective), power from
+  // how far the finger moved on screen.
+  const len = Math.hypot(drag.sx - e.clientX, drag.sy - e.clientY);
   const maxDrag = Math.min(window.innerHeight * 0.45, 260);
-  if (len > 4) { aim.dx = dx / len; aim.dy = dy / len; }
+  const w = view3d.pick(e.clientX, e.clientY);
+  if (w && len > 4) {
+    const dx = drag.wx - w.x;
+    const dy = drag.wy - w.y;
+    const wl = Math.hypot(dx, dy);
+    if (wl > 0.5) { aim.dx = dx / wl; aim.dy = dy / wl; }
+  }
   aim.power = Math.min(1, len / maxDrag);
   updateHud();
 });
@@ -198,6 +204,11 @@ canvas.addEventListener('pointercancel', (e) => endDrag(e, true));
 $('btn-play').onclick = () => { unlockAudio(); startRound(); };
 $('btn-pause').onclick = () => { if (phase === 'play') { phase = 'paused'; show('screen-pause'); } };
 $('btn-resume').onclick = () => { phase = 'play'; show(null); };
+$('btn-view').onclick = () => {
+  view3d.setTopView(!view3d.isTopView);
+  $('btn-view').textContent = view3d.isTopView ? '3D' : 'TOP';
+  localSet('view', view3d.isTopView ? 'top' : '3d');
+};
 $('btn-restart').onclick = () => { if (phase === 'play') loadHole(holeIdx); };
 $('btn-pause-restart').onclick = () => loadHole(holeIdx);
 $('btn-quit').onclick = () => { phase = 'title'; refreshTitle(); show('screen-title'); };
@@ -205,6 +216,7 @@ $('btn-sound').onclick = () => { setSound(!soundOn); $('btn-sound').textContent 
 $('btn-next').onclick = () => (holeIdx === LEVELS.length - 1 ? startRound() : loadHole(holeIdx + 1));
 document.addEventListener('visibilitychange', () => { if (document.hidden && phase === 'play') { phase = 'paused'; show('screen-pause'); } });
 
+if (localGet('view') === 'top') { view3d.setTopView(true); $('btn-view').textContent = '3D'; }
 if (localGet('sound') === '0') { setSound(false); $('btn-sound').textContent = 'Sound: Off'; }
 
 // ---------- Loop ----------
@@ -215,7 +227,7 @@ function frame(now: number) {
   time += dt;
 
   if (phase === 'play' || phase === 'title') tick(dt);
-  render(g, view, world, aim, fx, time);
+  view3d.render(world, aim, fx, time);
   requestAnimationFrame(frame);
 }
 
@@ -285,7 +297,21 @@ if (import.meta.env.DEV) {
   };
 }
 
-refreshTitle();
-resize();
-show('screen-title');
-requestAnimationFrame(frame);
+type Hot = { snapshot(fn: () => unknown): void; ready?(fn: (d: unknown) => void): void; data?: unknown };
+const hot = (window as unknown as { claude?: { hot?: Hot } }).claude?.hot;
+hot?.snapshot(() => ({ holeIdx, scores, playing: phase !== 'title' }));
+
+function start(data: unknown) {
+  view3d.setLevel(world);
+  refreshTitle();
+  resize();
+  const d = data as { holeIdx?: number; scores?: (number | null)[]; playing?: boolean } | undefined;
+  if (d?.playing && typeof d.holeIdx === 'number' && d.holeIdx < LEVELS.length) {
+    scores = LEVELS.map((_, i) => d.scores?.[i] ?? null);
+    loadHole(d.holeIdx);
+  } else {
+    show('screen-title');
+  }
+  requestAnimationFrame(frame);
+}
+if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});

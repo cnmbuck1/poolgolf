@@ -63,6 +63,7 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
   background: transparent; color: var(--ink);
   font-size: 19px; cursor: pointer;
 }
+.view-btn { width: auto; padding: 0 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; border: 1px solid rgba(255,255,255,0.25); }
 .icon-btn:active { background: rgba(255, 255, 255, 0.12); }
 
 .hint {

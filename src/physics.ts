@@ -19,6 +19,8 @@ export interface Seg { ax: number; ay: number; bx: number; by: number; r: number
 
 export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number }
 
+export interface AimPath { pts: { x: number; y: number }[]; contacts: number; cup: boolean }
+
 export interface Ball { x: number; y: number; vx: number; vy: number }
 
 export type Event =
@@ -199,38 +201,52 @@ export class World {
   }
 
   /**
-   * Cast the ball along a direction against static geometry, for the aim guide.
-   * Returns the first contact point and the reflected direction.
+   * Trace the aim guide: a straight ray that banks off rails, walls and bumpers
+   * (using each surface's restitution, like the real bounce). Spinners are ignored
+   * because they move. Returns the path points; every point after the first is a
+   * contact, except the last, which is where the guide runs out.
    */
-  castAim(dx: number, dy: number, maxLen: number) {
-    const step = 4;
+  aimPath(dx: number, dy: number, maxLen: number, maxBounces: number): AimPath {
+    const step = 3;
     const b = this.ball;
     let x = b.x, y = b.y;
-    for (let t = 0; t < maxLen; t += step) {
+    const pts = [{ x, y }];
+    let bounces = 0, travelled = 0;
+    const [cx, cy] = this.level.cup;
+    while (travelled < maxLen) {
       const nx = x + dx * step, ny = y + dy * step;
-      const n = this.staticNormal(nx, ny);
-      if (n) {
-        const dot = dx * n.x + dy * n.y;
-        return { x, y, hit: true, rx: dx - 2 * dot * n.x, ry: dy - 2 * dot * n.y };
+      const hit = this.staticNormal(nx, ny);
+      if (hit) {
+        pts.push({ x, y });
+        if (bounces++ >= maxBounces) return { pts, contacts: bounces, cup: false };
+        const dot = dx * hit.x + dy * hit.y;
+        dx -= (1 + hit.e) * dot * hit.x;
+        dy -= (1 + hit.e) * dot * hit.y;
+        const l = Math.hypot(dx, dy) || 1;
+        dx /= l; dy /= l;
+        continue;
       }
       x = nx; y = ny;
+      travelled += step;
+      if (Math.hypot(x - cx, y - cy) < CUP_R * 0.6) { pts.push({ x, y }); return { pts, contacts: bounces, cup: true }; }
     }
-    return { x, y, hit: false, rx: dx, ry: dy };
+    pts.push({ x, y });
+    return { pts, contacts: bounces, cup: false };
   }
 
-  private staticNormal(x: number, y: number): { x: number; y: number } | null {
-    if (x < BALL_R) return { x: 1, y: 0 };
-    if (x > WORLD_W - BALL_R) return { x: -1, y: 0 };
-    if (y < BALL_R) return { x: 0, y: 1 };
-    if (y > WORLD_H - BALL_R) return { x: 0, y: -1 };
+  private staticNormal(x: number, y: number): { x: number; y: number; e: number } | null {
+    if (x < BALL_R) return { x: 1, y: 0, e: RAIL_E };
+    if (x > WORLD_W - BALL_R) return { x: -1, y: 0, e: RAIL_E };
+    if (y < BALL_R) return { x: 0, y: 1, e: RAIL_E };
+    if (y > WORLD_H - BALL_R) return { x: 0, y: -1, e: RAIL_E };
     for (const s of this.segs) {
       const p = closestOnSeg(s, x, y);
       const d = Math.hypot(x - p.x, y - p.y);
-      if (d < BALL_R + s.r) return { x: (x - p.x) / (d || 1), y: (y - p.y) / (d || 1) };
+      if (d < BALL_R + s.r) return { x: (x - p.x) / (d || 1), y: (y - p.y) / (d || 1), e: WALL_E };
     }
     for (const bp of this.level.bumpers ?? []) {
       const d = Math.hypot(x - bp.x, y - bp.y);
-      if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d };
+      if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
     }
     return null;
   }

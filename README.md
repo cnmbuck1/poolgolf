@@ -12,7 +12,8 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   4. **Water Hazard**: water costs +1 stroke and puts the ball back where it was
   5. **Windmills**: an S-shaped course with rotating spinners
   6. **The Rack**: a racked triangle guarding the pocket
-- Pull back anywhere to aim (like a cue), release to shoot. The aim guide shows the first contact and the bank angle.
+- 3D table rendered with Three.js; the TOP button switches to an overhead view for precise aiming.
+- Pull back anywhere to aim (like a cue), release to shoot. The aim guide follows the shot through two bank shots (bumpers, walls and cushions), with a ghost ball at each contact.
 - HUD from the wireframe: hole / par / strokes, pause, restart, and a power bar.
 - Sand slows the ball. A cup only catches a ball that is going slowly enough. A hole ends at 10 strokes.
 - Scorecard after every hole, best round saved, synthesized sound effects, haptics on device.
@@ -23,7 +24,7 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
 ```
 src/levels.ts    course data (edit or add holes here)
 src/physics.ts   ball physics, collisions, aim ray-cast
-src/render.ts    canvas drawing (table, obstacles, cue, aim guide)
+src/render3d.ts  Three.js scene (table, obstacles, cue, aim guide, camera)
 src/main.ts      game flow, input, HUD, haptics
 src/audio.ts     WebAudio sound effects
 ios/  android/   generated native projects (Capacitor)
@@ -52,6 +53,5 @@ Before you submit to the stores:
 
 ## Next steps
 
-- True 3D look (the concept is "3D-inspired"): render the same physics with Three.js and a tilted camera.
 - More holes, moving and tilting obstacles, and star ratings.
 - Use `@capacitor/preferences` for saves, and Game Center / Play Games for leaderboards.
