@@ -209,6 +209,7 @@ export class Renderer3D {
     this.level = world.level;
     this.course = buildCourse(world, getModels());
     this.levelGroup.add(this.course.group);
+    this.setSlopeArrows(this.showArrows);
 
     // Frame the camera and the sun's shadow on this hole's shape
     const b = this.course.bounds;
@@ -227,6 +228,14 @@ export class Renderer3D {
     this.spin.set(0, 0, 0);
     this.hop = { y: 0, v: 0 };
     this.drops.count = 0;
+  }
+
+  /** Show or hide the downhill chevrons on the turf. */
+  private showArrows = true;
+  setSlopeArrows(on: boolean) {
+    this.showArrows = on;
+    const a = this.levelGroup.getObjectByName('slopeArrows');
+    if (a) a.visible = on;
   }
 
   private h(x: number, y: number) { return this.level ? heightAt(this.level, x, y) : 0; }

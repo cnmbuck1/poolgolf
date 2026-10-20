@@ -43,18 +43,21 @@ const settings = {
   sound: localGet('sound') !== '0',
   guide: localGet('guide') !== 'short',
   follow: localGet('follow') !== '0',
+  arrows: localGet('arrows') !== '0',
   top: localGet('view') === 'table', // whole-table view instead of the shot camera
   tutorialDone: localGet('tutorial') === '1',
 };
 setSound(settings.sound);
 aim.guide = settings.guide ? 'full' : 'short';
 view3d.follow = settings.follow;
+view3d.setSlopeArrows(settings.arrows);
 view3d.setOverview(settings.top);
 
 function syncSettingsUi() {
   $('set-sound').setAttribute('aria-pressed', String(settings.sound));
   $('set-guide').setAttribute('aria-pressed', String(settings.guide));
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
+  $('set-arrows').setAttribute('aria-pressed', String(settings.arrows));
   $('view-label').textContent = view3d.isOverview ? 'BALL' : 'TABLE';
   const t = $('btn-title-sound');
   t.querySelector('use')!.setAttribute('href', settings.sound ? '#i-sound' : '#i-mute');
@@ -369,6 +372,7 @@ function toggleView() {
 }
 function toggleSound() { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); }
 function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.guide ? 'full' : 'short'; localSet('guide', settings.guide ? 'full' : 'short'); syncSettingsUi(); }
+function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
 click('btn-view', toggleView);
 click('btn-restart', () => { if (phase === 'play') loadHole(holeIdx); });
@@ -409,15 +413,17 @@ function openSettings() {
   sheet('Settings', `<div class="settings">
     <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound</span><em></em></button>
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
+    <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
     <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button></div>`);
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
-      const k = b.dataset.set as 'sound' | 'guide' | 'follow' | 'top';
+      const k = b.dataset.set as 'sound' | 'guide' | 'follow' | 'top' | 'arrows';
       if (k === 'sound') toggleSound();
       if (k === 'guide') toggleGuide();
       if (k === 'follow') toggleFollow();
+      if (k === 'arrows') toggleArrows();
       if (k === 'top') toggleView();
       b.setAttribute('aria-pressed', String(settings[k]));
     };
@@ -449,7 +455,7 @@ click('btn-achievements', () => comingSoon('Achievements', 'i-trophy', 'Earn tro
 click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
 click('btn-more', () => sheet('How to play', `<p><b>Pull back</b> anywhere on the table to aim the cue, then <b>release</b> to shoot. Pull further for more power.</p>
-  <p>The dotted guide shows your path through the first two banks. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
+  <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
@@ -458,6 +464,7 @@ click('btn-next', () => {
 click('set-sound', toggleSound);
 click('set-guide', toggleGuide);
 click('set-follow', toggleFollow);
+click('set-arrows', toggleArrows);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 syncSettingsUi();
 

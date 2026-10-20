@@ -65,9 +65,9 @@ export const LEVELS: LevelDef[] = [
     water: [{ kind: 'circle', x: 700, y: 265, r: 62 }],
     spinners: [{ x: 700, y: 265, len: 82, speed: 0.8 }],
     slopes: [
-      { kind: 'tilt', x: 150, y: 270, w: 420, h: 200, dir: 90, drop: 7, feather: 50 },
-      { kind: 'hill', x: 620, y: 112, r: 80, h: 9 },
-      { kind: 'hill', x: 895, y: 350, r: 60, h: -3.5 },
+      { kind: 'tilt', x: 150, y: 270, w: 420, h: 200, dir: 90, drop: 4, feather: 50 },
+      { kind: 'hill', x: 620, y: 112, r: 80, h: 6 },
+      { kind: 'hill', x: 895, y: 350, r: 60, h: -2.5 },
     ],
   },
   {

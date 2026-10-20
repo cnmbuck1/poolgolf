@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Animated, brassCup, contactDisc, contactStrip, fairwayMaterial, lanternGlow, mats, stoneWall, TURF_TILE, wallRivets, windmill } from './art';
 import { Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
-import { BALL_R, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, SPINNER_R, WALL_R, World } from './physics';
+import { BALL_R, closestOnSeg, CUP_R, EDGE_R, fairwayOutline, heightAt, inZone, slopeAt, SPINNER_R, WALL_R, World } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -46,8 +46,10 @@ export function buildCourse(world: World, models: Models | null): Course {
   const bounds = outline.reduce((b, [x, y]) => ({ minX: Math.min(b.minX, x), maxX: Math.max(b.maxX, x), minY: Math.min(b.minY, y), maxY: Math.max(b.maxY, y) }),
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 
-  // ---- Fairway turf, shaped to the slopes ----
+  // ---- Fairway turf, shaped to the slopes, with arrows showing which way it falls ----
   add(fairwayMesh(L, outline));
+  const arrows = slopeArrows(world, outline);
+  if (arrows) { add(arrows.group); anims.push(arrows); }
 
   // ---- Timber edging on the outline (its centre line is the physics boundary) ----
   if (models) {
@@ -266,6 +268,70 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
   const m = new THREE.Mesh(g, fairwayMaterial());
   m.receiveShadow = true;
   return m;
+}
+
+// ---------- slope arrows ----------
+
+/**
+ * Chevrons painted on the turf wherever it slopes, pointing downhill and drifting slowly that
+ * way. Steeper ground gets bigger, brighter arrows; flat ground gets none. One instanced draw call.
+ */
+function slopeArrows(world: World, outline: [number, number][]): Animated | null {
+  const L = world.level;
+  if (!L.slopes?.length) return null;
+  const walls = world.segs.filter((s) => s.kind !== 'rail');
+  const spots: { x: number; y: number; ux: number; uy: number; k: number }[] = [];
+  const STEP = 64;
+  for (let y = STEP / 2; y < WORLD_H + 200; y += STEP) {
+    for (let x = STEP / 2 + ((Math.round(y / STEP) % 2) * STEP) / 2; x < WORLD_W + 200; x += STEP) {
+      const [gx, gy] = slopeAt(L, x, y);
+      const g = Math.hypot(gx, gy);
+      if (g < 0.008) continue;
+      if (!pointInPolygon(x, y, outline)) continue;
+      if (outline.some(([ax, ay], i) => { const [bx, by] = outline[(i + 1) % outline.length]; const p = closestOnSeg({ ax, ay, bx, by, r: 0 }, x, y); return Math.hypot(x - p.x, y - p.y) < 34; })) continue;
+      if (walls.some((s) => { const p = closestOnSeg(s, x, y); return Math.hypot(x - p.x, y - p.y) < s.r + 26; })) continue;
+      if ((L.water ?? []).some((z) => inZone(z, x, y) || (z.kind === 'circle' && Math.hypot(x - z.x, y - z.y) < z.r + 40))) continue;
+      if (Math.hypot(x - L.cup[0], y - L.cup[1]) < CUP_R + 26 || Math.hypot(x - L.tee[0], y - L.tee[1]) < 30) continue;
+      spots.push({ x, y, ux: -gx / g, uy: -gy / g, k: Math.min(1, g / 0.035) });
+    }
+  }
+  if (!spots.length) return null;
+
+  // A chevron pointing along +x, lying flat
+  const shape = new THREE.Shape([
+    new THREE.Vector2(9, 0), new THREE.Vector2(-3, 9), new THREE.Vector2(-7, 9),
+    new THREE.Vector2(3, 0), new THREE.Vector2(-7, -9), new THREE.Vector2(-3, -9),
+  ]);
+  const geo = new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+  const mesh = new THREE.InstancedMesh(geo, mat, spots.length);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1;
+  mesh.name = 'slopeArrows';
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), col = new THREE.Color();
+  const up = new THREE.Vector3(0, 1, 0);
+  const group = new THREE.Group();
+  group.add(mesh);
+  return {
+    group,
+    update(_a, time) {
+      spots.forEach((s, i) => {
+        // Drift 18 units downhill and fade in and out, staggered so the field reads as a flow
+        const phase = (time * 0.45 + i * 0.37) % 1;
+        const d = (phase - 0.5) * 18;
+        const x = s.x + s.ux * d, y = s.y + s.uy * d;
+        const a = Math.sin(phase * Math.PI) * (0.18 + 0.32 * s.k);
+        q.setFromAxisAngle(up, -Math.atan2(s.uy, s.ux));
+        const size = 0.75 + 0.45 * s.k;
+        sc.set(size, 1, size);
+        pos.copy(to3(x, y)).setY(heightAt(L, x, y) + 0.6);
+        mesh.setMatrixAt(i, m.compose(pos, q, sc));
+        mesh.setColorAt(i, col.setRGB(a, a, a * 0.85));
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    },
+  };
 }
 
 // ---------- garden ----------

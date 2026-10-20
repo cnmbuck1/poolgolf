@@ -6,7 +6,7 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
 ## What's in the prototype
 
 - 6 holes (par 20), each confirmed solvable at or under par by a shot simulator
-  1. **Break Shot**: a dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be timed through its sweepers; a brick wall under it closes the low lane. The lane from the tee falls toward the bottom edge, a hill sits on the top bank route, and the green is a shallow bowl
+  1. **Break Shot**: a dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be timed through its sweepers; a brick wall under it closes the low lane. The lane from the tee falls gently toward the bottom edge, a hill sits on the top bank route, and the green is a shallow bowl. Drifting arrows on the turf show which way it falls (Settings → Slope arrows)
   2. **Bank Street**: bank off the cushion around a divider
   3. **Bumper Pool**: pool balls work as bumpers
   4. **Water Hazard**: water costs +1 stroke and puts the ball back where it was
