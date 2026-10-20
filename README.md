@@ -6,14 +6,14 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
 ## What's in the prototype
 
 - 6 holes (par 20), each confirmed solvable at or under par by a shot simulator
-  1. **Break Shot**: the layout from the concept art (L-wall, angled bar, spinner over a pond)
+  1. **Break Shot**: the windmill guards the cup, so the straight line to the pin has to be timed through its sweepers; a brick wall closes the low lane and a stone L frames the top bank route
   2. **Bank Street**: bank off the cushion around a divider
   3. **Bumper Pool**: pool balls work as bumpers
   4. **Water Hazard**: water costs +1 stroke and puts the ball back where it was
   5. **Windmills**: an S-shaped course with rotating spinners
   6. **The Rack**: a racked triangle guarding the pocket
 - **3D table** (Three.js) in a lamp-lit billiard room: wood floor, rug, turned legs, felt cushions, glossy pool balls, a flag in each cup.
-- **Camera**: swoops in at the start of each hole, leans toward the rolling ball, moves closer when the ball drops, shakes slightly on hard hits. The **TOP** button switches to an overhead view.
+- **Camera**: a shot camera sits behind the ball and turns with the aim, then follows the rolling ball; it swoops in at the start of each hole and moves in when the ball drops. The **TABLE** button switches to the whole-table view (and **BALL** back).
 - **Cue**: draws back with power, strikes the ball, then follows through and fades.
 - **Physics**: harder hits lose more energy, cushions and walls grip some of the ball's sideways speed, lip-outs, and visual skid-then-roll spin plus a small hop off hard hits.
 - **Aim guide** follows the shot through two banks (bumpers, walls and cushions), with a ring at each contact.

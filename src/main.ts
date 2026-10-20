@@ -26,7 +26,7 @@ let lastRest = { x: 0, y: 0 };
 const aim: AimState = { active: false, dx: 1, dy: 0, power: 0, guide: 'full' };
 const cue: CueState = { visible: false, dx: 1, dy: 0, pull: 0, alpha: 0 };
 const fx: FX = { ripples: [] };
-let drag: { id: number; sx: number; sy: number; wx: number; wy: number } | null = null;
+let drag: { id: number; sx: number; sy: number; basis: ReturnType<Renderer3D['aimBasis']> } | null = null;
 let practice = false; // playing a single hole from the Courses menu
 let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash reset)
 let time = 0;
@@ -43,19 +43,19 @@ const settings = {
   sound: localGet('sound') !== '0',
   guide: localGet('guide') !== 'short',
   follow: localGet('follow') !== '0',
-  top: localGet('view') === 'top',
+  top: localGet('view') === 'table', // whole-table view instead of the shot camera
   tutorialDone: localGet('tutorial') === '1',
 };
 setSound(settings.sound);
 aim.guide = settings.guide ? 'full' : 'short';
 view3d.follow = settings.follow;
-view3d.setTopView(settings.top);
+view3d.setOverview(settings.top);
 
 function syncSettingsUi() {
   $('set-sound').setAttribute('aria-pressed', String(settings.sound));
   $('set-guide').setAttribute('aria-pressed', String(settings.guide));
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
-  $('view-label').textContent = view3d.isTopView ? '3D' : 'TOP';
+  $('view-label').textContent = view3d.isOverview ? 'BALL' : 'TABLE';
   const t = $('btn-title-sound');
   t.querySelector('use')!.setAttribute('href', settings.sound ? '#i-sound' : '#i-mute');
   t.setAttribute('aria-label', settings.sound ? 'Sound on' : 'Sound off');
@@ -176,7 +176,7 @@ function loadHole(i: number) {
   world = new World(LEVELS[i]);
   view3d.setLevel(world);
   view3d.setMode('play');
-  view3d.intro();
+  view3d.intro(world);
   strokes = 0;
   lastRest = { x: world.ball.x, y: world.ball.y };
   fx.sink = undefined;
@@ -272,9 +272,9 @@ const canAim = () => phase === 'play' && !world.moving && busyTimer <= 0 && !str
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
   if (!canAim() || drag) return;
-  const w = view3d.pick(e.clientX, e.clientY);
-  if (!w) return;
-  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, wx: w.x, wy: w.y };
+  // Freeze the view's basis for this drag, so the camera can turn with the aim without
+  // feeding back into it.
+  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, basis: view3d.aimBasis() };
   canvas.setPointerCapture(e.pointerId);
   aim.active = true;
   aim.power = 0;
@@ -283,17 +283,18 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
-  // Pull back like a cue: the shot goes opposite to the drag. Direction comes from
-  // the table point under the finger (so it follows the 3D perspective), power from
-  // how far the finger moved on screen.
-  const len = Math.hypot(drag.sx - e.clientX, drag.sy - e.clientY);
+  // Pull back like a cue: the shot goes opposite to the drag. Dragging down the screen
+  // shoots "into" the view; sideways turns the aim. Power is how far the finger moved.
+  const mx = e.clientX - drag.sx;
+  const my = e.clientY - drag.sy;
+  const len = Math.hypot(mx, my);
   const maxDrag = Math.min(window.innerHeight * 0.45, 260);
-  const w = view3d.pick(e.clientX, e.clientY);
-  if (w && len > 4) {
-    const dx = drag.wx - w.x;
-    const dy = drag.wy - w.y;
+  if (len > 4) {
+    const { fwd, right } = drag.basis;
+    const dx = fwd.x * my - right.x * mx;
+    const dy = fwd.y * my - right.y * mx;
     const wl = Math.hypot(dx, dy);
-    if (wl > 0.5) { aim.dx = dx / wl; aim.dy = dy / wl; }
+    if (wl > 0.01) { aim.dx = dx / wl; aim.dy = dy / wl; }
   }
   aim.power = Math.min(1, len / maxDrag);
   updatePower();
@@ -361,9 +362,9 @@ click('btn-play', startRound);
 click('btn-pause', pause);
 click('btn-resume', () => { phase = 'play'; show(null); });
 function toggleView() {
-  view3d.setTopView(!view3d.isTopView);
-  settings.top = view3d.isTopView;
-  localSet('view', settings.top ? 'top' : '3d');
+  view3d.setOverview(!view3d.isOverview);
+  settings.top = view3d.isOverview;
+  localSet('view', settings.top ? 'table' : 'ball');
   syncSettingsUi();
 }
 function toggleSound() { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); }
@@ -409,7 +410,7 @@ function openSettings() {
     <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound</span><em></em></button>
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
-    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Overhead camera</span><em></em></button></div>`);
+    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button></div>`);
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
@@ -449,7 +450,7 @@ click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
 click('btn-more', () => sheet('How to play', `<p><b>Pull back</b> anywhere on the table to aim the cue, then <b>release</b> to shoot. Pull further for more power.</p>
   <p>The dotted guide shows your path through the first two banks. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
-  <p>Tap <b>TOP</b> during play for an overhead view.</p>`));
+  <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
   if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);

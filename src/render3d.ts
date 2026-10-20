@@ -70,7 +70,6 @@ export interface FX {
 export type CamMode = 'title' | 'play' | 'sink' | 'debug';
 
 const TILT_3D = 0.95; // camera elevation in radians (~54°)
-const TILT_TOP = Math.PI / 2 - 0.001;
 const TILT_TITLE = 0.72;
 const MAX_DOTS = 160;
 const DROPS = 14;
@@ -112,7 +111,6 @@ export class Renderer3D {
 
   // Camera rig
   private tilt = TILT_3D;
-  private tiltTarget = TILT_3D;
   private baseDist = 1500;
   private offsetY = 0;
   private yaw = 0;
@@ -121,6 +119,12 @@ export class Renderer3D {
   private mode: CamMode = 'title';
   private shakeAmt = 0;
   follow = true;
+  // Shot camera: sits behind the ball and turns with the aim. `overview` shows the whole table instead.
+  private overview = false;
+  private shotYaw = 0;
+  private blend = 0; // 0 = whole-table rig, 1 = shot camera
+  private camPos = new THREE.Vector3(0, 900, 900);
+  private camLook = new THREE.Vector3();
 
   // Adaptive quality: step down resolution and shadow detail if frames run slow.
   private quality = 0;
@@ -169,18 +173,19 @@ export class Renderer3D {
     this.scene.add(this.ballShadowFake);
 
     const dotGeo = new THREE.CircleGeometry(3.2, 12).rotateX(-Math.PI / 2);
-    this.dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false }), MAX_DOTS);
+    // The guide draws over everything so walls and the windmill never hide it
+    this.dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, depthTest: false, toneMapped: false }), MAX_DOTS);
     this.dots.count = 0;
     this.dots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_DOTS * 3), 3);
-    this.dots.renderOrder = 2;
+    this.dots.renderOrder = 3;
     this.scene.add(this.dots);
     for (let i = 0; i < 3; i++) {
       const g = new THREE.Mesh(
         new THREE.RingGeometry(BALL_R - 1.8, BALL_R, 32).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: C.aim, transparent: true, depthWrite: false, toneMapped: false }),
+        new THREE.MeshBasicMaterial({ color: C.aim, transparent: true, depthWrite: false, depthTest: false, toneMapped: false }),
       );
       g.visible = false;
-      g.renderOrder = 2;
+      g.renderOrder = 3;
       this.ghosts.push(g);
       this.scene.add(g);
     }
@@ -618,8 +623,20 @@ export class Renderer3D {
 
   // ---------- camera ----------
 
-  setTopView(top: boolean) { this.tiltTarget = top ? TILT_TOP : TILT_3D; }
-  get isTopView() { return this.tiltTarget === TILT_TOP; }
+  /** Whole-table view instead of the shot camera. */
+  setOverview(on: boolean) { this.overview = on; }
+  get isOverview() { return this.overview; }
+
+  /**
+   * Table-plane basis of the current view, for turning screen drags into aim directions:
+   * `fwd` is "up the screen", `right` is "screen right", both in table coordinates.
+   */
+  aimBasis() {
+    const f = new THREE.Vector3().subVectors(this.camLook, this.camPos);
+    const l = Math.hypot(f.x, f.z) || 1;
+    const fwd = { x: f.x / l, y: f.z / l };
+    return { fwd, right: { x: -fwd.y, y: fwd.x } };
+  }
   setMode(m: CamMode) { this.mode = m; }
   shake(amount: number) { this.shakeAmt = Math.min(10, this.shakeAmt + amount); }
 
@@ -630,11 +647,14 @@ export class Renderer3D {
     this.mode = 'debug';
   }
 
-  /** Swoop in from a high, turned angle at the start of a hole. */
-  intro() {
+  /** Swoop in from a high, turned angle at the start of a hole, then settle behind the ball. */
+  intro(world: World) {
     this.yaw = 0.55;
     this.distMul = 1.5;
     this.focus.set(0, 0, 0);
+    this.blend = 0;
+    const L = world.level;
+    this.shotYaw = Math.atan2(L.cup[1] - L.tee[1], L.cup[0] - L.tee[0]);
   }
 
   resize(w: number, h: number, dpr: number, top: number, bottom: number) {
@@ -713,9 +733,9 @@ export class Renderer3D {
     this.offsetY = ((wantCenter - haveCenter) * h) / 2;
   }
 
-  private updateCamera(world: World, dt: number, time: number, aiming: boolean) {
+  private updateCamera(world: World, dt: number, time: number, aim: AimState) {
     // The menu uses a lower, more cinematic angle; play uses the chosen view
-    const tiltGoal = this.mode === 'title' ? TILT_TITLE : this.tiltTarget;
+    const tiltGoal = this.mode === 'title' ? TILT_TITLE : TILT_3D;
     if (Math.abs(this.tilt - tiltGoal) > 0.001) {
       this.tilt += (tiltGoal - this.tilt) * Math.min(1, dt * (this.mode === 'title' ? 3 : 9));
       if (Math.abs(this.tilt - tiltGoal) < 0.002) this.tilt = tiltGoal;
@@ -736,7 +756,7 @@ export class Renderer3D {
     } else if (this.mode === 'sink') {
       focusT.copy(this.cupPos).multiplyScalar(0.55);
       distT = 0.72;
-    } else if (this.follow && world.moving && !aiming) {
+    } else if (this.follow && world.moving && !aim.active) {
       // Lean toward the ball while it rolls, without ever losing the table
       focusT.copy(to3(world.ball.x, world.ball.y)).multiplyScalar(0.2);
       distT = 0.93;
@@ -746,19 +766,46 @@ export class Renderer3D {
     this.distMul += (distT - this.distMul) * k;
     this.focus.lerp(focusT, k);
 
+    // Whole-table rig
     const d = this.baseDist * this.distMul;
-    const cam = this.camera;
     const ct = Math.cos(this.tilt);
-    cam.position.set(this.focus.x + Math.sin(this.yaw) * ct * d, this.focus.y + Math.sin(this.tilt) * d, this.focus.z + Math.cos(this.yaw) * ct * d);
+    const posO = new THREE.Vector3(this.focus.x + Math.sin(this.yaw) * ct * d, this.focus.y + Math.sin(this.tilt) * d, this.focus.z + Math.cos(this.yaw) * ct * d);
+    const lookO = this.focus.clone();
+
+    // Shot camera: behind the ball along the aim, looking down the line
+    const b = world.ball;
+    const ball = to3(b.x, b.y).setY(BALL_R);
+    const speed = Math.hypot(b.vx, b.vy);
+    let yawGoal = this.shotYaw, yawRate = 0;
+    if (aim.active && aim.power > 0.02) { yawGoal = Math.atan2(aim.dy, aim.dx); yawRate = 7; }
+    else if (world.moving && speed > 150) { yawGoal = Math.atan2(b.vy, b.vx); yawRate = 1.2; }
+    const dy = Math.atan2(Math.sin(yawGoal - this.shotYaw), Math.cos(yawGoal - this.shotYaw));
+    this.shotYaw += dy * Math.min(1, dt * yawRate);
+    const dir = new THREE.Vector3(Math.cos(this.shotYaw), 0, Math.sin(this.shotYaw));
+    // Ball in the lower third with room to see the line; pulls back as power builds
+    let target = ball, back = 380, elev = 0.62, ahead = 120;
+    if (aim.active) { back = 380 + aim.power * 30; ahead = 120 + aim.power * 80; }
+    else if (world.moving) { back = 420; elev = 0.8; ahead = 40; }
+    if (this.mode === 'sink') { target = this.cupPos.clone().setY(0); back = 230; elev = 0.82; ahead = 0; }
+    const posS = target.clone().addScaledVector(dir, -back * Math.cos(elev)).setY(target.y + back * Math.sin(elev));
+    const lookS = target.clone().addScaledVector(dir, ahead);
+
+    const shotActive = !this.overview && (this.mode === 'play' || this.mode === 'sink');
+    this.blend += ((shotActive ? 1 : 0) - this.blend) * Math.min(1, dt * 2.2);
+    const kc = 1 - Math.exp(-dt * 6);
+    this.camPos.lerp(posO.lerp(posS, this.blend), kc);
+    this.camLook.lerp(lookO.lerp(lookS, this.blend), kc);
+
+    const cam = this.camera;
+    cam.position.copy(this.camPos);
     if (this.shakeAmt > 0.05) {
       cam.position.x += (Math.random() - 0.5) * this.shakeAmt;
       cam.position.y += (Math.random() - 0.5) * this.shakeAmt;
       this.shakeAmt *= Math.exp(-dt * 14);
     }
-    // Straight down needs a different "up" so lookAt stays stable
-    if (this.tilt > 1.5) cam.up.set(0, 0, -1); else cam.up.set(0, 1, 0);
-    cam.lookAt(this.focus);
-    cam.setViewOffset(this.size.w, this.size.h, 0, this.offsetY, this.size.w, this.size.h);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(this.camLook);
+    cam.setViewOffset(this.size.w, this.size.h, 0, this.offsetY * (1 - this.blend), this.size.w, this.size.h);
     cam.updateMatrixWorld();
   }
 
@@ -797,7 +844,7 @@ export class Renderer3D {
   render(world: World, aim: AimState, cue: CueState, fx: FX, time: number, dt: number) {
     this.renderer.info.reset(); // stats cover the whole frame, including post-processing passes
     this.adaptQuality(dt);
-    this.updateCamera(world, dt, time, aim.active);
+    this.updateCamera(world, dt, time, aim);
 
     world.spinners.forEach((s, i) => {
       const mill = this.spinnerAnims[i];
