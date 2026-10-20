@@ -1,58 +1,150 @@
-// Tiny synthesized sound effects — no audio assets needed for the prototype.
+// Synthesized sound — no audio files needed. Everything runs through a gentle
+// compressor so stacked hits never clip.
 
 let ctx: AudioContext | null = null;
+let master: GainNode | null = null;
+let noiseBuf: AudioBuffer | null = null;
+let roll: { gain: GainNode; filter: BiquadFilterNode } | null = null;
 export let soundOn = true;
 
-export function setSound(on: boolean) { soundOn = on; }
+export function setSound(on: boolean) {
+  soundOn = on;
+  if (master && ctx) master.gain.setTargetAtTime(on ? 0.9 : 0, ctx.currentTime, 0.02);
+}
 
 export function unlockAudio() {
   if (!ctx) {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (AC) ctx = new AC();
+    if (!AC) return;
+    ctx = new AC();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.ratio.value = 4;
+    master = ctx.createGain();
+    master.gain.value = soundOn ? 0.9 : 0;
+    master.connect(comp).connect(ctx.destination);
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    startRoll();
   }
-  if (ctx?.state === 'suspended') void ctx.resume();
+  if (ctx.state === 'suspended') void ctx.resume();
 }
 
-function tone(freq: number, dur: number, type: OscillatorType, vol: number, slideTo?: number) {
-  if (!ctx || !soundOn) return;
-  const t = ctx.currentTime;
+const now = () => ctx!.currentTime;
+
+function env(g: GainNode, t: number, peak: number, attack: number, decay: number) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+}
+
+function tone(freq: number, decay: number, type: OscillatorType, vol: number, opts: { at?: number; slideTo?: number; attack?: number } = {}) {
+  if (!ctx || !master) return;
+  const t = now() + (opts.at ?? 0);
   const o = ctx.createOscillator();
   const g = ctx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, t);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-  g.gain.setValueAtTime(vol, t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(ctx.destination);
+  if (opts.slideTo) o.frequency.exponentialRampToValueAtTime(opts.slideTo, t + decay);
+  env(g, t, vol, opts.attack ?? 0.002, decay);
+  o.connect(g).connect(master);
   o.start(t);
-  o.stop(t + dur);
+  o.stop(t + decay + 0.05);
 }
 
-function noise(dur: number, vol: number, filterFreq: number) {
-  if (!ctx || !soundOn) return;
-  const t = ctx.currentTime;
-  const len = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+function noise(decay: number, vol: number, type: BiquadFilterType, freq: number, opts: { at?: number; q?: number; sweepTo?: number; attack?: number } = {}) {
+  if (!ctx || !master || !noiseBuf) return;
+  const t = now() + (opts.at ?? 0);
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = noiseBuf;
   const f = ctx.createBiquadFilter();
-  f.type = 'lowpass';
-  f.frequency.value = filterFreq;
+  f.type = type;
+  f.frequency.setValueAtTime(freq, t);
+  if (opts.sweepTo) f.frequency.exponentialRampToValueAtTime(opts.sweepTo, t + decay);
+  f.Q.value = opts.q ?? 1;
   const g = ctx.createGain();
-  g.gain.value = vol;
-  src.connect(f).connect(g).connect(ctx.destination);
-  src.start(t);
+  env(g, t, vol, opts.attack ?? 0.002, decay);
+  src.connect(f).connect(g).connect(master);
+  src.start(t, Math.random() * 1.5);
+  src.stop(t + decay + 0.05);
 }
 
-const vol = (speed: number) => Math.min(1, speed / 900);
+/** Continuous felt-rolling rumble whose level follows the ball speed. */
+function startRoll() {
+  if (!ctx || !master || !noiseBuf) return;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  src.loop = true;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 300;
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  src.connect(filter).connect(gain).connect(master);
+  src.start();
+  roll = { gain, filter };
+}
+
+export function setRolling(speed: number, sand: boolean) {
+  if (!ctx || !roll) return;
+  const s = Math.min(1, speed / 1200);
+  const level = speed < 8 ? 0 : (sand ? 0.22 : 0.1) * Math.sqrt(s);
+  roll.gain.gain.setTargetAtTime(level, now(), 0.05);
+  roll.filter.frequency.setTargetAtTime(sand ? 1600 + s * 1500 : 180 + s * 520, now(), 0.05);
+}
+
+const v = (speed: number) => Math.min(1, Math.max(0.08, speed / 1000));
 
 export const sfx = {
-  cue: (power: number) => { tone(900, 0.05, 'square', 0.12 + power * 0.2); noise(0.04, 0.3 * power + 0.1, 3000); },
-  wall: (speed: number) => tone(220, 0.08, 'triangle', 0.25 * vol(speed)),
-  bumper: (speed: number) => { tone(1500, 0.06, 'sine', 0.35 * vol(speed)); tone(2400, 0.03, 'sine', 0.15 * vol(speed)); },
-  spinner: (speed: number) => tone(330, 0.1, 'sawtooth', 0.12 * vol(speed)),
-  sink: () => { tone(500, 0.12, 'sine', 0.35, 180); setTimeout(() => tone(660, 0.15, 'sine', 0.25), 180); setTimeout(() => tone(880, 0.25, 'sine', 0.25), 320); },
-  water: () => noise(0.5, 0.5, 900),
+  /** Leather tip on the cue ball: a woody click with a short body. */
+  cue: (power: number) => {
+    tone(1250, 0.035, 'triangle', 0.25 + power * 0.35);
+    tone(2900, 0.02, 'sine', 0.12 + power * 0.15);
+    noise(0.05, 0.25 + power * 0.4, 'bandpass', 2600, { q: 1.4 });
+  },
+  /** Ball into the felt cushion: soft, low thump. */
+  rail: (speed: number) => {
+    tone(140, 0.12, 'sine', 0.45 * v(speed), { slideTo: 90 });
+    noise(0.06, 0.25 * v(speed), 'lowpass', 900);
+  },
+  /** Ball against a wooden wall: hollow knock. */
+  wall: (speed: number) => {
+    tone(420 + Math.random() * 40, 0.07, 'triangle', 0.4 * v(speed));
+    tone(230, 0.12, 'sine', 0.3 * v(speed));
+    noise(0.04, 0.3 * v(speed), 'bandpass', 1500, { q: 3 });
+  },
+  /** Ball on ball: the classic glassy clack. */
+  bumper: (speed: number) => {
+    const p = 1 + (Math.random() - 0.5) * 0.08;
+    tone(2600 * p, 0.05, 'sine', 0.45 * v(speed));
+    tone(3900 * p, 0.03, 'sine', 0.22 * v(speed));
+    noise(0.025, 0.35 * v(speed), 'highpass', 3000);
+  },
+  /** Spinner arm: plastic thwack with a short ring. */
+  spinner: (speed: number) => {
+    tone(700, 0.09, 'square', 0.12 * v(speed), { slideTo: 380 });
+    noise(0.05, 0.3 * v(speed), 'bandpass', 1200, { q: 2 });
+  },
+  /** Rattle around the cup, then the drop. */
+  sink: () => {
+    [0, 0.07, 0.12, 0.155].forEach((at, i) => tone(1800 - i * 150, 0.04, 'triangle', 0.25 - i * 0.04, { at }));
+    tone(160, 0.25, 'sine', 0.55, { at: 0.2, slideTo: 70 });
+    noise(0.12, 0.3, 'lowpass', 600, { at: 0.2 });
+  },
+  lip: () => {
+    tone(1700, 0.04, 'triangle', 0.2);
+    tone(1500, 0.04, 'triangle', 0.14, { at: 0.06 });
+  },
+  water: () => {
+    noise(0.12, 0.5, 'bandpass', 1800, { q: 0.8 });
+    noise(0.7, 0.45, 'lowpass', 2500, { sweepTo: 200, at: 0.03, attack: 0.02 });
+    tone(320, 0.25, 'sine', 0.2, { slideTo: 900, at: 0.04 });
+  },
+  /** Short jingle that rises for good scores and sags for bad ones. */
+  result: (toPar: number, holeInOne: boolean) => {
+    const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];
+    good.forEach((f, i) => tone(f, 0.28, 'triangle', 0.22, { at: 0.35 + i * 0.09 }));
+  },
+  ui: () => tone(900, 0.04, 'sine', 0.12),
 };

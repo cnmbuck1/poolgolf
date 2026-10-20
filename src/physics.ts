@@ -14,6 +14,10 @@ const SINK_SPEED = 560; // faster than this and the ball lips out / skims over
 const RAIL_E = 0.78;
 const WALL_E = 0.7;
 const BUMPER_E = 0.95;
+// Fraction of the sliding (tangential) speed a surface grabs on contact.
+const RAIL_GRIP = 0.04;
+const WALL_GRIP = 0.07;
+const BUMPER_GRIP = 0.02;
 
 export interface Seg { ax: number; ay: number; bx: number; by: number; r: number }
 
@@ -24,11 +28,13 @@ export interface AimPath { pts: { x: number; y: number }[]; contacts: number; cu
 export interface Ball { x: number; y: number; vx: number; vy: number }
 
 export type Event =
+  | { type: 'rail'; speed: number }
   | { type: 'wall'; speed: number }
   | { type: 'bumper'; speed: number }
   | { type: 'spinner'; speed: number }
   | { type: 'sink' }
   | { type: 'water' }
+  | { type: 'lip' }
   | { type: 'stop' };
 
 export class World {
@@ -36,6 +42,9 @@ export class World {
   spinners: SpinnerState[];
   ball: Ball;
   moving = false;
+  /** Cushion / wall / bumper contacts since the last shot (for "bank shot" calls). */
+  contacts = 0;
+  private inCup = false;
 
   constructor(public level: LevelDef) {
     for (const line of level.walls ?? []) {
@@ -69,6 +78,8 @@ export class World {
     this.ball.vx = vx;
     this.ball.vy = vy;
     this.moving = true;
+    this.contacts = 0;
+    this.inCup = false;
   }
 
   /** Advance the simulation; returns events that happened this frame. */
@@ -105,7 +116,13 @@ export class World {
       const dcx = cx - b.x;
       const dcy = cy - b.y;
       const dc = Math.hypot(dcx, dcy);
+      if (dc >= CUP_R && this.inCup) {
+        // Rolled across the cup without dropping
+        this.inCup = false;
+        events.push({ type: 'lip' });
+      }
       if (dc < CUP_R) {
+        this.inCup = true;
         const s2 = Math.hypot(b.vx, b.vy);
         if (s2 < SINK_SPEED && dc < CUP_R - BALL_R * 0.35) {
           events.push({ type: 'sink' });
@@ -149,11 +166,31 @@ export class World {
   private collideRails(events: Event[]) {
     const b = this.ball;
     let hit = 0;
-    if (b.x < BALL_R) { b.x = BALL_R; if (b.vx < 0) { hit = Math.max(hit, -b.vx); b.vx = -b.vx * RAIL_E; } }
-    if (b.x > WORLD_W - BALL_R) { b.x = WORLD_W - BALL_R; if (b.vx > 0) { hit = Math.max(hit, b.vx); b.vx = -b.vx * RAIL_E; } }
-    if (b.y < BALL_R) { b.y = BALL_R; if (b.vy < 0) { hit = Math.max(hit, -b.vy); b.vy = -b.vy * RAIL_E; } }
-    if (b.y > WORLD_H - BALL_R) { b.y = WORLD_H - BALL_R; if (b.vy > 0) { hit = Math.max(hit, b.vy); b.vy = -b.vy * RAIL_E; } }
-    if (hit > 30) events.push({ type: 'wall', speed: hit });
+    const side = (nx: number, ny: number) => { hit = Math.max(hit, this.bounce(nx, ny, 0, 0, RAIL_E, RAIL_GRIP)); };
+    if (b.x < BALL_R) { b.x = BALL_R; side(1, 0); }
+    if (b.x > WORLD_W - BALL_R) { b.x = WORLD_W - BALL_R; side(-1, 0); }
+    if (b.y < BALL_R) { b.y = BALL_R; side(0, 1); }
+    if (b.y > WORLD_H - BALL_R) { b.y = WORLD_H - BALL_R; side(0, -1); }
+    if (hit > 30) { events.push({ type: 'rail', speed: hit }); this.contacts++; }
+  }
+
+  /**
+   * Resolve a contact along normal n against a surface moving at (svx, svy).
+   * Harder hits lose a little more energy, and the surface grabs some of the
+   * sliding speed. Returns the impact speed (0 if the ball was moving away).
+   */
+  private bounce(nx: number, ny: number, svx: number, svy: number, e0: number, grip: number) {
+    const b = this.ball;
+    const rvx = b.vx - svx;
+    const rvy = b.vy - svy;
+    const vn = rvx * nx + rvy * ny;
+    if (vn >= 0) return 0;
+    const e = e0 * (1 - 0.18 * Math.min(1, -vn / 1400));
+    const tx = rvx - vn * nx;
+    const ty = rvy - vn * ny;
+    b.vx = svx + tx * (1 - grip) - e * vn * nx;
+    b.vy = svy + ty * (1 - grip) - e * vn * ny;
+    return -vn;
   }
 
   /** Capsule collision. (cx, cy, omega) describe rotation for moving spinner arms. */
@@ -171,15 +208,9 @@ export class World {
     // Surface velocity of a rotating arm at the contact point: omega x r
     const wvx = -omega * (p.y - cy);
     const wvy = omega * (p.x - cx);
-    const rvx = b.vx - wvx;
-    const rvy = b.vy - wvy;
-    const vn = rvx * nx + rvy * ny;
-    if (vn < 0) {
-      b.vx -= (1 + e) * vn * nx;
-      b.vy -= (1 + e) * vn * ny;
-      if (-vn > 30) events.push({ type: kind, speed: -vn });
-      this.moving = true;
-    }
+    const hit = this.bounce(nx, ny, wvx, wvy, e, kind === 'wall' ? WALL_GRIP : 0.05);
+    if (hit > 0) this.moving = true;
+    if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
 
   private collideCircle(x: number, y: number, r: number, e: number, events: Event[]) {
@@ -192,12 +223,8 @@ export class World {
     nx /= d; ny /= d;
     b.x = x + nx * minD;
     b.y = y + ny * minD;
-    const vn = b.vx * nx + b.vy * ny;
-    if (vn < 0) {
-      b.vx -= (1 + e) * vn * nx;
-      b.vy -= (1 + e) * vn * ny;
-      if (-vn > 30) events.push({ type: 'bumper', speed: -vn });
-    }
+    const hit = this.bounce(nx, ny, 0, 0, e, BUMPER_GRIP);
+    if (hit > 30) { events.push({ type: 'bumper', speed: hit }); this.contacts++; }
   }
 
   /**

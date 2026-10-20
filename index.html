@@ -3,67 +3,108 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#101b29" />
+    <meta name="theme-color" content="#0d1622" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Pool Golf</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Saira:wght@400;600&display=swap" />
   </head>
   <body>
     <canvas id="game"></canvas>
 
-    <!-- In-game HUD (matches the landscape wireframe) -->
+    <!-- In-game HUD -->
     <div id="hud" class="hidden">
       <div class="hud-bar">
-        <span>HOLE <b id="hud-hole">01</b></span>
-        <span>PAR <b id="hud-par">3</b></span>
-        <span>STROKES <b id="hud-strokes">0</b></span>
-        <span class="hud-name" id="hud-name"></span>
+        <div class="hud-hole">
+          <span class="label">HOLE</span>
+          <b id="hud-hole" class="num">1</b>
+          <span class="hud-name" id="hud-name"></span>
+        </div>
+        <div class="hud-pips" id="hud-pips" aria-label="Round progress"></div>
+        <div class="hud-stat"><span class="label">PAR</span><b id="hud-par" class="num">3</b></div>
+        <div class="hud-stat"><span class="label">STROKES</span><b id="hud-strokes" class="num">0</b></div>
+        <div class="hud-stat"><span class="label">ROUND</span><b id="hud-topar" class="num chip">E</b></div>
         <span class="hud-spacer"></span>
         <button id="btn-view" class="icon-btn view-btn" aria-label="Switch camera view">TOP</button>
-        <button id="btn-pause" class="icon-btn" aria-label="Pause">Ⅱ</button>
-        <button id="btn-restart" class="icon-btn" aria-label="Restart hole">↻</button>
+        <button id="btn-pause" class="icon-btn" aria-label="Pause">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.5" /><rect x="12" y="3" width="4" height="14" rx="1.5" /></svg>
+        </button>
+        <button id="btn-restart" class="icon-btn" aria-label="Restart hole">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /><path d="M15.8 2.6v4.6h-4.6z" /></svg>
+        </button>
       </div>
-      <div id="hint" class="hint">DRAG TO AIM</div>
-      <div class="power">
-        <div class="power-label">POWER</div>
-        <div class="power-track"><div id="power-fill" class="power-fill"></div></div>
+
+      <div id="hint" class="hint"><span class="dot"></span>Pull back anywhere · release to shoot</div>
+
+      <div class="power" aria-label="Shot power">
+        <div class="power-label">POWER <b id="power-pct">0%</b></div>
+        <div class="power-track">
+          <div id="power-fill" class="power-fill"></div>
+          <i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i>
+        </div>
+      </div>
+
+      <div id="banner" class="banner">
+        <div class="banner-hole">HOLE <b id="banner-num">1</b></div>
+        <div class="banner-name" id="banner-name"></div>
+        <div class="banner-par" id="banner-par"></div>
       </div>
       <div id="toast" class="toast"></div>
+      <div id="finger" class="finger hidden"><span></span></div>
     </div>
 
     <!-- Title -->
-    <div id="screen-title" class="screen">
-      <div class="panel">
-        <h1>POOL GOLF</h1>
-        <p class="tagline">Aim • Bank • Avoid • Sink</p>
-        <button class="btn primary" id="btn-play">Play 6 holes</button>
+    <div id="screen-title" class="screen title">
+      <div class="title-panel">
+        <div class="logo">
+          <span class="logo-pool">POOL</span>
+          <span class="logo-golf">G<span class="logo-ball" aria-hidden="true"><span>8</span></span><span class="sr">O</span>LF</span>
+        </div>
+        <p class="tagline">Aim · Bank · Avoid · Sink</p>
+        <button class="btn primary big" id="btn-play">Play 6 holes</button>
         <p class="best" id="best"></p>
-        <p class="small">Drag anywhere to pull back the cue, release to shoot.</p>
+        <ul class="howto">
+          <li><b>Pull back</b> anywhere on the table to aim the cue.</li>
+          <li><b>Release</b> to shoot. Pull further for more power.</li>
+          <li>The <b>guide</b> shows your first two banks.</li>
+        </ul>
       </div>
     </div>
 
-    <!-- Pause -->
+    <!-- Pause / settings -->
     <div id="screen-pause" class="screen hidden">
       <div class="panel">
         <h2>Paused</h2>
+        <div class="settings">
+          <button class="toggle" id="set-sound" aria-pressed="true"><span>Sound</span><em></em></button>
+          <button class="toggle" id="set-guide" aria-pressed="true"><span>Bank guide</span><em></em></button>
+          <button class="toggle" id="set-follow" aria-pressed="true"><span>Camera follows ball</span><em></em></button>
+        </div>
+        <div class="row">
+          <button class="btn" id="btn-pause-restart">Restart hole</button>
+          <button class="btn" id="btn-quit">Quit to title</button>
+        </div>
         <button class="btn primary" id="btn-resume">Resume</button>
-        <button class="btn" id="btn-pause-restart">Restart hole</button>
-        <button class="btn" id="btn-sound">Sound: On</button>
-        <button class="btn" id="btn-quit">Quit to title</button>
       </div>
     </div>
 
     <!-- Hole complete -->
     <div id="screen-hole" class="screen hidden">
-      <div class="panel">
+      <div class="panel result">
+        <div class="result-kicker" id="hole-kicker">HOLE 1</div>
         <h2 id="hole-result">Par</h2>
         <p id="hole-detail" class="tagline"></p>
-        <div id="hole-card"></div>
-        <button class="btn primary" id="btn-next">Next hole</button>
+        <div id="hole-card" class="card-wrap"></div>
+        <div class="row">
+          <button class="btn" id="btn-replay">Replay hole</button>
+          <button class="btn primary" id="btn-next">Next hole</button>
+        </div>
       </div>
     </div>
 
     <!-- Rotate prompt (web / tablets in portrait) -->
-    <div id="rotate" class="rotate"><div>↻<p>Rotate your device to landscape</p></div></div>
+    <div id="rotate" class="rotate"><div><span class="rotate-icon">⟳</span><p>Turn your phone sideways to play</p></div></div>
 
     <script type="module" src="./src/main.ts"></script>
   </body>

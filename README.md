@@ -12,11 +12,14 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   4. **Water Hazard**: water costs +1 stroke and puts the ball back where it was
   5. **Windmills**: an S-shaped course with rotating spinners
   6. **The Rack**: a racked triangle guarding the pocket
-- 3D table rendered with Three.js; the TOP button switches to an overhead view for precise aiming.
-- Pull back anywhere to aim (like a cue), release to shoot. The aim guide follows the shot through two bank shots (bumpers, walls and cushions), with a ghost ball at each contact.
-- HUD from the wireframe: hole / par / strokes, pause, restart, and a power bar.
-- Sand slows the ball. A cup only catches a ball that is going slowly enough. A hole ends at 10 strokes.
-- Scorecard after every hole, best round saved, synthesized sound effects, haptics on device.
+- **3D table** (Three.js) in a lamp-lit billiard room: wood floor, rug, turned legs, felt cushions, glossy pool balls, a flag in each cup.
+- **Camera**: swoops in at the start of each hole, leans toward the rolling ball, moves closer when the ball drops, shakes slightly on hard hits. The **TOP** button switches to an overhead view.
+- **Cue**: draws back with power, strikes the ball, then follows through and fades.
+- **Physics**: harder hits lose more energy, cushions and walls grip some of the ball's sideways speed, lip-outs, and visual skid-then-roll spin plus a small hop off hard hits.
+- **Aim guide** follows the shot through two banks (bumpers, walls and cushions), with a ring at each contact.
+- **Sound** (all synthesized): cue tip, cushion thump, wood knock, ball clack, spinner, rolling rumble that follows speed (gritty in sand), cup rattle, splash, and a short result jingle.
+- **Interface**: hole banner, round progress dots, running score to par, power meter, "Bank shot" / "Lipped out" calls, a first-shot tutorial, a scorecard, and settings for sound, the bank guide and camera follow.
+- Quality steps down automatically (resolution, then shadow detail) on slower phones.
 - Native apps are locked to landscape and the status bar is hidden.
 
 ## Project layout
