@@ -176,6 +176,8 @@ export class Renderer3D {
     // The guide draws over everything so walls and the windmill never hide it
     this.dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, depthTest: false, toneMapped: false }), MAX_DOTS);
     this.dots.count = 0;
+    // Instanced bounds are cached from the first frame; the guide moves every shot, so never cull it
+    this.dots.frustumCulled = false;
     this.dots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_DOTS * 3), 3);
     this.dots.renderOrder = 3;
     this.scene.add(this.dots);
@@ -202,6 +204,7 @@ export class Renderer3D {
     }
     this.drops = new THREE.InstancedMesh(new THREE.SphereGeometry(2.4, 8, 6), new THREE.MeshStandardMaterial({ color: 0xbfe6f0, roughness: 0.05, transparent: true, opacity: 0.8 }), DROPS);
     this.drops.count = 0;
+    this.drops.frustumCulled = false;
     this.scene.add(this.drops);
   }
 
@@ -779,6 +782,12 @@ export class Renderer3D {
     let yawGoal = this.shotYaw, yawRate = 0;
     if (aim.active && aim.power > 0.02) { yawGoal = Math.atan2(aim.dy, aim.dx); yawRate = 7; }
     else if (world.moving && speed > 150) { yawGoal = Math.atan2(b.vy, b.vx); yawRate = 1.2; }
+    else if (!world.moving && !aim.active) {
+      // At rest, turn to face the cup so a straight pull-back aims at the pin
+      const [cx, cy] = world.level.cup;
+      yawGoal = Math.atan2(cy - b.y, cx - b.x);
+      yawRate = 2;
+    }
     const dy = Math.atan2(Math.sin(yawGoal - this.shotYaw), Math.cos(yawGoal - this.shotYaw));
     this.shotYaw += dy * Math.min(1, dt * yawRate);
     const dir = new THREE.Vector3(Math.cos(this.shotYaw), 0, Math.sin(this.shotYaw));

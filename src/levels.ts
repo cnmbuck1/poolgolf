@@ -38,16 +38,17 @@ const ball = (n: keyof typeof BALL, x: number, y: number, r = 18): Bumper => ({ 
 export const LEVELS: LevelDef[] = [
   {
     // The windmill guards the cup: the straight line to the pin runs through its sweepers.
-    // A brick wall closes the low lane under the windmill; the stone L frames the top bank route.
+    // A brick wall under the windmill closes the low lane; the stone L frames the top bank route.
     name: 'Break Shot',
     par: 3,
     art: 'premium',
-    tee: [110, 410],
+    tee: [110, 390],
     cup: [895, 350],
     walls: [[[340, 0], [340, 230], [450, 230]]],
-    bars: [{ x: 770, y: 455, len: 110, angle: 90 }],
+    // The windmill's "leg": its top end sits where the sweepers reach, so no path slips past outside them
+    bars: [{ x: 700, y: 444, len: 112, angle: 90 }],
     water: [{ kind: 'circle', x: 700, y: 265, r: 62 }],
-    spinners: [{ x: 700, y: 265, len: 82, speed: 1.1 }],
+    spinners: [{ x: 700, y: 265, len: 82, speed: 0.8 }],
   },
   {
     name: 'Bank Street',
