@@ -12,6 +12,13 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   4. **The Creek**: a winding creek with two footbridges, a green tilted toward the water and a bunker by the cup
   5. **Turnstiles**: three lanes joined by stone walls, with turnstiles sweeping two of the gaps
   6. **Eight Ball**: brick walls funnel toward a racked set of pool balls in front of a raised green, with bunkers on both sides
+- **Jurassic Canyon**, a second 6-hole course (par 19), picked from **Courses** on the main menu. Packed-dirt fairways with a basalt kerb under a smoky orange sky; glowing lava rivers and pools (+1 stroke), volcanoes whose slopes push the ball away, tumbleweeds that roll across the line, a brontosaurus that walks across the course (roll under its belly), a T-rex that sweeps its tail across the green, and a plated stegosaurus. Dressed with ferns, cycad palms, horsetails, basalt boulders, a ribcage, an egg nest and smoking volcanoes on the horizon.
+  1. **Lava Run**: a lava river with a basalt bridge
+  2. **Tumbleweed Flats**: time the gaps between three rolling tumbleweeds
+  3. **Bronto Crossing**: under the brontosaurus or round the lava pools
+  4. **Rex's Lair**: a dogleg up to the T-rex guarding the green
+  5. **Volcano Ridge**: two volcanoes shoulder the fairway
+  6. **Extinction**: stegosaurus, tumbleweeds and a lava river before a raised green
 - **Garden setting** (Three.js): evening sky and sun; flowing fairways with rounded corners, a curved timber kerb and mowing stripes that follow the shape; rolling lawn with raised flower beds, ornamental grasses, topiary, hedges, lamp posts and trees; sunken ponds and creeks lined with river stones, lily pads and reeds; raked bunkers, plank footbridges, boulders and turnstiles.
 - **Aiming**: pull down to draw the cue back, drag sideways to turn, and hold near a screen edge to keep turning all the way round.
 - **Camera**: a shot camera sits behind the ball and turns with the aim; at rest it faces down the route to the cup, then follows the rolling ball; it swoops in at the start of each hole and moves in when the ball drops. The **TABLE** button switches to the whole-table view (and **BALL** back).
@@ -38,7 +45,7 @@ npm run assets                                             # build + quantize in
 
 ## Course shapes and slopes
 
-Each hole can define an `outline` (the fairway edging, as a polygon), `slopes` (`hill` bumps or bowls, and `tilt` planes), `water` and `sand` (organic shapes from `blob()` and `creek()`), `bridges`, `rocks` and `spinners` (windmill or turnstile) in `src/levels.ts`. Bunkers are dished into the terrain; water is sunk below the turf with sloped banks. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
+Jurassic holes also use `tumbleweeds`, `volcanoes` and `dinos` (their moving colliders live in `movers()` in `physics.ts`). Each hole can define an `outline` (the fairway edging, as a polygon), `slopes` (`hill` bumps or bowls, and `tilt` planes), `water` and `sand` (organic shapes from `blob()` and `creek()`), `bridges`, `rocks` and `spinners` (windmill or turnstile) in `src/levels.ts`. Bunkers are dished into the terrain; water is sunk below the turf with sloped banks. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
 
 ## Project layout
 
@@ -49,6 +56,7 @@ src/render3d.ts  camera, ball, cue, aim guide, effects
 src/course.ts    builds each hole: sloped turf, timber edging, obstacles, garden dressing
 src/garden.ts    evening sky and sun
 src/landscape.ts curved kerb, rolling lawn, flower beds, grasses, topiary, river stones
+src/jurassic.ts  Jurassic course: dirt, lava, volcanoes, tumbleweeds, dinosaurs, prehistoric planting
 src/main.ts      game flow, input, HUD, haptics
 src/audio.ts     WebAudio sound effects
 ios/  android/   generated native projects (Capacitor)

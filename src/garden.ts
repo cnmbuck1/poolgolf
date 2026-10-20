@@ -6,6 +6,13 @@ import { LAWN_Y } from './course';
 /** Direction toward the sun: low in the sky, behind and to the left of the default view. */
 export const SUN_DIR = new THREE.Vector3(-0.62, 0.42, -0.66).normalize();
 
+/** Sky and lighting for each course's theme. */
+export interface Atmosphere { top: number; horizon: number; ground: number; sun: number; fog: number; sunLight: number; sunIntensity: number; hemiSky: number; hemiGround: number; hemiIntensity: number; exposure: number }
+export const ATMOSPHERE: Record<'garden' | 'jurassic', Atmosphere> = {
+  garden: { top: 0x3f6fae, horizon: 0xf4c08a, ground: 0x56603a, sun: 0xffd29a, fog: 0xd9b48c, sunLight: 0xffd6a0, sunIntensity: 2.6, hemiSky: 0xcfe0f5, hemiGround: 0x4e5a2c, hemiIntensity: 0.9, exposure: 1.0 },
+  // Smoky, ash-laden sky glowing orange at the horizon, with a hazy red sun
+  jurassic: { top: 0x5a4a5e, horizon: 0xf08a4a, ground: 0x4a3426, sun: 0xff9a5a, fog: 0xb8724a, sunLight: 0xffb070, sunIntensity: 2.4, hemiSky: 0xe8b090, hemiGround: 0x4a3020, hemiIntensity: 0.85, exposure: 0.95 },
+};
 const SKY = {
   top: new THREE.Color(0x3f6fae),
   horizon: new THREE.Color(0xf4c08a),
@@ -13,6 +20,11 @@ const SKY = {
   sun: new THREE.Color(0xffd29a),
 };
 export const FOG_COLOR = 0xd9b48c;
+
+/** Point the shared sky uniforms at a theme (all sky meshes share these colour objects). */
+export function setSkyTheme(a: Atmosphere) {
+  SKY.top.setHex(a.top); SKY.horizon.setHex(a.horizon); SKY.ground.setHex(a.ground); SKY.sun.setHex(a.sun);
+}
 
 function skyMaterial() {
   return new THREE.ShaderMaterial({
@@ -55,7 +67,7 @@ export function buildLawn(outline: [number, number][], toScene: (x: number, y: n
   return lawn;
 }
 
-/** Sky-lit environment map so brass, lacquer and water reflect the evening sky. */
+/** Sky-lit environment map so brass, lacquer and water reflect the sky (built for the current theme). */
 export function skyEnvironment(renderer: THREE.WebGLRenderer) {
   const scene = new THREE.Scene();
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), skyMaterial()));

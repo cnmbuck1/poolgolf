@@ -116,7 +116,8 @@ export class PieceBatch {
     this.add('CapEnd', base.clone().multiply(new THREE.Matrix4().makeTranslation(0, capY, 0)).multiply(new THREE.Matrix4().makeRotationY(Math.PI)));
   }
 
-  build(): THREE.Group {
+  /** `swap` replaces materials by name (e.g. darker basalt for the Jurassic course). */
+  build(swap?: Record<string, THREE.Material>): THREE.Group {
     const group = new THREE.Group();
     for (const [name, mats] of this.placements) {
       const piece = this.models.pieces.get(name);
@@ -126,7 +127,8 @@ export class PieceBatch {
       piece.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return;
         const local = inv.clone().multiply(o.matrixWorld);
-        const im = new THREE.InstancedMesh(o.geometry, o.material, mats.length);
+        const mat = o.material as THREE.Material;
+        const im = new THREE.InstancedMesh(o.geometry, swap?.[mat.name] ?? mat, mats.length);
         mats.forEach((m, i) => im.setMatrixAt(i, m.clone().multiply(local)));
         im.castShadow = o.castShadow;
         im.receiveShadow = true;

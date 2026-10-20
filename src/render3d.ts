@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Animated } from './art';
 import { buildCourse, Course, disposeGroup, HH, HW, to3, woodTexture } from './course';
-import { buildSky, FOG_COLOR, skyEnvironment, SUN_DIR } from './garden';
+import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR } from './garden';
 import { getModels } from './models';
 import { BALL_R, CUP_R, heightAt, routeTarget, World } from './physics';
 
@@ -69,6 +69,9 @@ export class Renderer3D {
   private drops: THREE.InstancedMesh;
   private dropState: { p: THREE.Vector3; v: THREE.Vector3 }[] = [];
   private sun: THREE.DirectionalLight;
+  private hemi!: THREE.HemisphereLight;
+  private theme = 'garden';
+  private envMaps: Record<string, THREE.Texture> = {};
   private size = { w: 1, h: 1, top: 0, bottom: 0 };
 
   // Ball spin: angular velocity eases toward pure rolling, so a hard shot skids first.
@@ -123,8 +126,8 @@ export class Renderer3D {
 
     // Garden: sky, lawn, evening sun with sky fill
     this.scene.add(buildSky());
-    this.scene.environment = skyEnvironment(this.renderer);
-    this.scene.add(new THREE.HemisphereLight(0xcfe0f5, 0x4e5a2c, 0.9));
+    this.scene.environment = this.envMaps.garden = skyEnvironment(this.renderer);
+    this.scene.add((this.hemi = new THREE.HemisphereLight(0xcfe0f5, 0x4e5a2c, 0.9)));
     const sun = (this.sun = new THREE.DirectionalLight(0xffd6a0, 2.6));
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -211,6 +214,7 @@ export class Renderer3D {
   setLevel(world: World) {
     disposeGroup(this.levelGroup);
     this.level = world.level;
+    this.applyTheme(world.level.theme ?? 'garden');
     this.course = buildCourse(world, getModels());
     this.levelGroup.add(this.course.group);
     this.setSlopeArrows(this.showArrows);
@@ -240,6 +244,27 @@ export class Renderer3D {
     this.showArrows = on;
     const a = this.levelGroup.getObjectByName('slopeArrows');
     if (a) a.visible = on;
+  }
+
+  /** Switch sky, fog, light and reflections to a course's theme. */
+  private applyTheme(theme: 'garden' | 'jurassic') {
+    if (theme === this.theme && this.envMaps[theme]) return;
+    const a = ATMOSPHERE[theme];
+    setSkyTheme(a);
+    (this.scene.fog as THREE.Fog).color.setHex(a.fog);
+    this.sun.color.setHex(a.sunLight);
+    this.sun.intensity = a.sunIntensity;
+    this.hemi.color.setHex(a.hemiSky);
+    this.hemi.groundColor.setHex(a.hemiGround);
+    this.hemi.intensity = a.hemiIntensity;
+    this.renderer.toneMappingExposure = a.exposure;
+    // Splash drops: water spray in the garden, embers over lava
+    (this.drops.material as THREE.MeshStandardMaterial).color.setHex(theme === 'jurassic' ? 0xff8a30 : 0xbfe6f0);
+    (this.drops.material as THREE.MeshStandardMaterial).emissive.setHex(theme === 'jurassic' ? 0xff6a10 : 0x000000);
+    for (const r of this.rippleMeshes) (r.material as THREE.MeshBasicMaterial).color.setHex(theme === 'jurassic' ? 0xffb060 : 0xdcf0ff);
+    this.envMaps[theme] ??= skyEnvironment(this.renderer);
+    this.scene.environment = this.envMaps[theme];
+    this.theme = theme;
   }
 
   private h(x: number, y: number) { return this.level ? heightAt(this.level, x, y) : 0; }

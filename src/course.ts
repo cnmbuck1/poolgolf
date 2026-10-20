@@ -6,6 +6,7 @@ import { Bridge, Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
 import { lawnMaterial } from './art';
 import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
+import { ashMaterial, basaltPlain, basaltSwap, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, tumbleweed } from './jurassic';
 import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
@@ -50,15 +51,17 @@ export function buildCourse(world: World, models: Models | null): Course {
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 
   // ---- Fairway turf, shaped to the slopes, with arrows showing which way it falls ----
-  add(fairwayMesh(L, outline));
+  const jur = L.theme === 'jurassic';
+  const rockSwap = jur ? basaltSwap() : undefined;
+  add(fairwayMesh(L, outline, jur));
   const lawnH = makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
   const centre3 = to3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
-  add(lawnMesh(outline, to3, lawnH, lawnMaterial(), centre3));
+  add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : lawnMaterial(), centre3));
   const arrows = slopeArrows(world, outline);
   if (arrows) { add(arrows.group); anims.push(arrows); }
 
   // ---- Curved timber kerb swept along the outline (its centre line is the physics boundary) ----
-  add(kerbMesh(L, outline, to3));
+  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : undefined));
 
   // ---- Cup, flag and tee ----
   const cupPos = at(L.cup[0], L.cup[1]);
@@ -79,7 +82,7 @@ export function buildCourse(world: World, models: Models | null): Course {
 
   // ---- Bunkers: dished sand with rake lines, sitting just above the dipped turf ----
   const [sandMap, sandBump] = rakedSandTextures();
-  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: 0xf2e2b6 });
+  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: jur ? 0x8c8078 : 0xf2e2b6 }); // ash-grey gravel in the canyon
   sandMat.userData.shared = true;
   (L.sand ?? []).forEach((z, i) => {
     const m = add(new THREE.Mesh(zoneSurface(z, (x, y) => heightAt(L, x, y) + 0.35, 1 / 120, i * 0.9), sandMat));
@@ -92,6 +95,16 @@ export function buildCourse(world: World, models: Models | null): Course {
     // Water sits below the lowest point of its bank (bridges don't count)
     const rim = z.kind === 'poly' ? z.pts : [zoneCentre(z)];
     const y = Math.min(...rim.filter(([x, yy]) => !(L.bridges ?? []).some((br) => onBridge(br, x, yy))).map(([x, yy]) => heightAt(L, x, yy)), 0);
+    if (jur) {
+      // Lava sits higher in its channel and glows; its crust drifts slowly downstream
+      const lava = add(new THREE.Mesh(zoneSurface(z, () => y - 3, 1 / 220, zoneCentre(z)[0] * 0.01), lavaSurfaceMaterial()));
+      lava.receiveShadow = false;
+      if (!anims.some((x) => x.group === lava)) {
+        const map = (lavaSurfaceMaterial() as THREE.MeshStandardMaterial).map!;
+        anims.push({ group: lava, update: (_a, t) => map.offset.set(t * 0.012, t * 0.007) });
+      }
+      continue;
+    }
     const mat = new THREE.MeshPhysicalMaterial({ color: 0x2f6470, roughness: 0.04, metalness: 0.15, transparent: true, opacity: 0.78, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 1 });
     waterMats.push(mat);
     const w = add(new THREE.Mesh(zoneSurface(z, () => y - WATER_LEVEL, 1 / 160), mat));
@@ -175,7 +188,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   });
 
   // ---- Bridges and boulders ----
-  for (const br of L.bridges ?? []) add(bridgeMesh(L, br));
+  for (const br of L.bridges ?? []) add(bridgeMesh(L, br, jur));
   if (models && L.rocks?.length) {
     const batch = new PieceBatch(models);
     L.rocks.forEach((rk, i) => {
@@ -187,7 +200,7 @@ export function buildCourse(world: World, models: Models | null): Course {
       shadow.position.copy(p).setY(p.y + 0.45);
       add(shadow);
     });
-    add(batch.build());
+    add(batch.build(rockSwap));
   } else {
     for (const rk of L.rocks ?? []) {
       const m = add(new THREE.Mesh(new THREE.DodecahedronGeometry(rk.r, 1), plainMaterials().Stone));
@@ -197,9 +210,14 @@ export function buildCourse(world: World, models: Models | null): Course {
   }
 
   // ---- Garden dressing around the hole ----
+  // ---- Tumbleweeds, dinosaurs and volcanoes (poses come from the physics clock) ----
+  for (const w of L.tumbleweeds ?? []) { const a = tumbleweed(w, world, L, to3); add(a.group); anims.push(a); }
+  for (const d of L.dinos ?? []) { const a = dinosaur(d, world, L, to3); add(a.group); anims.push(a); }
+  for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
+
   if (models) {
-    group.add(landscape(L, outline, models, to3, lawnH, anims));
-    group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y)));
+    group.add(jur ? jurassicLandscape(L, outline, models, to3, lawnH, anims) : landscape(L, outline, models, to3, lawnH, anims));
+    group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y), rockSwap));
   }
 
   return { group, spinnerAnims, legacySpinners, anims, waterMats, cupPos, cupPulse, bounds };
@@ -208,7 +226,7 @@ export function buildCourse(world: World, models: Models | null): Course {
 // ---------- fairway mesh ----------
 
 /** Turf over the outline (with the cup cut out), subdivided so it can follow the slopes. */
-function fairwayMesh(L: LevelDef, outline: [number, number][]) {
+function fairwayMesh(L: LevelDef, outline: [number, number][], jur = false) {
   const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x - HW, -(y - HH))));
   const hole = new THREE.Path();
   hole.absarc(L.cup[0] - HW, -(L.cup[1] - HH), CUP_R, 0, Math.PI * 2, true);
@@ -249,6 +267,11 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
     // Banks fade from turf to mud and then to a dark bed as they drop into the water
     const wet = Math.min(1, dip / 5), deep = Math.min(1, dip / WATER_BED);
     const base = band * shade * (1 - 0.35 * deep);
+    if (jur) {
+      // Scorched, blackened banks down into the lava
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = base * (1 - wet * 0.7);
+      continue;
+    }
     col[i * 3] = base * (1 - wet * 0.15);
     col[i * 3 + 1] = base * (1 - wet * 0.45);
     col[i * 3 + 2] = base * (1 - wet * 0.55);
@@ -259,7 +282,7 @@ function fairwayMesh(L: LevelDef, outline: [number, number][]) {
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
   flat.dispose();
-  const m = new THREE.Mesh(g, fairwayMaterial());
+  const m = new THREE.Mesh(g, jur ? dirtMaterial() : fairwayMaterial());
   m.receiveShadow = true;
   return m;
 }
@@ -378,8 +401,9 @@ function pondLife(L: LevelDef, z: Zone, waterY: number) {
 // ---------- bridges ----------
 
 /** Humped plank footbridge with posts and handrails, following the deck height used by the physics. */
-function bridgeMesh(L: LevelDef, br: Bridge) {
-  const lib = plainMaterials();
+function bridgeMesh(L: LevelDef, br: Bridge, jur = false) {
+  // In the canyon the bridge is basalt slabs on dark timber
+  const lib = jur ? { ...plainMaterials(), Plank: basaltPlain(), Oak: plainMaterials().DarkWood, Timber: plainMaterials().DarkWood } : plainMaterials();
   const g = new THREE.Group();
   const a = (br.angle * Math.PI) / 180;
   const ux = Math.cos(a), uy = Math.sin(a);

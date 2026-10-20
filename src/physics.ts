@@ -1,4 +1,4 @@
-import { Bridge, LevelDef, Pt, WORLD_H, WORLD_W, Zone } from './levels';
+import { Bridge, Dino, LevelDef, Pt, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -23,6 +23,10 @@ const ROCK_E = 0.55;
 export const BRIDGE_H = 6;
 export const BRIDGE_RAMP = 55;
 export const BRIDGE_RAIL_R = 4;
+/** Volcano flanks: peak height of the slope the ball feels around the cone. */
+export const VOLCANO_SLOPE = 16;
+export const volcanoCore = (r: number) => r * 0.42;
+
 /** Bunkers are dished: this deep in the middle, easing in over BUNKER_EASE from the rim. */
 export const BUNKER_DEPTH = 3;
 const BUNKER_EASE = 22;
@@ -54,6 +58,8 @@ export class World {
   spinners: SpinnerState[];
   ball: Ball;
   moving = false;
+  /** Seconds since the hole started; drives tumbleweeds and dinosaurs (the renderer reads it too). */
+  time = 0;
   /** Cushion / wall / bumper contacts since the last shot (for "bank shot" calls). */
   contacts = 0;
   private inCup = false;
@@ -114,9 +120,11 @@ export class World {
 
     for (let i = 0; i < sub; i++) {
       for (const s of this.spinners) s.angle += s.speed * h;
+      this.time += h;
       if (!this.moving) {
-        // Resting ball can still be shoved by a spinner arm.
+        // Resting ball can still be shoved by a spinner arm, a tumbleweed or a dinosaur.
         this.collideSpinners(events, h);
+        this.collideMovers(events);
         continue;
       }
 
@@ -175,6 +183,8 @@ export class World {
       }
       for (const bp of this.level.bumpers ?? []) this.collideCircle(bp.x, bp.y, bp.r, BUMPER_E, events);
       for (const rk of this.level.rocks ?? []) this.collideCircle(rk.x, rk.y, rk.r, ROCK_E, events, 'wall');
+      for (const v of this.level.volcanoes ?? []) this.collideCircle(v.x, v.y, volcanoCore(v.r), ROCK_E, events, 'wall');
+      this.collideMovers(events);
       this.collideSpinners(events, h);
 
       // Stop when slow, unless the slope is steep enough to keep it rolling
@@ -236,7 +246,14 @@ export class World {
     if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
 
-  private collideCircle(x: number, y: number, r: number, e: number, events: Event[], kind: 'bumper' | 'wall' = 'bumper') {
+  /** Tumbleweeds and dinosaurs: moving circles and swinging tails. */
+  private collideMovers(events: Event[]) {
+    const m = movers(this.level, this.time);
+    for (const c of m.circles) this.collideCircle(c.x, c.y, c.r, c.e, events, c.kind, c.vx, c.vy);
+    for (const a of m.arms) this.collideSeg(a.seg, 0.6, a.cx, a.cy, a.omega, events, 'wall');
+  }
+
+  private collideCircle(x: number, y: number, r: number, e: number, events: Event[], kind: 'bumper' | 'wall' | 'rail' = 'bumper', svx = 0, svy = 0) {
     const b = this.ball;
     let nx = b.x - x;
     let ny = b.y - y;
@@ -246,7 +263,8 @@ export class World {
     nx /= d; ny /= d;
     b.x = x + nx * minD;
     b.y = y + ny * minD;
-    const hit = this.bounce(nx, ny, 0, 0, e, kind === 'wall' ? WALL_GRIP : BUMPER_GRIP);
+    const hit = this.bounce(nx, ny, svx, svy, e, kind === 'bumper' ? BUMPER_GRIP : WALL_GRIP);
+    if (hit > 0 && (svx || svy)) this.moving = true; // a moving obstacle can shove a resting ball
     if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
 
@@ -296,7 +314,7 @@ export class World {
       const d = Math.hypot(x - bp.x, y - bp.y);
       if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
     }
-    for (const rk of this.level.rocks ?? []) {
+    for (const rk of [...(this.level.rocks ?? []), ...(this.level.volcanoes ?? []).map((v) => ({ x: v.x, y: v.y, r: volcanoCore(v.r) }))]) {
       const d = Math.hypot(x - rk.x, y - rk.y);
       if (d < BALL_R + rk.r) return { x: (x - rk.x) / d, y: (y - rk.y) / d, e: ROCK_E };
     }
@@ -457,6 +475,8 @@ function routeField(world: World) {
     segs.some((s) => { if (x < Math.min(s.ax, s.bx) - 30 || x > Math.max(s.ax, s.bx) + 30 || y < Math.min(s.ay, s.by) - 30 || y > Math.max(s.ay, s.by) + 30) return false; const p = closestOnSeg(s, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + s.r; })
     || (L.bumpers ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.rocks ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
+    || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
+    || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
     || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));
   const d = new Float64Array(W * H).fill(Infinity);
   const q: number[] = [];
@@ -482,6 +502,11 @@ const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 /** Terrain height at a point (0 = flat). Shared by physics and the renderer so what you see is what rolls. */
 export function heightAt(level: LevelDef, x: number, y: number) {
   let h = 0;
+  for (const v of level.volcanoes ?? []) {
+    // Flanks that rise toward the crater core (the core itself is solid)
+    const d = Math.hypot(x - v.x, y - v.y);
+    if (d < v.r * 1.6) h += VOLCANO_SLOPE * Math.exp(-((d / (v.r * 0.75)) ** 2));
+  }
   for (const z of level.sand ?? []) {
     if (!nearZone(z, x, y)) continue;
     const d = zoneDepth(z, x, y);
@@ -515,10 +540,86 @@ export function heightAt(level: LevelDef, x: number, y: number) {
 
 /** Terrain gradient (dh/dx, dh/dy). */
 export function slopeAt(level: LevelDef, x: number, y: number): [number, number] {
-  if (!level.slopes?.length && !level.bridges?.length && !level.sand?.length) return [0, 0];
+  if (!level.slopes?.length && !level.bridges?.length && !level.sand?.length && !level.volcanoes?.length) return [0, 0];
   const e = 0.5;
   return [
     (heightAt(level, x + e, y) - heightAt(level, x - e, y)) / (2 * e),
     (heightAt(level, x, y + e) - heightAt(level, x, y - e)) / (2 * e),
   ];
+}
+
+// ---------- moving obstacles ----------
+
+export interface MoverCircle { x: number; y: number; r: number; vx: number; vy: number; e: number; kind: 'wall' | 'rail' }
+export interface MoverArm { seg: Seg; cx: number; cy: number; omega: number }
+
+/** Triangle wave 0..1..0 with eased turns, and its rate of change. */
+function pingPong(t: number): [number, number] {
+  const f = ((t % 2) + 2) % 2;
+  const u = f < 1 ? f : 2 - f;
+  const dir = f < 1 ? 1 : -1;
+  // ease the ends so it slows before turning
+  return [u * u * (3 - 2 * u), dir * 6 * u * (1 - u)];
+}
+
+/** Position and velocity of a tumbleweed at time t. */
+export function tumbleweedAt(w: Tumbleweed, t: number) {
+  const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]) || 1;
+  const [u, du] = pingPong((t * w.speed) / len + (w.phase ?? 0) * 2);
+  const k = (du * w.speed) / len;
+  return { x: w.a[0] + (w.b[0] - w.a[0]) * u, y: w.a[1] + (w.b[1] - w.a[1]) * u, vx: (w.b[0] - w.a[0]) * k, vy: (w.b[1] - w.a[1]) * k, r: w.r ?? 15 };
+}
+
+/** Pose of a dinosaur at time t: body position, heading, its velocity, and tail angle (radians). */
+export function dinoPose(d: Dino, t: number) {
+  const a = (d.angle * Math.PI) / 180;
+  const ux = Math.cos(a), uy = Math.sin(a);
+  let x = d.x, y = d.y, vx = 0, vy = 0, tail = 0, tailRate = 0, heading = a;
+  if (d.kind === 'bronto' && d.walk) {
+    // Walks forward and back along its heading, turning round at each end
+    const sp = d.speed ?? 0.3;
+    const [u, du] = pingPong(t * sp);
+    const off = (u - 0.5) * d.walk;
+    x += ux * off; y += uy * off;
+    vx = ux * du * sp * d.walk; vy = uy * du * sp * d.walk;
+    if (du < 0) heading = a + Math.PI;
+  }
+  if (d.kind === 'trex') {
+    const sp = d.speed ?? 1;
+    const amp = ((d.swing ?? 30) * Math.PI) / 180;
+    tail = amp * Math.sin(t * sp);
+    tailRate = amp * sp * Math.cos(t * sp);
+  }
+  return { x, y, vx, vy, heading, tail, tailRate };
+}
+
+/** All moving colliders in a hole at time t (shared by physics and, for posing, the renderer). */
+export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; arms: MoverArm[] } {
+  const circles: MoverCircle[] = [], arms: MoverArm[] = [];
+  for (const w of level.tumbleweeds ?? []) {
+    const p = tumbleweedAt(w, t);
+    circles.push({ ...p, e: 0.45, kind: 'rail' });
+  }
+  for (const d of level.dinos ?? []) {
+    const p = dinoPose(d, t);
+    const ux = Math.cos(p.heading), uy = Math.sin(p.heading);
+    const at = (f: number, s: number) => [p.x + ux * f - uy * s, p.y + uy * f + ux * s] as const;
+    if (d.kind === 'bronto') {
+      // Four pillar legs; the belly is high enough to roll under
+      for (const [f, s] of [[38, 24], [38, -24], [-38, 24], [-38, -24]]) {
+        const [x, y] = at(f, s);
+        circles.push({ x, y, r: 9, vx: p.vx, vy: p.vy, e: 0.6, kind: 'wall' });
+      }
+    } else if (d.kind === 'trex') {
+      for (const s of [16, -16]) { const [x, y] = at(4, s); circles.push({ x, y, r: 10, vx: 0, vy: 0, e: 0.6, kind: 'wall' }); }
+      // The tail sweeps from the hips, low across the ground behind
+      const [hx, hy] = at(-18, 0);
+      const ta = p.heading + Math.PI + p.tail;
+      arms.push({ seg: { ax: hx, ay: hy, bx: hx + Math.cos(ta) * 120, by: hy + Math.sin(ta) * 120, r: 9 }, cx: hx, cy: hy, omega: p.tailRate });
+    } else {
+      const [ax, ay] = at(-52, 0), [bx, by] = at(52, 0);
+      arms.push({ seg: { ax, ay, bx, by, r: 24 }, cx: p.x, cy: p.y, omega: 0 });
+    }
+  }
+  return { circles, arms };
 }

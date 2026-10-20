@@ -20,6 +20,18 @@ export interface Spinner { x: number; y: number; len: number; speed: number; sty
 export interface Bridge { x: number; y: number; len: number; width: number; angle: number }
 /** A boulder: solid, and duller to bounce off than a wall. */
 export interface Rock { x: number; y: number; r: number }
+/** Rolls back and forth between a and b at `speed` units/s; `phase` (0..1) staggers start positions. */
+export interface Tumbleweed { a: Pt; b: Pt; speed: number; r?: number; phase?: number }
+/** A volcano cone: a solid crater core and slopes that roll the ball away. `r` is the base radius. */
+export interface Volcano { x: number; y: number; r: number }
+/**
+ * Dinosaurs (angle in degrees is the way the head faces).
+ *   bronto  walks back and forth `walk` units along its heading; the ball can roll under its belly
+ *   trex    stands still and swings its tail ±`swing` degrees across the ground behind it
+ *   stego   a solid, plated body
+ */
+export interface Dino { kind: 'bronto' | 'trex' | 'stego'; x: number; y: number; angle: number; walk?: number; swing?: number; speed?: number }
+export type Theme = 'garden' | 'jurassic';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -42,6 +54,11 @@ export interface LevelDef {
   spinners?: Spinner[];
   bridges?: Bridge[];
   rocks?: Rock[];
+  tumbleweeds?: Tumbleweed[];
+  volcanoes?: Volcano[];
+  dinos?: Dino[];
+  /** Set from the course; decides the look (and calls water "lava" in the jurassic course). */
+  theme?: Theme;
   water?: Zone[];
   sand?: Zone[];
   /** Fairway border: centre line of the edging, as a closed polygon. Defaults to the original rectangle. */
@@ -100,7 +117,7 @@ const BALL = {
 } as const;
 const ball = (n: keyof typeof BALL, x: number, y: number, r = 18): Bumper => ({ x, y, r, n, color: BALL[n] });
 
-export const LEVELS: LevelDef[] = [
+const GARDEN: LevelDef[] = [
   {
     // A dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be
     // timed through its sweepers; the brick "leg" under it closes the low lane. The lane from the tee
@@ -213,3 +230,105 @@ export const LEVELS: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 905, y: 250, r: 150, h: 5 }],
   },
 ];
+
+const JURASSIC: LevelDef[] = [
+  {
+    // A lava river cuts across the dirt; cross on the basalt bridge or bank around the boulders.
+    name: 'Lava Run',
+    par: 3,
+    tee: [110, 380],
+    cup: [880, 140],
+    outline: [[50, 300], [160, 230], [420, 220], [560, 60], [930, 60], [960, 260], [820, 470], [60, 470]],
+    water: [creek([[330, 470], [420, 360], [560, 300], [640, 180], [600, 60]], 70, 3)],
+    bridges: [{ x: 520, y: 315, len: 150, width: 56, angle: 70 }],
+    rocks: [{ x: 300, y: 300, r: 24 }, { x: 760, y: 330, r: 30 }, { x: 720, y: 120, r: 20 }],
+    slopes: [{ kind: 'hill', x: 880, y: 140, r: 60, h: -2.5 }],
+  },
+  {
+    // Wide, cracked flats where tumbleweeds roll across your line. Time the gaps.
+    name: 'Tumbleweed Flats',
+    par: 3,
+    tee: [100, 250],
+    cup: [900, 250],
+    outline: [[40, 160], [200, 50], [800, 50], [960, 160], [960, 340], [800, 450], [200, 450], [40, 340]],
+    tumbleweeds: [
+      { a: [330, 70], b: [330, 430], speed: 110, phase: 0 },
+      { a: [520, 430], b: [520, 70], speed: 130, phase: 0.4 },
+      { a: [710, 80], b: [710, 420], speed: 95, phase: 0.7 },
+    ],
+    rocks: [{ x: 430, y: 150, r: 22 }, { x: 610, y: 360, r: 26 }, { x: 610, y: 250, r: 24 }],
+    sand: [blob(800, 340, 60, 30, 3, 0.2, -10)],
+  },
+  {
+    // A brontosaurus wanders across the middle. Roll under its belly between the legs,
+    // or go round either end past the lava pools.
+    name: 'Bronto Crossing',
+    par: 3,
+    tee: [110, 250],
+    cup: [890, 250],
+    outline: [[40, 170], [160, 60], [840, 60], [960, 170], [960, 330], [840, 440], [160, 440], [40, 330]],
+    dinos: [{ kind: 'bronto', x: 500, y: 250, angle: 90, walk: 120, speed: 0.35 }],
+    water: [blob(500, 95, 80, 26, 4, 0.2), blob(500, 405, 80, 26, 6, 0.2)],
+    rocks: [{ x: 300, y: 170, r: 20 }, { x: 700, y: 330, r: 22 }],
+  },
+  {
+    // A dogleg up to a T-rex guarding the green: its tail sweeps across the approach.
+    name: "Rex's Lair",
+    par: 3,
+    tee: [100, 400],
+    cup: [880, 130],
+    outline: [[40, 330], [120, 290], [540, 290], [600, 60], [960, 60], [960, 330], [900, 470], [40, 470]],
+    dinos: [{ kind: 'trex', x: 830, y: 260, angle: 200, swing: 40, speed: 1.1 }],
+    volcanoes: [{ x: 330, y: 438, r: 70 }],
+    water: [blob(700, 410, 70, 30, 2, 0.2, 15)],
+    rocks: [{ x: 640, y: 180, r: 22 }],
+    slopes: [{ kind: 'hill', x: 880, y: 130, r: 60, h: -2.5 }],
+  },
+  {
+    // Two volcanoes shoulder the fairway; their slopes push the ball away. A lava channel
+    // runs behind the left one, and a gravel pit waits by the cup.
+    name: 'Volcano Ridge',
+    par: 3,
+    tee: [100, 250],
+    cup: [900, 250],
+    outline: [[40, 160], [180, 40], [820, 40], [960, 160], [960, 340], [820, 460], [180, 460], [40, 340]],
+    volcanoes: [{ x: 400, y: 205, r: 95 }, { x: 620, y: 300, r: 95 }],
+    water: [creek([[250, 40], [330, 60], [440, 50], [520, 40]], 50, 5)],
+    sand: [blob(810, 140, 55, 30, 7, 0.2, 20)],
+    rocks: [{ x: 520, y: 250, r: 18 }],
+  },
+  {
+    // The finale: a stegosaurus blocks the middle, tumbleweeds patrol the lane past it, and
+    // a lava river with one bridge guards the raised green.
+    name: 'Extinction',
+    par: 4,
+    tee: [100, 250],
+    cup: [905, 250],
+    outline: [[40, 150], [160, 40], [840, 40], [960, 150], [960, 350], [840, 460], [160, 460], [40, 350]],
+    dinos: [{ kind: 'stego', x: 360, y: 250, angle: 80 }],
+    tumbleweeds: [
+      { a: [520, 60], b: [520, 440], speed: 120, phase: 0.2 },
+      { a: [470, 440], b: [470, 60], speed: 100, phase: 0.6 },
+    ],
+    water: [creek([[700, 40], [670, 160], [720, 300], [690, 460]], 64, 8)],
+    bridges: [{ x: 700, y: 250, len: 140, width: 56, angle: 5 }],
+    volcanoes: [{ x: 230, y: 440, r: 60 }],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+  },
+];
+
+export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
+
+export const COURSES: CourseDef[] = [
+  { id: 'garden', name: 'Garden Club', theme: 'garden', holes: GARDEN },
+  { id: 'jurassic', name: 'Jurassic Canyon', theme: 'jurassic', holes: JURASSIC },
+];
+for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
+
+/** The holes of the course being played. Reassigned by setCourse (importers see the live binding). */
+export let LEVELS: LevelDef[] = GARDEN;
+export let COURSE: CourseDef = COURSES[0];
+export function setCourse(id: string) {
+  COURSE = COURSES.find((c) => c.id === id) ?? COURSES[0];
+  LEVELS = COURSE.holes;
+}

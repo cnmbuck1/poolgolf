@@ -331,6 +331,11 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .sheet h2 { font-size: 26px; }
 .sheet p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 
+.course-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; padding: 8px 4px 0; border-top: 1px solid var(--edge); }
+.course-head h3 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 20px; text-transform: uppercase; }
+.course-head small { color: var(--muted); font-size: 12px; }
+.course-head.cur h3 { color: var(--gold-hi); }
+.btn-gold.small { width: auto; font-size: 16px; padding: 7px 16px 9px; }
 .courses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .course {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;

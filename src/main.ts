@@ -2,7 +2,7 @@ import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
-import { LEVELS } from './levels';
+import { COURSE, COURSES, LEVELS, setCourse } from './levels';
 import { inZone, MAX_SHOT_SPEED, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
@@ -21,6 +21,7 @@ type Phase = 'title' | 'play' | 'paused' | 'holeDone';
 
 let phase: Phase = 'title';
 let holeIdx = 0;
+setCourse(localGet('course') ?? 'garden');
 let world = new World(LEVELS[0]);
 let strokes = 0;
 let scores: (number | null)[] = LEVELS.map(() => null);
@@ -75,9 +76,11 @@ function setLabel(id: string, text: string) {
 
 // ---------- Stats ----------
 const stat = (k: string) => Number(localGet(k) ?? 0);
+/** Score keys per course (the Garden course keeps its original keys). */
+const ck = (k: string, id = COURSE.id) => (id === 'garden' ? k : `${id}.${k}`);
 function recordHole(i: number, score: number) {
-  const best = localGet(`hole${i}`);
-  if (best == null || score < Number(best)) localSet(`hole${i}`, String(score));
+  const best = localGet(ck(`hole${i}`));
+  if (best == null || score < Number(best)) localSet(ck(`hole${i}`), String(score));
   if (score === 1) localSet('aces', String(stat('aces') + 1));
   localSet('holes', String(stat('holes') + 1));
 }
@@ -235,8 +238,8 @@ function finishHole(score: number, pickedUp = false) {
     h.textContent = `${total} · ${toParLabel(d)}`;
     h.className = d < 0 ? 'under' : d === 0 ? 'par' : 'over';
     $('hole-detail').textContent = `${LEVELS.length} holes, par ${LEVELS.reduce((a, l) => a + l.par, 0)}`;
-    const best = Number(localGet('best') ?? Infinity);
-    if (total < best) { localSet('best', String(total)); $('hole-detail').textContent += ' · New best round!'; }
+    const best = Number(localGet(ck('best')) ?? Infinity);
+    if (total < best) { localSet(ck('best'), String(total)); $('hole-detail').textContent += ' · New best round!'; }
   }
   updateHud();
   show('screen-hole');
@@ -259,8 +262,18 @@ function scorecardHtml() {
 }
 
 function refreshTitle() {
-  const best = localGet('best');
-  $('best').textContent = best ? `Best round: ${best}` : '';
+  const best = localGet(ck('best'));
+  $('best').textContent = best ? `${COURSE.name} best round: ${best}` : '';
+  setLabel('btn-play', `PLAY ${COURSE.name.toUpperCase()}`);
+}
+
+/** Switch course; the menu background moves to its first hole. */
+function chooseCourse(id: string) {
+  setCourse(id);
+  localSet('course', COURSE.id);
+  world = new World(LEVELS[0]);
+  view3d.setLevel(world);
+  refreshTitle();
 }
 
 function pause() {
@@ -432,13 +445,22 @@ function sheet(title: string, html: string) {
 click('btn-sheet-close', () => show('screen-title'));
 
 function openCourses() {
-  const cards = LEVELS.map((l, i) => {
-    const best = localGet(`hole${i}`);
-    return `<button class="course" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${best ? ` · Best ${best}` : ''}</small>${l.art === 'premium' ? '<em class="tag">New look</em>' : ''}</button>`;
+  const sections = COURSES.map((c) => {
+    const best = localGet(ck('best', c.id));
+    const par = c.holes.reduce((a, l) => a + l.par, 0);
+    const cards = c.holes.map((l, i) => {
+      const hb = localGet(ck(`hole${i}`, c.id));
+      return `<button class="course" data-course="${c.id}" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${hb ? ` · Best ${hb}` : ''}</small></button>`;
+    }).join('');
+    return `<div class="course-head${c.id === COURSE.id ? ' cur' : ''}"><div><h3>${c.name}</h3><small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''}</small></div>
+      <button class="btn-gold small" data-play="${c.id}">PLAY</button></div><div class="courses">${cards}</div>`;
   }).join('');
-  sheet('Courses', `<p>Practise any hole on its own. Scores here count toward your hole bests, not your round.</p><div class="courses">${cards}</div>`);
+  sheet('Courses', `<p>Play a full course, or tap any hole to practise it. Practice scores count toward your hole bests, not your round.</p>${sections}`);
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.course').forEach((b) => {
-    b.onclick = () => { sfx.ui(); playSingle(Number(b.dataset.hole)); };
+    b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.course!); playSingle(Number(b.dataset.hole)); };
+  });
+  $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-play]').forEach((b) => {
+    b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.play!); startRound(); };
   });
 }
 
@@ -464,9 +486,9 @@ function openSettings() {
 }
 
 function openStats() {
-  const best = localGet('best');
-  const holes = LEVELS.map((l, i) => `<td>${localGet(`hole${i}`) ?? '–'}</td>`).join('');
-  sheet('Stats', `<div class="stats">
+  const best = localGet(ck('best'));
+  const holes = LEVELS.map((l, i) => `<td>${localGet(ck(`hole${i}`)) ?? '–'}</td>`).join('');
+  sheet(`Stats · ${COURSE.name}`, `<div class="stats">
       <div class="stat"><b>${best ?? '–'}</b><span>Best round</span></div>
       <div class="stat"><b>${stat('rounds')}</b><span>Rounds finished</span></div>
       <div class="stat"><b>${stat('aces')}</b><span>Holes in one</span></div>
@@ -583,14 +605,14 @@ function tick(dt: number) {
         break;
       }
       case 'water':
-        sfx.water();
+        if (world.level.theme === 'jurassic') sfx.lava(); else sfx.water();
         buzz(ImpactStyle.Heavy);
         fx.splash = { x: b.x, y: b.y, t: 0 };
         fx.ripples.push({ x: b.x, y: b.y, t: 0 }, { x: b.x, y: b.y, t: -0.25 });
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast('Splash! +1 stroke', 'bad');
+        toast(world.level.theme === 'jurassic' ? 'Lava! +1 stroke' : 'Splash! +1 stroke', 'bad');
         updateHud();
         break;
       case 'stop':
@@ -613,6 +635,7 @@ if (import.meta.env.DEV) {
     },
     stats: () => view3d.stats,
     view: () => view3d,
+    course: (id: string) => chooseCourse(id),
     place: (x: number, y: number) => { world.ball.x = x; world.ball.y = y; },
     cam: (x: number, y: number, dist: number, yaw: number) => view3d.debugView(x, y, dist, yaw),
     aim: () => ({ ...aim }),
@@ -623,7 +646,7 @@ if (import.meta.env.DEV) {
 // Keep the current round when the hosted page receives a live update.
 type Hot = { snapshot(fn: () => unknown): void; ready?(fn: (d: unknown) => void): void; data?: unknown };
 const hot = (window as unknown as { claude?: { hot?: Hot } }).claude?.hot;
-hot?.snapshot(() => ({ holeIdx, scores, playing: phase !== 'title' }));
+hot?.snapshot(() => ({ holeIdx, scores, playing: phase !== 'title', course: COURSE.id }));
 
 /** Load the 3D models in the background; until then the procedural look stands in. */
 function loadCourseModels() {
@@ -646,7 +669,8 @@ function start(data: unknown) {
   loadCourseModels();
   refreshTitle();
   resize();
-  const d = data as { holeIdx?: number; scores?: (number | null)[]; playing?: boolean } | undefined;
+  const d = data as { holeIdx?: number; scores?: (number | null)[]; playing?: boolean; course?: string } | undefined;
+  if (d?.course && d.course !== COURSE.id) { setCourse(d.course); world = new World(LEVELS[0]); view3d.setLevel(world); }
   if (d?.playing && typeof d.holeIdx === 'number' && d.holeIdx < LEVELS.length) {
     scores = LEVELS.map((_, i) => d.scores?.[i] ?? null);
     loadHole(d.holeIdx);

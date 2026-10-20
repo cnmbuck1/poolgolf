@@ -141,6 +141,12 @@ export const sfx = {
     noise(0.7, 0.45, 'lowpass', 2500, { sweepTo: 200, at: 0.03, attack: 0.02 });
     tone(320, 0.25, 'sine', 0.2, { slideTo: 900, at: 0.04 });
   },
+  /** Hiss and bubble as the ball drops into lava. */
+  lava: () => {
+    noise(0.9, 0.45, 'highpass', 2500, { sweepTo: 6000, attack: 0.02 });
+    noise(0.5, 0.4, 'lowpass', 300, { at: 0.05 });
+    [0.15, 0.32, 0.5].forEach((at) => tone(120 + Math.random() * 60, 0.12, 'sine', 0.25, { at, slideTo: 60 }));
+  },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];

@@ -115,7 +115,8 @@ export function lawnMesh(outline: Pt[], toScene: ToScene, lawnH: (x: number, y: 
  * Rounded timber kerb swept along the closed outline. Its centre line is the physics edge;
  * it stands proud of the turf and drops below it so no gap shows on slopes.
  */
-export function kerbMesh(L: LevelDef, outline: Pt[], toScene: ToScene) {
+/** `material` overrides the timber (basalt in the canyon, where it also drops the brass studs). */
+export function kerbMesh(L: LevelDef, outline: Pt[], toScene: ToScene, material?: THREE.Material) {
   const lib = plainMaterials();
   const pts = resample(outline, 8);
   // Profile (across, up): a softly rounded cap on a straight-sided board
@@ -151,7 +152,7 @@ export function kerbMesh(L: LevelDef, outline: Pt[], toScene: ToScene) {
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
-  const mesh = new THREE.Mesh(g, lib.Timber);
+  const mesh = new THREE.Mesh(g, material ?? lib.Timber);
   mesh.castShadow = mesh.receiveShadow = true;
   // Brass rivets along the top every so often
   const studs = resample(outline, 64);
@@ -159,14 +160,15 @@ export function kerbMesh(L: LevelDef, outline: Pt[], toScene: ToScene) {
   const m4 = new THREE.Matrix4();
   studs.forEach((p, i) => { const s = toScene(p.x, p.y); studMesh.setMatrixAt(i, m4.makeTranslation(s.x, heightAt(L, p.x, p.y) + top - 0.4, s.z)); });
   const group = new THREE.Group();
-  group.add(mesh, studMesh);
+  group.add(mesh);
+  if (!material) group.add(studMesh);
   return group;
 }
 
 // ---------- river stones ----------
 
 /** Rounded stones lining water banks (inside the water zone, so they never sit in the ball's path). */
-export function riverStones(L: LevelDef, models: Models, toScene: ToScene, dipAt: (x: number, y: number) => number) {
+export function riverStones(L: LevelDef, models: Models, toScene: ToScene, dipAt: (x: number, y: number) => number, swap?: Record<string, THREE.Material>) {
   const batch = new PieceBatch(models);
   const r = rng(91);
   for (const z of L.water ?? []) {
@@ -186,7 +188,7 @@ export function riverStones(L: LevelDef, models: Models, toScene: ToScene, dipAt
         .multiply(new THREE.Matrix4().makeScale(s * (1 + r() * 0.5), s * 0.7, s)));
     }
   }
-  const g = batch.build();
+  const g = batch.build(swap);
   g.traverse((o) => { o.castShadow = false; });
   return g;
 }

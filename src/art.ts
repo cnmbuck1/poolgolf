@@ -703,15 +703,14 @@ export function lantern(): Animated {
 }
 
 /** Potted fern: arching fronds merged into one mesh. `size` scales the whole plant. */
-export function fern(size: number, seed: number, potStyle: 'tall' | 'bowl' = 'tall') {
+export function fern(size: number, seed: number, potStyle: 'tall' | 'bowl' | 'none' = 'tall') {
   const g = new THREE.Group();
   const r = rng(seed);
   const potProfile = potStyle === 'tall'
     ? [[0, 0], [14, 0], [16, 4], [20, 30], [22, 46], [24, 48], [24, 52], [21, 52], [0, 50]]
     : [[0, 0], [12, 0], [20, 6], [26, 16], [28, 22], [25, 22], [0, 20]];
-  const potH = potProfile[potProfile.length - 3][1];
-  const pot = mesh(new THREE.LatheGeometry(potProfile.map(([x, y]) => new THREE.Vector2(x, y)), 20), mats.pot);
-  g.add(pot);
+  const potH = potStyle === 'none' ? 0 : potProfile[potProfile.length - 3][1];
+  if (potStyle !== 'none') g.add(mesh(new THREE.LatheGeometry(potProfile.map(([x, y]) => new THREE.Vector2(x, y)), 20), mats.pot));
   const fronds: THREE.BufferGeometry[] = [];
   const count = 11;
   for (let i = 0; i < count; i++) {
