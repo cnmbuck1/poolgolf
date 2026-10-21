@@ -28,6 +28,21 @@ if (!get('owned')) {
   if (get('coins') == null) set('coins', String(STARTING_COINS));
 }
 
+/**
+ * Economy version. When prices and rewards change enough to make old savings unfair, bumping this resets
+ * every existing player once, on their next visit, to the starting coins, ball and cue (stats, career and
+ * other progress are kept). 2: prices x2.5 and rewards halved.
+ */
+const ECONOMY = '2';
+if (get('economy') !== ECONOMY) {
+  owned = new Set(['b:cue', 'c:classic']);
+  set('owned', JSON.stringify([...owned]));
+  set('coins', String(STARTING_COINS));
+  set('ball', 'cue');
+  set('cue', 'classic');
+  set('economy', ECONOMY);
+}
+
 export const coins = () => Number(get('coins') ?? STARTING_COINS);
 export function addCoins(n: number) { set('coins', String(coins() + n)); }
 export const isOwned = (k: ItemKey) => owned.has(k);
