@@ -20,6 +20,11 @@ const MAX_STROKES = 10;
 /** Aim turn per pixel of sideways drag on the shot camera (radians). */
 const AIM_TURN = 0.004;
 const native = Capacitor.isNativePlatform();
+/**
+ * Whether this device can vibrate here: always in the app (native haptics); on the web only where the
+ * Vibration API exists and the page isn't embedded in another site (browsers block it in embedded frames).
+ */
+const canVibrate = native || ('vibrate' in navigator && (() => { try { return window.top === window.self || window.top!.location.origin === location.origin; } catch { return false; } })());
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('game');
@@ -101,9 +106,12 @@ function syncSettingsUi() {
   $('set-arrows').setAttribute('aria-pressed', String(settings.arrows));
   $('view-label').textContent = view3d.isOverview ? 'BALL' : 'TABLE';
   $('btn-turn').style.display = view3d.isOverview ? 'none' : '';
-  const t = $('btn-title-sound');
-  t.querySelector('use')!.setAttribute('href', settings.sound ? '#i-sound' : '#i-mute');
-  t.setAttribute('aria-label', settings.sound ? 'Sound on' : 'Sound off');
+  // The speaker on the title screen mutes everything: it shows muted only when sound and music are both off
+  const t = $('btn-title-sound'), on = settings.sound || settings.music;
+  t.querySelector('use')!.setAttribute('href', on ? '#i-sound' : '#i-mute');
+  t.setAttribute('aria-label', on ? 'Mute sound and music' : 'Unmute sound and music');
+  // Browsers that can't vibrate (iPhone Safari, or this page embedded in another site) get a note on the switch
+  document.querySelectorAll('#set-vibrate span, [data-set="vibrate"] span').forEach((el) => (el.innerHTML = canVibrate ? 'Vibration' : 'Vibration <small>(in the app)</small>'));
 }
 
 /** Set a button's text while keeping its icon. */
@@ -597,6 +605,12 @@ function toggleView() {
   localSet('view', settings.top ? 'table' : 'ball');
   syncSettingsUi();
 }
+/** The title-screen speaker: mute sound effects and music together, or bring both back. */
+function toggleMute() {
+  const on = !(settings.sound || settings.music);
+  if (settings.sound !== on) toggleSound();
+  if (settings.music !== on) toggleMusic();
+}
 function toggleSound() { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); }
 function toggleMusic() { settings.music = !settings.music; setMusic(settings.music); localSet('music', settings.music ? '1' : '0'); syncSettingsUi(); }
 function toggleVibrate() { settings.vibrate = !settings.vibrate; localSet('vibrate', settings.vibrate ? '1' : '0'); syncSettingsUi(); buzz(ImpactStyle.Medium); }
@@ -653,7 +667,7 @@ function openSettings() {
   sheet('Settings', `<div class="settings">
     <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound effects</span><em></em></button>
     <button class="toggle" data-set="music" aria-pressed="${settings.music}"><span>Music</span><em></em></button>
-    <button class="toggle" data-set="vibrate" aria-pressed="${settings.vibrate}"><span>Vibration</span><em></em></button>
+    <button class="toggle" data-set="vibrate" aria-pressed="${settings.vibrate}"><span>${canVibrate ? 'Vibration' : 'Vibration <small>(in the app)</small>'}</span><em></em></button>
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
     <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
@@ -1302,7 +1316,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
-click('btn-title-sound', () => toggleSound());
+click('btn-title-sound', toggleMute);
 click('btn-next', () => {
   if (match) {
     if (shootoutPending) { startShootout(); return; }
@@ -1427,6 +1441,7 @@ function tick(dt: number) {
         }
         sfx.sink();
         if (native && settings.vibrate) void Haptics.notification({ type: NotificationType.Success }).catch(() => {});
+        else if (settings.vibrate) navigator.vibrate?.([25, 60, 25, 60, 40]); // a celebratory triple buzz
         fx.sink = { t: 0 };
         busyTimer = 1.3;
         view3d.setMode('sink');

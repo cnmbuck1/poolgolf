@@ -503,6 +503,7 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 /* The pause menu lays its switches out in two columns so Resume stays on screen */
 #screen-pause .settings { grid-template-columns: 1fr 1fr; }
 #screen-pause .toggle span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toggle span small { font-size: 0.72em; opacity: 0.65; font-weight: 600; }
 .toggle {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 10px 14px;
