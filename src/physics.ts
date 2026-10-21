@@ -105,7 +105,11 @@ export class World {
     return out;
   }
 
+  /** Seconds the ball has spent crawling along almost stopped (see the rest check in step). */
+  private crawl = 0;
+
   shoot(vx: number, vy: number) {
+    this.crawl = 0;
     this.ball.vx = vx;
     this.ball.vy = vy;
     this.moving = true;
@@ -141,8 +145,8 @@ export class World {
 
       // Friction
       const sp = Math.hypot(b.vx, b.vy);
+      const sandy = (this.level.sand ?? []).some((z) => inZone(z, b.x, b.y));
       if (sp > 0) {
-        const sandy = (this.level.sand ?? []).some((z) => inZone(z, b.x, b.y));
         const decel = (ROLL_DECEL + LIN_DAMP * sp) * (sandy ? SAND_FACTOR : 1) * h;
         const ns = Math.max(0, sp - decel);
         b.vx *= ns / sp;
@@ -191,10 +195,15 @@ export class World {
       this.collideMovers(events);
       this.collideSpinners(events, h);
 
-      // Stop when slow, unless the slope is steep enough to keep it rolling
-      if (Math.hypot(b.vx, b.vy) < REST_SPEED && SLOPE_G * Math.hypot(gx, gy) < ROLL_DECEL * 1.1) {
+      // Stop when slow, unless the slope is steep enough to beat the surface's friction and keep it
+      // rolling (sand grips much harder, so a ball resting on a bunker's dished edge stays put).
+      // As a safety net, a ball that has crawled along barely moving for a while also comes to rest.
+      const slow = Math.hypot(b.vx, b.vy);
+      this.crawl = slow < REST_SPEED * 3 ? this.crawl + h : 0;
+      if ((slow < REST_SPEED && SLOPE_G * Math.hypot(gx, gy) < ROLL_DECEL * (sandy ? SAND_FACTOR : 1) * 1.1) || this.crawl > 1.5) {
         b.vx = b.vy = 0;
         this.moving = false;
+        this.crawl = 0;
         events.push({ type: 'stop' });
         break;
       }
