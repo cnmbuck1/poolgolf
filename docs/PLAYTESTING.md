@@ -31,6 +31,18 @@ The repository is public, so GitHub Pages hosting is free.
 The game is then at **https://cnmbuck1.github.io/poolgolf/**, and every push to `main` updates it within a
 couple of minutes.
 
+### Keeping it to invited testers
+
+- The web build tells search engines not to list it (`noindex`), so only people you give the link to find it.
+- It asks for a **tester code** the first time it's opened, then remembers it on that phone. The code isn't
+  written anywhere in this public repository, only its hash (`TESTER_CODE_HASH` in `src/playtest.config.ts`).
+  To change it, run `node scripts/tester-code.mjs NEWCODE`, paste the result there and push. Phones that
+  already got in will be asked for the new code. Set it to `''` to turn the gate off.
+- The gate only applies to the web link; the app builds, claude.ai and local runs skip it.
+- This keeps out casual visitors and forwarded links, not a determined person. For real invite-only access,
+  put the build behind Cloudflare Access (free for up to 50 people, testers sign in with a code emailed to
+  them), or use TestFlight / Google Play internal testing.
+
 ## Step 2: collect everyone's results in a Google Sheet (about 5 minutes)
 
 1. Create a new Google Sheet (sheets.new), name it "Rack & Roll playtest".
@@ -69,6 +81,7 @@ The in-game feedback button and the Google Sheet keep working in the app builds 
 > Hi! I'm making a mini-golf game played with a pool cue, called **Rack & Roll**, and I'd love your help
 > testing it. Open this link on your phone: https://cnmbuck1.github.io/poolgolf/ and turn your phone sideways.
 > (On iPhone, tap Share → Add to Home Screen to play full screen.)
+> It'll ask for a tester code: **[your code]**
 > Play a course or two. When something breaks, confuses you, or you love it, tap the speech bubble on the
 > main menu (or Pause → Report a bug) and tell me. Your scores are sent anonymously so I can see which holes
 > are too hard. Thank you!

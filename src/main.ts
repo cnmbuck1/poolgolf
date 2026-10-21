@@ -15,7 +15,8 @@ import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
 import { playMusic } from './music';
-import { PLAYTEST_URL } from './playtest.config';
+import { PLAYTEST_URL, TESTER_CODE_HASH } from './playtest.config';
+import { sha256 } from './sha256';
 import { BUILD, flush, loadRecords, PlaytestRecord, setTesterName, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -1356,6 +1357,27 @@ click('btn-fb-send', () => {
   toast('Thanks! Feedback sent', 'good', 1600);
 });
 void flush(); // anything that didn't get out last time (offline)
+
+// ---------- Tester code (web playtest builds) ----------
+/** The web version on a public host asks for the tester code once; the app, claude.ai and local runs don't. */
+function testerGate() {
+  const local = /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname);
+  const embedded = (() => { try { return window.top !== window.self; } catch { return true; } })();
+  if (!TESTER_CODE_HASH || native || local || embedded) return;
+  if (localGet('access') === TESTER_CODE_HASH) return;
+  const hash = (code: string) => sha256(`rack-and-roll:${code.toUpperCase().replace(/[^A-Z0-9]/g, '')}`);
+  const gate = $('screen-gate'), input = $('gate-code') as HTMLInputElement;
+  gate.classList.remove('hidden');
+  const tryCode = () => {
+    if (hash(input.value) === TESTER_CODE_HASH) { localSet('access', TESTER_CODE_HASH); gate.classList.add('hidden'); return; }
+    $('gate-msg').textContent = "That code didn't work. Check the message you were sent.";
+    const panel = gate.querySelector('.panel')!;
+    panel.classList.remove('shake'); void (panel as HTMLElement).offsetWidth; panel.classList.add('shake');
+  };
+  click('btn-gate', tryCode);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryCode(); });
+}
+testerGate();
 click('btn-stats', openStats);
 click('btn-cues', openGear);
 click('btn-career', () => openCareer());

@@ -504,6 +504,12 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 #screen-pause .settings { grid-template-columns: 1fr 1fr; }
 #screen-pause .toggle span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .feedback { gap: 9px; }
+.gate { z-index: 50; background: radial-gradient(circle at 50% 40%, #1f4a30, #0b1d14); }
+.gate input { width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid var(--edge); background: #0e161f; color: var(--ink); font: 800 22px var(--display); letter-spacing: 0.18em; text-align: center; padding: 10px 12px; text-transform: uppercase; }
+.gate input:focus { outline: 2px solid var(--gold); }
+.gate-msg { min-height: 1.2em; color: var(--over); }
+.gate .panel.shake { animation: shake 0.35s; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 .fb-kinds { display: flex; gap: 8px; }
 .fb-kind { flex: 1; padding: 9px 6px; border-radius: 12px; border: 1px solid var(--edge); background: #1b2836; font-family: var(--display); font-weight: 800; font-size: 16px; letter-spacing: 0.04em; }
 .fb-kind[aria-pressed="true"] { background: var(--gold); color: var(--gold-ink); border-color: var(--gold-edge); }
