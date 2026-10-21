@@ -173,6 +173,16 @@ export const sfx = {
     tone(2600, 0.18, 'square', 0.08, { slideTo: 2500 });
     tone(2600, 0.32, 'square', 0.08, { at: 0.22, slideTo: 2450 });
   },
+  /** Scarab portal: a shimmering sweep. */
+  portal: () => {
+    [0, 0.05, 0.1, 0.15].forEach((at, i) => tone(900 + i * 280, 0.2, 'sine', 0.12, { at, slideTo: 1400 + i * 300 }));
+    noise(0.3, 0.15, 'highpass', 4000, { sweepTo: 9000 });
+  },
+  /** Swallowed by quicksand: a slow, sinking slurp. */
+  quicksand: () => {
+    tone(260, 0.9, 'sine', 0.3, { slideTo: 60 });
+    noise(0.8, 0.3, 'lowpass', 500, { sweepTo: 120 });
+  },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];

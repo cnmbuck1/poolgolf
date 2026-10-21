@@ -14,6 +14,8 @@ export const ATMOSPHERE: Record<Theme, Atmosphere> = {
   // Bright cartoon sunset: lilac sky fading to warm peach
   jurassic: { top: 0x7a74c8, horizon: 0xffb27a, ground: 0x8a5a3a, sun: 0xffd08a, fog: 0xe8a878, sunLight: 0xffe0b0, sunIntensity: 2.6, hemiSky: 0xffe0c8, hemiGround: 0x7a5030, hemiIntensity: 1.1, exposure: 1.0 },
   // Deep indigo space with a violet glow on the horizon; bright, slightly cool sunlight on the moon
+  // Valley of the Kings at dusk: violet sky, a low amber sun on the sandstone
+  tomb: { top: 0x4a3a8a, horizon: 0xffa860, ground: 0xb08050, sun: 0xffc070, fog: 0xd89870, sunLight: 0xffd8a0, sunIntensity: 2.7, hemiSky: 0xffd0b0, hemiGround: 0x8a5a30, hemiIntensity: 1.05, exposure: 1.0 },
   // Inside the big top: warm spotlit air under the striped canvas
   circus: { top: 0x3a0a14, horizon: 0x8a3a2a, ground: 0x6a4a2a, sun: 0xfff0c8, fog: 0x2a1410, sunLight: 0xfff0d8, sunIntensity: 2.7, hemiSky: 0xffd8b0, hemiGround: 0x6a3a20, hemiIntensity: 1.05, exposure: 1.0 },
   space: { top: 0x070720, horizon: 0x4b3a8e, ground: 0x2e2c44, sun: 0xfff2dc, fog: 0x2a2650, sunLight: 0xf6f2ff, sunIntensity: 2.9, hemiSky: 0xb8c0ff, hemiGround: 0x403a5a, hemiIntensity: 1.0, exposure: 1.0 },

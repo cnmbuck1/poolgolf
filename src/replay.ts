@@ -4,7 +4,7 @@
 import { Event, Spin, World } from './physics';
 
 export interface ShotFrame { t: number; x: number; y: number; z: number; vx: number; vy: number; arms: number[]; events: Event[] }
-export interface Shot { frames: ShotFrame[]; dir: [number, number]; power: number; spin: Spin; end: 'sink' | 'water' | 'oob' | 'stop'; ace: boolean }
+export interface Shot { frames: ShotFrame[]; dir: [number, number]; power: number; spin: Spin; end: 'sink' | 'water' | 'oob' | 'quicksand' | 'stop'; ace: boolean }
 
 const snap = (w: World, events: Event[]): ShotFrame =>
   ({ t: w.time, x: w.ball.x, y: w.ball.y, z: w.ball.z ?? 0, vx: w.ball.vx, vy: w.ball.vy, arms: w.spinners.map((s) => s.angle), events });
@@ -27,7 +27,7 @@ export class HoleRecorder {
     if (!s) return;
     s.frames.push(snap(w, events.filter((e) => e.type !== 'stop')));
     if (w.moving) return;
-    s.end = events.some((e) => e.type === 'sink') ? 'sink' : events.some((e) => e.type === 'water') ? 'water' : events.some((e) => e.type === 'oob') ? 'oob' : 'stop';
+    s.end = events.some((e) => e.type === 'sink') ? 'sink' : events.some((e) => e.type === 'water') ? 'water' : events.some((e) => e.type === 'oob') ? 'oob' : events.some((e) => e.type === 'quicksand') ? 'quicksand' : 'stop';
     s.ace = s.end === 'sink' && strokes === 1;
     this.shots.push(s);
     this.cur = null;

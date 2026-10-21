@@ -56,11 +56,21 @@ export interface Trampoline { x: number; y: number; r?: number }
  * barrel points. `sweep` (degrees either side) and `speed` (rad/s) swing the barrel back and forth.
  */
 export interface Cannon { x: number; y: number; angle: number; dist: number; sweep?: number; speed?: number }
+/**
+ * A scarab portal: a ball rolling into `a` comes out of `b` at the same speed, heading `exit` degrees
+ * (or the way it was going if no exit is given). One way only.
+ */
+export interface Portal { a: Pt; b: Pt; exit?: number }
+/**
+ * A stone door across the course (centre, length, angle in degrees like a bar). It slides down into the
+ * floor and back up: open for the second half of every `period` seconds; `phase` (0..1) staggers doors.
+ */
+export interface Door { x: number; y: number; len: number; angle: number; period?: number; phase?: number }
 /** An elephant standing on a drum: a big solid obstacle. */
 export interface Elephant { x: number; y: number; r?: number; angle?: number }
 /** An impact crater: a bowl `depth` deep inside radius r, ringed by a raised rim `rim` high. */
 export interface Crater { x: number; y: number; r: number; depth?: number; rim?: number }
-export type Theme = 'garden' | 'jurassic' | 'space' | 'circus';
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -98,6 +108,14 @@ export interface LevelDef {
   /** Clowns on unicycles, pedalling between two points (same motion as a moonwalking astronaut). */
   clowns?: Astronaut[];
   elephants?: Elephant[];
+  portals?: Portal[];
+  doors?: Door[];
+  /** Quicksand: grips and drags the ball toward its middle; coming to rest in it costs a stroke. */
+  quicksand?: Zone[];
+  /** Mummies shuffling between two points (same motion as an astronaut). */
+  mummies?: Astronaut[];
+  /** Columns and obelisks: solid round posts. */
+  pillars?: Rock[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -543,6 +561,88 @@ const CIRCUS: LevelDef[] = [
   },
 ];
 
+const TOMB: LevelDef[] = [
+  {
+    // A wall seals the temple floor from side to side. The only way through is the scarab portal.
+    name: 'Scarab Gate',
+    par: 3,
+    tee: [110, 250],
+    cup: [880, 250],
+    outline: [[40, 170], [180, 70], [820, 70], [960, 170], [960, 330], [820, 430], [180, 430], [40, 330]],
+    bars: [{ x: 500, y: 250, len: 420, angle: 90 }],
+    portals: [{ a: [360, 160], b: [640, 330], exit: -4 }],
+    pillars: [{ x: 420, y: 360, r: 18 }, { x: 760, y: 140, r: 18 }],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // An S-bend between two temple walls, with quicksand narrowing each gap. Stop in it and it swallows the ball.
+    name: 'Quicksand Flats',
+    par: 4,
+    tee: [100, 400],
+    cup: [880, 110],
+    outline: [[40, 60], [960, 60], [960, 460], [40, 460]],
+    bars: [{ x: 380, y: 195, len: 290, angle: 90 }, { x: 650, y: 325, len: 290, angle: 90 }],
+    quicksand: [blob(380, 405, 34, 38, 2, 0.2), blob(650, 115, 34, 38, 5, 0.2), blob(520, 260, 70, 50, 7, 0.25), blob(800, 330, 60, 45, 3, 0.25)],
+    pillars: [{ x: 220, y: 160, r: 18 }, { x: 760, y: 170, r: 16 }],
+    slopes: [{ kind: 'hill', x: 880, y: 110, r: 60, h: -2.5 }],
+  },
+  {
+    // A corridor of three stone doors that rise and sink on staggered timers. Go door by door, or thread them.
+    name: 'Hall of Doors',
+    par: 4,
+    tee: [100, 250],
+    cup: [900, 250],
+    outline: [[40, 160], [100, 110], [900, 110], [960, 160], [960, 340], [900, 390], [100, 390], [40, 340]],
+    doors: [
+      { x: 320, y: 250, len: 300, angle: 90, period: 4, phase: 0 },
+      { x: 540, y: 250, len: 300, angle: 90, period: 4, phase: 0.3 },
+      { x: 760, y: 250, len: 300, angle: 90, period: 4, phase: 0.6 },
+    ],
+    pillars: [{ x: 430, y: 160, r: 14 }, { x: 650, y: 340, r: 14 }],
+  },
+  {
+    // Two mummies shuffle back and forth between the columns.
+    name: "Mummy's Curse",
+    par: 3,
+    tee: [110, 250],
+    cup: [880, 250],
+    outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
+    mummies: [{ a: [380, 90], b: [380, 410], speed: 45 }, { a: [620, 410], b: [620, 90], speed: 55, phase: 0.5 }],
+    pillars: [{ x: 500, y: 150, r: 20 }, { x: 500, y: 350, r: 20 }],
+    quicksand: [blob(790, 140, 50, 34, 3, 0.25)],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // The Nile cuts the valley. Cross on the narrow bridge, or take the scarab portal over the water,
+    // and then get round the columns guarding the green.
+    name: 'Oasis',
+    par: 4,
+    tee: [100, 400],
+    cup: [880, 120],
+    outline: [[40, 300], [120, 60], [960, 60], [960, 200], [880, 460], [40, 460]],
+    water: [creek([[470, 40], [520, 180], [470, 320], [520, 480]], 104, 6)],
+    bridges: [{ x: 494, y: 250, len: 190, width: 56, angle: 10 }],
+    portals: [{ a: [260, 150], b: [640, 420], exit: -100 }],
+    pillars: [{ x: 790, y: 170, r: 20 }, { x: 860, y: 230, r: 18 }, { x: 750, y: 90, r: 16 }, { x: 260, y: 300, r: 16 }],
+    quicksand: [blob(720, 300, 60, 40, 8, 0.25)],
+  },
+  {
+    // The pharaoh's chamber: a great door, a portal, quicksand by the steps and a mummy on guard,
+    // with the burial chamber raised at the far end.
+    name: "Pharaoh's Chamber",
+    par: 4,
+    tee: [100, 250],
+    cup: [905, 250],
+    outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
+    doors: [{ x: 640, y: 250, len: 400, angle: 90, period: 5, phase: 0.2 }, { x: 800, y: 250, len: 130, angle: 90, period: 3, phase: 0.5 }],
+    portals: [{ a: [330, 100], b: [740, 420], exit: -95 }],
+    mummies: [{ a: [470, 120], b: [470, 380], speed: 50 }],
+    quicksand: [blob(850, 130, 50, 36, 4, 0.25), blob(850, 370, 50, 36, 6, 0.25)],
+    pillars: [{ x: 250, y: 380, r: 18 }, { x: 560, y: 100, r: 16 }],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+  },
+];
+
 export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
 
 export const COURSES: CourseDef[] = [
@@ -550,6 +650,7 @@ export const COURSES: CourseDef[] = [
   { id: 'jurassic', name: 'Jurassic Canyon', theme: 'jurassic', holes: JURASSIC },
   { id: 'space', name: 'Lunar Links', theme: 'space', holes: SPACE },
   { id: 'circus', name: 'Big Top Circus', theme: 'circus', holes: CIRCUS },
+  { id: 'tomb', name: "Pharaoh's Tomb", theme: 'tomb', holes: TOMB },
 ];
 for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
 

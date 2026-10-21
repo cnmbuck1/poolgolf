@@ -547,7 +547,7 @@ export function coursePalm(pm: Palm, L: LevelDef, toScene: ToScene) {
 // ---------- prehistoric landscape ----------
 
 /** Chunky cartoon palm: a leaning ringed trunk and a crown of broad, drooping fronds. */
-function palm(seed: number, height: number, baseR?: number) {
+export function palm(seed: number, height: number, baseR?: number) {
   const r = rng(seed);
   const g = new THREE.Group();
   const lean = (r() - 0.5) * (baseR ? 0.35 : 0.6);

@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Cannon, Crater, Dino, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Crater, Dino, Door, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -68,6 +68,8 @@ export type Event =
   | { type: 'launch'; by: 'trampoline' | 'cannon' }
   | { type: 'land' }
   | { type: 'oob' }
+  | { type: 'teleport' }
+  | { type: 'quicksand' }
   | { type: 'lip' }
   | { type: 'stop' };
 
@@ -86,6 +88,8 @@ export class World {
   air: { t: number; dur: number; x0: number; y0: number; x1: number; y1: number; peak: number; vx: number; vy: number } | null = null;
   /** Seconds after landing before a trampoline or cannon can catch the ball again. */
   private launchCool = 0;
+  /** Seconds after coming out of a portal before another can take the ball. */
+  private portalCool = 0;
   private inCup = false;
 
   constructor(public level: LevelDef) {
@@ -183,6 +187,8 @@ export class World {
       }
       if (this.launchCool > 0) this.launchCool -= h;
       else if (this.launch(events)) continue;
+      if (this.portalCool > 0) this.portalCool -= h;
+      else this.teleport(events);
 
       b.x += b.vx * h;
       b.y += b.vy * h;
@@ -195,6 +201,14 @@ export class World {
       // Friction
       const sp = Math.hypot(b.vx, b.vy);
       const sandy = (this.level.sand ?? []).some((z) => inZone(z, b.x, b.y));
+      const quick = (this.level.quicksand ?? []).find((z) => inZone(z, b.x, b.y));
+      if (quick) {
+        // Quicksand drags the ball toward its middle
+        const [qx, qy] = zoneCentre(quick);
+        const d = Math.hypot(qx - b.x, qy - b.y) || 1;
+        b.vx += ((qx - b.x) / d) * QUICKSAND_PULL * h;
+        b.vy += ((qy - b.y) / d) * QUICKSAND_PULL * h;
+      }
       const sn = this.spin;
       if (sp > 40 && Math.abs(sn.side) > 0.01) {
         // Side spin swerves the ball: a sideways pull, strongest while it's rolling quickly
@@ -207,9 +221,10 @@ export class World {
       sn.side *= spinFade;
       sn.vert *= spinFade;
       if (sp > 0) {
-        // Topspin keeps it rolling; backspin bites
+        // Topspin keeps it rolling; backspin bites; quicksand grips hardest of all
         const vertGrip = sn.vert > 0 ? 1 - 0.3 * sn.vert : 1 - 0.2 * sn.vert;
-        const decel = (ROLL_DECEL + LIN_DAMP * sp) * (sandy ? SAND_FACTOR : 1) * vertGrip * h;
+        const sinking = quick ? QUICKSAND_FACTOR : sandy ? SAND_FACTOR : 1;
+        const decel = (ROLL_DECEL + LIN_DAMP * sp) * sinking * vertGrip * h;
         const ns = Math.max(0, sp - decel);
         b.vx *= ns / sp;
         b.vy *= ns / sp;
@@ -254,6 +269,8 @@ export class World {
       for (const rk of this.level.rocks ?? []) this.collideCircle(rk.x, rk.y, rk.r, ROCK_E, events, 'wall');
       for (const pm of this.level.palms ?? []) this.collideCircle(pm.x, pm.y, palmR(pm), PALM_E, events, 'wall');
       for (const el of this.level.elephants ?? []) this.collideCircle(el.x, el.y, el.r ?? ELEPHANT_R, ROCK_E, events, 'wall');
+      for (const pl of this.level.pillars ?? []) this.collideCircle(pl.x, pl.y, pl.r, ROCK_E, events, 'wall');
+      for (const d of this.level.doors ?? []) if (doorClosed(d, this.time)) this.collideSeg(doorSeg(d), WALL_E, 0, 0, 0, events, 'wall');
       for (const v of this.level.volcanoes ?? []) this.collideCircle(v.x, v.y, volcanoCore(v.r), ROCK_E, events, 'wall');
       this.collideMovers(events);
       this.collideSpinners(events, h);
@@ -263,11 +280,12 @@ export class World {
       // As a safety net, a ball that has crawled along barely moving for a while also comes to rest.
       const slow = Math.hypot(b.vx, b.vy);
       this.crawl = slow < REST_SPEED * 3 ? this.crawl + h : 0;
-      if ((slow < REST_SPEED && SLOPE_G * Math.hypot(gx, gy) < ROLL_DECEL * (sandy ? SAND_FACTOR : 1) * 1.1) || this.crawl > 1.5) {
+      if ((slow < REST_SPEED && SLOPE_G * Math.hypot(gx, gy) < ROLL_DECEL * (sandy ? SAND_FACTOR : 1) * 1.1) || this.crawl > 1.5 || (quick && slow < 25)) {
         b.vx = b.vy = 0;
         this.moving = false;
         this.crawl = 0;
-        events.push({ type: 'stop' });
+        // Coming to rest in quicksand: swallowed
+        events.push({ type: (this.level.quicksand ?? []).some((z) => inZone(z, b.x, b.y)) ? 'quicksand' : 'stop' });
         break;
       }
     }
@@ -295,6 +313,22 @@ export class World {
       return true;
     }
     return false;
+  }
+
+  /** Scarab portals: a ball rolling into one comes out of its partner. */
+  private teleport(events: Event[]) {
+    const b = this.ball;
+    for (const p of this.level.portals ?? []) {
+      if (Math.hypot(b.x - p.a[0], b.y - p.a[1]) > PORTAL_R) continue;
+      const sp = Math.max(160, Math.hypot(b.vx, b.vy) * 0.95);
+      const a = p.exit != null ? (p.exit * Math.PI) / 180 : Math.atan2(b.vy, b.vx);
+      b.x = p.b[0] + Math.cos(a) * (PORTAL_R + 2);
+      b.y = p.b[1] + Math.sin(a) * (PORTAL_R + 2);
+      b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+      this.portalCool = 0.4;
+      events.push({ type: 'teleport' });
+      return;
+    }
   }
 
   private fly(x0: number, y0: number, x1: number, y1: number, dur: number, peak: number, vx: number, vy: number) {
@@ -429,6 +463,10 @@ export class World {
     for (const bp of this.level.bumpers ?? []) {
       const d = Math.hypot(x - bp.x, y - bp.y);
       if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
+    }
+    for (const pl of this.level.pillars ?? []) {
+      const d = Math.hypot(x - pl.x, y - pl.y);
+      if (d < BALL_R + pl.r) return { x: (x - pl.x) / d, y: (y - pl.y) / d, e: ROCK_E };
     }
     for (const el of this.level.elephants ?? []) {
       const d = Math.hypot(x - el.x, y - el.y);
@@ -601,6 +639,8 @@ function routeField(world: World) {
     || (L.rocks ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.palms ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + palmR(b))
     || (L.elephants ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + (b.r ?? ELEPHANT_R))
+    || (L.pillars ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
+    || (L.quicksand ?? []).some((z) => inZone(z, x, y))
     || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
     || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
     || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));
@@ -684,7 +724,39 @@ export function heightAt(level: LevelDef, x: number, y: number) {
   return h;
 }
 
+/** Middle of a zone (a polygon's vertex average). */
+export function zoneCentre(z: Zone): [number, number] {
+  if (z.kind === 'circle') return [z.x, z.y];
+  if (z.kind === 'rect') return [z.x + z.w / 2, z.y + z.h / 2];
+  const n = z.pts.length;
+  return [z.pts.reduce((a, p) => a + p[0], 0) / n, z.pts.reduce((a, p) => a + p[1], 0) / n];
+}
+
 export const TRAMPOLINE_R = 30;
+/** How close to a scarab portal's centre the ball must roll to be taken. */
+export const PORTAL_R = 20;
+/** Quicksand grips this many times harder than the felt, and pulls toward its middle (units/s²). */
+const QUICKSAND_FACTOR = 4;
+const QUICKSAND_PULL = 140;
+const DOOR_PERIOD = 4;
+/** Is a stone door up (blocking) at time t? Each door is up for the first half of its cycle. */
+export function doorClosed(d: Door, t: number) {
+  return doorLift(d, t) > 0.5;
+}
+/** How far up a door is (0 = sunk into the floor, 1 = fully up), easing between the two. */
+export function doorLift(d: Door, t: number) {
+  const P = d.period ?? DOOR_PERIOD;
+  const u = (((t / P + (d.phase ?? 0)) % 1) + 1) % 1;
+  const ramp = 0.08; // fraction of the cycle spent moving
+  if (u < 0.5 - ramp) return 1;
+  if (u < 0.5) return (0.5 - u) / ramp;
+  if (u < 1 - ramp) return 0;
+  return (u - (1 - ramp)) / ramp;
+}
+export function doorSeg(d: Door): Seg {
+  const a = (d.angle * Math.PI) / 180, dx = (Math.cos(a) * d.len) / 2, dy = (Math.sin(a) * d.len) / 2;
+  return { ax: d.x - dx, ay: d.y - dy, bx: d.x + dx, by: d.y + dy, r: WALL_R };
+}
 /** How close to a cannon's mouth the ball must roll to be caught. */
 export const CANNON_CATCH = 22;
 export const ELEPHANT_R = 38;
@@ -730,7 +802,7 @@ export function spinPath(level: LevelDef, x: number, y: number, dx: number, dy: 
     }
     pts.push({ x: b.x, y: b.y });
     seg.push(w.contacts);
-    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'oob' || e.type === 'sink' || e.type === 'launch')) break;
+    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'oob' || e.type === 'sink' || e.type === 'launch' || e.type === 'teleport' || e.type === 'quicksand')) break;
   }
   return { pts, seg, hits };
 }
@@ -860,6 +932,7 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const a of level.aliens ?? []) circles.push({ ...alienAt(a, t), e: 0.7, kind: 'rail' });
   for (const s of level.astronauts ?? []) circles.push({ ...astronautAt(s, t), e: 0.5, kind: 'wall' });
   for (const s of level.clowns ?? []) circles.push({ ...astronautAt(s, t), e: 0.6, kind: 'wall' });
+  for (const s of level.mummies ?? []) circles.push({ ...astronautAt(s, t), e: 0.45, kind: 'wall' });
   for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });
   for (const m of level.meteors ?? []) { const p = meteorAt(m, t); if (p.grounded) circles.push({ x: m.x, y: m.y, r: p.r, vx: 0, vy: 0, e: 0.5, kind: 'wall' }); }
   for (const d of level.dinos ?? []) {

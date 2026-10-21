@@ -57,7 +57,7 @@ function trial(world: World, sim: World, at: number, x: number, y: number, deg: 
   for (let k = 0; k < 240 && sim.moving; k++) {
     const ev = sim.step(1 / 40);
     if (ev.some((e) => e.type === 'sink')) return -600 + power * 10; // prefer the gentler of two sinks
-    if (ev.some((e) => e.type === 'water' || e.type === 'oob')) return routeDistance(world, x, y) + 400; // a stroke and back to here
+    if (ev.some((e) => e.type === 'water' || e.type === 'oob' || e.type === 'quicksand')) return routeDistance(world, x, y) + 400; // a stroke and back to here
   }
   const d = routeDistance(world, sim.ball.x, sim.ball.y);
   return Number.isFinite(d) ? d : 5000;
@@ -138,7 +138,7 @@ export class Planner {
 
 /** Does anything on the hole move (so the moment of the shot matters)? */
 export function hasMovers(L: LevelDef) {
-  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep));
+  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length);
 }
 
 /** Gaussian noise for the computer's aim and power. */
