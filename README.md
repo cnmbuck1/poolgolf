@@ -12,8 +12,8 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   4. **The Creek**: a winding creek with two footbridges, a green tilted toward the water and a bunker by the cup
   5. **Turnstiles**: three lanes joined by stone walls, with turnstiles sweeping two of the gaps
   6. **Eight Ball**: brick walls funnel toward a racked set of pool balls in front of a raised green, with bunkers on both sides
-- **Jurassic Canyon**, a second 6-hole course (par 19), picked from **Courses** on the main menu. Packed-dirt fairways with a basalt kerb under a smoky orange sky; glowing lava rivers and pools (+1 stroke), volcanoes whose slopes push the ball away, tumbleweeds that roll across the line, a brontosaurus that walks across the course (roll under its belly), a T-rex that sweeps its tail across the green, and a plated stegosaurus. Dressed with ferns, cycad palms, horsetails, basalt boulders, a ribcage, an egg nest and smoking volcanoes on the horizon.
-  1. **Lava Run**: a lava river with a basalt bridge
+- **Jurassic Canyon**, a second 6-hole course (par 19), picked from **Courses** on the main menu. Drawn in a cartoon style (flat toon shading and ink outlines) under a lilac-and-peach sunset: packed-dirt fairways with a rounded rock kerb; glowing lava rivers and pools (+1 stroke), volcanoes whose slopes push the ball away, tumbleweeds that roll across the line, and big-eyed dinosaurs you can roll the ball between the legs of: a brontosaurus that walks across the course, a T-rex that sweeps its tail behind it, and a plated stegosaurus. Dressed with chunky palms, round bushes, boulders, a ribcage, an egg nest and smoking volcanoes on the horizon.
+  1. **Lava Run**: a lava river crossed by a wide bridge on the line to the cup
   2. **Tumbleweed Flats**: time the gaps between three rolling tumbleweeds
   3. **Bronto Crossing**: under the brontosaurus or round the lava pools
   4. **Rex's Lair**: a dogleg up to the T-rex guarding the green

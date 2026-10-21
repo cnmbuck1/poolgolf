@@ -239,9 +239,10 @@ const JURASSIC: LevelDef[] = [
     tee: [110, 380],
     cup: [880, 140],
     outline: [[50, 300], [160, 230], [420, 220], [560, 60], [930, 60], [960, 260], [820, 470], [60, 470]],
-    water: [creek([[330, 470], [420, 360], [560, 300], [640, 180], [600, 60]], 70, 3)],
-    bridges: [{ x: 520, y: 315, len: 150, width: 56, angle: 70 }],
-    rocks: [{ x: 300, y: 300, r: 24 }, { x: 760, y: 330, r: 30 }, { x: 720, y: 120, r: 20 }],
+    // The river crosses the fairway; the bridge lies along the tee-to-cup line
+    water: [creek([[452, 482], [478, 380], [510, 255], [536, 150], [548, 82]], 70, 3)],
+    bridges: [{ x: 508, y: 255, len: 190, width: 84, angle: -17 }],
+    rocks: [{ x: 300, y: 425, r: 24 }, { x: 760, y: 330, r: 30 }, { x: 700, y: 95, r: 20 }],
     slopes: [{ kind: 'hill', x: 880, y: 140, r: 60, h: -2.5 }],
   },
   {

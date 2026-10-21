@@ -593,6 +593,13 @@ export function dinoPose(d: Dino, t: number) {
   return { x, y, vx, vy, heading, tail, tailRate };
 }
 
+/** Leg positions (forward, sideways, radius) per species; the renderer builds legs at exactly these spots. */
+export const DINO_LEGS: Record<Dino['kind'], [number, number, number][]> = {
+  bronto: [[40, 32, 9], [40, -32, 9], [-40, 32, 9], [-40, -32, 9]],
+  trex: [[2, 28, 9], [2, -28, 9]],
+  stego: [[38, 28, 8], [38, -28, 8], [-38, 28, 8], [-38, -28, 8]],
+};
+
 /** All moving colliders in a hole at time t (shared by physics and, for posing, the renderer). */
 export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; arms: MoverArm[] } {
   const circles: MoverCircle[] = [], arms: MoverArm[] = [];
@@ -604,21 +611,17 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
     const p = dinoPose(d, t);
     const ux = Math.cos(p.heading), uy = Math.sin(p.heading);
     const at = (f: number, s: number) => [p.x + ux * f - uy * s, p.y + uy * f + ux * s] as const;
-    if (d.kind === 'bronto') {
-      // Four pillar legs; the belly is high enough to roll under
-      for (const [f, s] of [[38, 24], [38, -24], [-38, 24], [-38, -24]]) {
-        const [x, y] = at(f, s);
-        circles.push({ x, y, r: 9, vx: p.vx, vy: p.vy, e: 0.6, kind: 'wall' });
-      }
-    } else if (d.kind === 'trex') {
-      for (const s of [16, -16]) { const [x, y] = at(4, s); circles.push({ x, y, r: 10, vx: 0, vy: 0, e: 0.6, kind: 'wall' }); }
+    // Legs only: every body is high enough for the ball to roll underneath, between the legs
+    for (const [f, s, r] of DINO_LEGS[d.kind]) {
+      const [x, y] = at(f, s);
+      circles.push({ x, y, r, vx: p.vx, vy: p.vy, e: 0.6, kind: 'wall' });
+    }
+    if (d.kind === 'trex') {
       // The tail sweeps from the hips, low across the ground behind
       const [hx, hy] = at(-18, 0);
       const ta = p.heading + Math.PI + p.tail;
-      arms.push({ seg: { ax: hx, ay: hy, bx: hx + Math.cos(ta) * 120, by: hy + Math.sin(ta) * 120, r: 9 }, cx: hx, cy: hy, omega: p.tailRate });
-    } else {
-      const [ax, ay] = at(-52, 0), [bx, by] = at(52, 0);
-      arms.push({ seg: { ax, ay, bx, by, r: 24 }, cx: p.x, cy: p.y, omega: 0 });
+      // Near the hips the tail is high above the ball; it only reaches the ground from ~40 units back
+      arms.push({ seg: { ax: hx + Math.cos(ta) * 40, ay: hy + Math.sin(ta) * 40, bx: hx + Math.cos(ta) * 120, by: hy + Math.sin(ta) * 120, r: 9 }, cx: hx, cy: hy, omega: p.tailRate });
     }
   }
   return { circles, arms };
