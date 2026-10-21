@@ -666,3 +666,33 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
+
+/* Progress: hole stars, golden 8-balls, trophies */
+.course .prog { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-style: normal; }
+.stars, .hole-stars { font-style: normal; color: var(--gold-hi); letter-spacing: 0.08em; }
+.course .stars { font-size: 14px; }
+.hole-stars { display: block; margin-top: 4px; font-size: 26px; text-shadow: 0 0 12px rgba(255, 210, 58, 0.45); }
+i.eight {
+  display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%;
+  font: 800 10px/1 var(--display); font-style: normal; color: rgba(255, 255, 255, 0.35);
+  border: 1px dashed rgba(255, 255, 255, 0.3); vertical-align: -3px;
+}
+i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 35% 30%, #fff1b8, #e8b84a 45%, #9a6a12); box-shadow: 0 0 8px rgba(255, 210, 58, 0.5); }
+.stat b small { font-size: 14px; color: var(--muted); font-weight: 600; }
+.stat b i.eight { width: 24px; height: 24px; font-size: 13px; vertical-align: -2px; }
+.card td.st { color: var(--gold-hi); }
+.trophies { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.trophy {
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 12px;
+  border: 1px solid var(--edge); background: rgba(255, 255, 255, 0.03); opacity: 0.78;
+}
+.trophy.won { opacity: 1; border-color: rgba(246, 189, 71, 0.55); background: linear-gradient(180deg, rgba(246, 189, 71, 0.16), rgba(246, 189, 71, 0.04)); }
+.trophy > b { font-size: 18px; line-height: 1; }
+.trophy span { font-family: var(--display); font-weight: 800; font-size: 15px; text-transform: uppercase; }
+.trophy.won span { color: var(--gold-hi); }
+.trophy small { color: var(--muted); font-size: 12px; line-height: 1.25; }
+.trophy em { font-style: normal; font-size: 12px; color: var(--ink, #fff); margin-top: auto; padding-top: 3px; }
+.trophy em .coin { vertical-align: -2px; }
+.trophy .bar { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.trophy .bar i { display: block; height: 100%; background: var(--gold); }
+@media (max-width: 560px) { .trophies { grid-template-columns: repeat(2, 1fr); } }

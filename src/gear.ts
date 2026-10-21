@@ -210,6 +210,20 @@ export const BALLS: BallDesign[] = [
     }),
   },
   { id: 'gold', name: 'Gold', metalness: 1, roughness: 0.22, paint: (g, w, h) => { g.fillStyle = '#e8b84a'; g.fillRect(0, 0, w, h); } },
+  {
+    // Won by finding every hidden golden 8-ball
+    id: 'golden8', name: 'Golden 8', metalness: 1, roughness: 0.18,
+    paint: (g, w, h) => {
+      g.fillStyle = '#e8b84a'; g.fillRect(0, 0, w, h);
+      for (const cx of [0.25, 0.75]) {
+        g.save(); g.translate(cx * w, h / 2); g.scale(0.5, 1);
+        g.fillStyle = '#141414'; g.beginPath(); g.arc(0, 0, h * 0.2, 0, Math.PI * 2); g.fill();
+        g.restore();
+        g.fillStyle = '#ffe08a'; g.font = `bold ${h * 0.26}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.save(); g.translate(cx * w, h / 2 + 2); g.scale(0.55, 1); g.fillText('8', 0, 0); g.restore();
+      }
+    },
+  },
   { id: 'chrome', name: 'Chrome', price: 2000, metalness: 1, roughness: 0.08, paint: (g, w, h) => { g.fillStyle = '#e8eef4'; g.fillRect(0, 0, w, h); } },
   {
     id: 'neon', name: 'Neon Glow', price: 2500, roughness: 0.3, emissive: 0.9,
@@ -387,6 +401,8 @@ export const CUES: CueDesign[] = [
     shaft: (g, w, h) => { const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#7af0ff'); gr.addColorStop(0.5, '#e8ffff'); gr.addColorStop(1, '#7af0ff'); g.fillStyle = gr; g.fillRect(0, 0, w, h); },
     butt: rings('#b8bec8', [[0.1, '#3a3e46', 0.06], [0.3, '#3a3e46', 0.04], [0.34, '#3a3e46', 0.04], [0.38, '#3a3e46', 0.04], [0.6, '#c8202a', 0.03], [0.85, '#3a3e46', 0.08]]),
   },
+  // Won with hole stars
+  { id: 'master', name: 'Grand Master', joint: 0xffd23a, tip: 0x141414, metalButt: true, shaft: wood('#1a1a1e', '#000000'), butt: rings('#141414', [[0.08, '#ffd23a', 0.04], [0.16, '#ffd23a', 0.015], [0.45, '#ffd23a', 0.07], [0.82, '#ffd23a', 0.015], [0.9, '#ffd23a', 0.04]]) },
   { id: 'flame', name: 'Hot Rod', price: 1500, joint: 0xb8bec8, tip: 0x141414, shaft: wood('#2a2a2e', '#000000'), butt: flames('#141414', ['#ff4a1a', '#ff9a1a', '#ffe04a']) },
   { id: 'royal', name: 'Royal Gold', price: 2000, joint: 0x141414, tip: 0x5a2a8a, metalButt: true, shaft: wood('#2a1a14', '#000000'), butt: rings('#e8b84a', [[0.15, '#5a2a8a', 0.05], [0.8, '#5a2a8a', 0.05]]) },
   {

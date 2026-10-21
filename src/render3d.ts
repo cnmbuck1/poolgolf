@@ -229,6 +229,43 @@ export class Renderer3D {
     this.marker = g;
   }
 
+  /** This hole's hidden golden 8-ball, floating and turning over its spot (null hides it). */
+  private eight: { g: THREE.Group; ball: THREE.Mesh; glow: THREE.Mesh; x: number; y: number; got: number } | null = null;
+  setEight(x: number | null, y?: number) {
+    if (this.eight) { this.scene.remove(this.eight.g); this.eight.glow.geometry.dispose(); this.eight = null; }
+    if (x == null || y == null) return;
+    const g = new THREE.Group();
+    const ball = new THREE.Mesh(this.ball.geometry, ballMaterial('golden8'));
+    ball.scale.setScalar(1.35);
+    ball.castShadow = true;
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 2.2, 32).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
+    g.add(ball, glow);
+    this.scene.add(g);
+    this.eight = { g, ball, glow, x, y, got: -1 };
+  }
+  /** The ball picked up the golden 8-ball: it shoots up, spinning, and fades. */
+  collectEight() { if (this.eight && this.eight.got < 0) this.eight.got = 0; }
+  private updateEight(time: number, dt: number) {
+    const e = this.eight;
+    if (!e) return;
+    const base = this.h(e.x, e.y);
+    e.g.position.copy(to3(e.x, e.y)).setY(base);
+    let lift = BALL_R * 1.6 + Math.sin(time * 2.4) * 2.5, spin = time * 1.6, s = 1;
+    if (e.got >= 0) {
+      e.got += dt;
+      lift += e.got * e.got * 260;
+      spin += e.got * 18;
+      s = Math.max(0, 1 - e.got * 1.4);
+      if (s <= 0) { this.setEight(null); return; }
+    }
+    e.ball.position.y = lift;
+    e.ball.rotation.set(0.35, spin, 0);
+    e.ball.scale.setScalar(1.35 * s);
+    e.glow.position.y = 0.5;
+    (e.glow.material as THREE.MeshBasicMaterial).opacity = (0.4 + Math.sin(time * 3) * 0.15) * s;
+  }
+
   /** Switch to a cue design from the Cues & Balls menu. */
   setCue(id: string) { this.buildCue(id); }
   /** Switch to a ball design from the Cues & Balls menu. */
@@ -555,6 +592,7 @@ export class Renderer3D {
     }
 
     this.updateBall(world, fx, dt);
+    this.updateEight(time, dt);
 
     this.rippleMeshes.forEach((m, i) => {
       const r = fx.ripples[i];

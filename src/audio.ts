@@ -331,5 +331,10 @@ export const sfx = {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];
     good.forEach((f, i) => tone(f, 0.28, 'triangle', 0.22, { at: 0.35 + i * 0.09 }));
   },
+  /** Picking up a golden 8-ball: a bright rising sparkle of four notes. */
+  collect: () => {
+    [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.22, 'sine', 0.22, { at: i * 0.07 }));
+    tone(3136, 0.35, 'triangle', 0.06, { at: 0.28 });
+  },
   ui: () => tone(900, 0.04, 'sine', 0.12),
 };

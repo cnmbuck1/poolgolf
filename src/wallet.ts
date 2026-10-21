@@ -17,6 +17,8 @@ export const ACHIEVEMENTS = {
   ace: { item: 'b:gold' as ItemKey, label: 'Make a hole in one' },
   underPar: { item: 'c:eagle' as ItemKey, label: 'Finish a round under par' },
   lunar: { item: 'b:galaxy' as ItemKey, label: 'Finish a round of Lunar Links' },
+  allEights: { item: 'b:golden8' as ItemKey, label: 'Find all 36 golden 8-balls' },
+  stars54: { item: 'c:master' as ItemKey, label: 'Earn 54 hole stars' },
 };
 export type Achievement = keyof typeof ACHIEVEMENTS;
 

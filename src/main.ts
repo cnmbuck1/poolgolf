@@ -12,13 +12,14 @@ import { HoleRecorder, sampleShot, Shot } from './replay';
 import { execute, hasMovers, Opponent, OPPONENTS, Planner } from './ai';
 import { bestToday, Daily, dailyCourse, dailyFor, dailyName, dateLabel, isDoneToday, recordDaily, streak, today, untilTomorrow } from './daily';
 import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
-import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
+import { ACHIEVEMENTS, addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
 import { playMusic } from './music';
 import { PLAYTEST_URL, TESTER_CODE_HASH } from './playtest.config';
 import { sha256 } from './sha256';
 import { tipsFor } from './tips';
 import { DEMO_LEVEL, DEMO_SHOT } from './demo';
+import * as P from './progress';
 import { BUILD, flush, loadRecords, PlaytestRecord, setTesterName, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -339,6 +340,7 @@ function enterLevel(L: LevelDef) {
   view3d.setLevel(world);
   view3d.setMode('play');
   view3d.intro(world);
+  placeEight(L);
   strokes = 0;
   lastRest = { x: world.ball.x, y: world.ball.y };
   fx.sink = undefined;
@@ -397,6 +399,54 @@ function holeOut(score: number, pickedUp = false) {
   else if (match) { scores[holeIdx] = score; pendingBanked = sinkBanked; sinkBanked = false; startAiTurn(); }
   else finishHole(score, pickedUp);
 }
+
+/** The golden 8-ball still hidden on this hole, if any (never in the demo or trick shots). */
+let eight: { course: string; hole: string; x: number; y: number } | null = null;
+function placeEight(L: LevelDef) {
+  const at = demo ? null : whereIs(L);
+  const p = at && !P.eightFound(at.course, L.name) ? P.eightAt(at.course, L.name) : null;
+  eight = at && p ? { course: at.course, hole: L.name, x: p[0], y: p[1] } : null;
+  view3d.setEight(eight?.x ?? null, eight?.y);
+}
+
+/** Pick up the golden 8-ball when the player's ball rolls through it. */
+function checkEight() {
+  if (!eight || demo || shootout || turn !== 'player' || world.air || (world.ball.z ?? 0) > 10) return;
+  if (Math.hypot(world.ball.x - eight.x, world.ball.y - eight.y) > 20) return;
+  const n = P.takeEight(eight.course, eight.hole);
+  eight = null;
+  view3d.collectEight();
+  addCoins(P.EIGHT_COINS);
+  sfx.collect();
+  buzz(ImpactStyle.Medium);
+  toast(`Golden 8-ball! ${n}/${P.EIGHT_TOTAL} · +${P.EIGHT_COINS}`, 'good', 1800);
+  const won: [string, number][] = [];
+  const items: string[] = [];
+  awardTrophies(won, items);
+  const sum = won.reduce((a, [, c]) => a + c, 0);
+  addCoins(sum);
+  won.forEach(([name, c], i) => setTimeout(() => toast(`${name} +${c}${items[i] ? ` · ${items[i]}` : ''}`, 'good', 2400), 2000 + i * 2600));
+  if (won.length) setTimeout(() => sfx.result(-1, false), 2000);
+}
+
+/** Pay out newly won trophies: coin lines (the caller adds them) and the names of designs they unlock. */
+function awardTrophies(lines: [string, number][], unlocked: string[]) {
+  for (const t of P.checkTrophies()) {
+    lines.push([`🏆 ${t.name}`, t.coins]);
+    unlocked.push((t.item && earn(t.item)) || '');
+  }
+}
+
+/** Stars and activity counts for the player's finished hole; adds coin lines for new stars, returns the stars. */
+function holeProgress(score: number, lines: [string, number][]) {
+  const at = whereIs(world.level);
+  if (!at) return null;
+  const { stars, gained } = P.recordStars(at.course, world.level.name, score, world.level.par);
+  if (gained) lines.push([`New star${gained > 1 ? 's' : ''} ${'★'.repeat(gained)}`, gained * P.STAR_COINS]);
+  if (score === 1) P.bump('aces');
+  return stars;
+}
+const starsHtml = (n: number | null) => (n == null ? '' : `<span class="hole-stars" title="${n} of 3 stars">${P.starRow(n)}</span>`);
 
 function finishHole(score: number, pickedUp = false) {
   scores[holeIdx] = score;
@@ -459,6 +509,10 @@ function finishHole(score: number, pickedUp = false) {
       ? `<span class="stars">${starText(r.stars)}</span> Target ${ev.target} · ${r.firstClear ? 'Event cleared!' : 'Cleared'}`
       : `Target ${ev.target} · missed by ${total - ev.target}. Try again!`;
   }
+  const stars = pickedUp ? null : holeProgress(score, lines);
+  if (last && !practice) P.noteRound(COURSE.id);
+  awardTrophies(lines, unlocked);
+  $('hole-detail').insertAdjacentHTML('beforeend', starsHtml(stars));
   const earned = lines.reduce((a, [, n]) => a + n, 0);
   addCoins(earned);
   sinkBanked = false;
@@ -704,12 +758,14 @@ function openCourses() {
     const par = c.holes.reduce((a, l) => a + l.par, 0);
     const cards = c.holes.map((l, i) => {
       const hb = localGet(ck(`hole${i}`, c.id));
-      return `<button class="course" data-course="${c.id}" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${hb ? ` · Best ${hb}` : ''}</small></button>`;
+      const found = P.eightFound(c.id, l.name);
+      return `<button class="course" data-course="${c.id}" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${hb ? ` · Best ${hb}` : ''}</small>`
+        + `<em class="prog"><i class="stars">${P.starRow(P.starsOf(c.id, l.name))}</i><i class="eight${found ? ' got' : ''}" title="${found ? 'Golden 8-ball found' : 'A golden 8-ball is hidden here'}">8</i></em></button>`;
     }).join('');
-    return `<div class="course-head${c.id === COURSE.id ? ' cur' : ''}"><div><h3>${c.name}</h3><small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''}</small></div>
+    return `<div class="course-head${c.id === COURSE.id ? ' cur' : ''}"><div><h3>${c.name}</h3><small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''} · ★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></div>
       <button class="btn-gold small" data-play="${c.id}">PLAY</button></div><div class="courses">${cards}</div>`;
   }).join('');
-  sheet('Courses', `<p>Play a full course, or tap any hole to practise it. Practice scores count toward your hole bests, not your round.</p>${sections}`);
+  sheet('Courses', `<p>Play a full course, or tap any hole to practise it. Earn up to three stars a hole (par, birdie, hole in one) and hunt for the golden 8-ball hidden on each.</p>${sections}`);
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.course').forEach((b) => {
     b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.course!); playSingle(Number(b.dataset.hole)); };
   });
@@ -784,17 +840,34 @@ async function openPlaytest() {
     <h3>Feedback</h3>${items ? `<ul class="pt-fb">${items}</ul>` : '<p>None yet.</p>'}`;
 }
 
+/** Progress: hole stars, golden 8-balls and the trophy room, then this course's stats. */
 function openStats() {
   const best = localGet(ck('best'));
   const holes = LEVELS.map((l, i) => `<td>${localGet(ck(`hole${i}`)) ?? '–'}</td>`).join('');
-  sheet(`Stats · ${COURSE.name}`, `<div class="stats">
+  const trophies = P.TROPHIES.map((tr) => {
+    const done = P.trophyDone(tr), [have, goal] = tr.progress();
+    const item = tr.item ? itemInfo(ACHIEVEMENTS[tr.item].item).name : '';
+    return `<div class="trophy${done ? ' won' : ''}"><b>${done ? '🏆' : '🔒'}</b><span>${tr.name}</span><small>${tr.desc}</small>`
+      + `<em>${done ? 'Won · ' : goal > 1 ? `${Math.min(have, goal)}/${goal} · ` : ''}<i class="coin"></i>${tr.coins}${item ? ` + ${item}` : ''}</em>`
+      + (done || goal <= 1 ? '' : `<i class="bar"><i style="width:${Math.round((100 * Math.min(have, goal)) / goal)}%"></i></i>`) + '</div>';
+  }).join('');
+  sheet('Progress', `<div class="stats">
+      <div class="stat"><b>★ ${P.totalStars()}<small>/${P.MAX_STARS}</small></b><span>Hole stars</span></div>
+      <div class="stat"><b><i class="eight got">8</i> ${P.eightsFound()}<small>/${P.EIGHT_TOTAL}</small></b><span>Golden 8-balls</span></div>
+      <div class="stat"><b>🏆 ${P.trophiesWon()}<small>/${P.TROPHIES.length}</small></b><span>Trophies</span></div>
+    </div>
+    <p>★ par · ★★ birdie · ★★★ hole in one, on each hole (+${P.STAR_COINS} coins a new star). Every hole hides a golden 8-ball (+${P.EIGHT_COINS}): roll through it to pick it up.</p>
+    <h3>Trophy room</h3><div class="trophies">${trophies}</div>
+    <h3>${COURSE.name}</h3>
+    <div class="stats">
       <div class="stat"><b>${best ?? '–'}</b><span>Best round</span></div>
       <div class="stat"><b>${stat('rounds')}</b><span>Rounds finished</span></div>
       <div class="stat"><b>${stat('aces')}</b><span>Holes in one</span></div>
     </div>
     <div class="card-wrap"><table class="card"><tr><th>HOLE</th>${LEVELS.map((_, i) => `<td>${i + 1}</td>`).join('')}</tr>
-    <tr><th>PAR</th>${LEVELS.map((l) => `<td>${l.par}</td>`).join('')}</tr><tr><th>BEST</th>${holes}</tr></table></div>
-    <p>Stats are saved on this device only.</p>`);
+    <tr><th>PAR</th>${LEVELS.map((l) => `<td>${l.par}</td>`).join('')}</tr><tr><th>BEST</th>${holes}</tr>
+    <tr><th>★</th>${LEVELS.map((l) => `<td class="st">${P.starsOf(COURSE.id, l.name) || '–'}</td>`).join('')}</tr></table></div>
+    <p>Progress is saved on this device only.</p>`);
 }
 
 /** Previews are painted once per design, the first time the menu opens. */
@@ -1027,6 +1100,9 @@ function finishAiHole(aiScore: number) {
       $('hole-detail').textContent = `Holes won ${won}–${lost}. A closest-to-the-pin shootout decides it.`;
     } else concludeMatch(won > lost, `Holes won ${won}–${lost} · last hole: you ${you}, ${m.opp.name} ${aiScore}`, lines, unlocked);
   }
+  const stars = holeProgress(you, lines);
+  awardTrophies(lines, unlocked);
+  $('hole-detail').insertAdjacentHTML('beforeend', starsHtml(stars));
   const earned = lines.reduce((a, [, n]) => a + n, 0);
   addCoins(earned);
   pendingBanked = false;
@@ -1581,6 +1657,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
+  <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>Stuck on a hole? Tap the <b>💡</b> in the scorecard for tips on what works best there and what to avoid. It pauses the game while you read.</p>
@@ -1720,6 +1797,11 @@ function tick(dt: number) {
         const good = strokes <= world.level.par;
         if (turn === 'ai' && match) { sfx.cheer(0); toast(`${match.opp.emoji} ${name}`, good ? 'bad' : 'good', 1200); break; }
         sinkBanked = banks > 0;
+        if (!demo && !trick && !shootout && whereIs(world.level)) {
+          if (banks > 0) P.bump('banks');
+          if (Math.abs(lastSpin.side) >= 0.2) P.bump('spin');
+          if (lastSpin.vert <= -0.2) P.bump('backspin');
+        }
         // The crowd: a roar for an ace, cheers under par, applause for par, polite claps or an "ohh" after
         const d = strokes - world.level.par;
         if (trick || shootout) sfx.cheer(2);
@@ -1744,6 +1826,7 @@ function tick(dt: number) {
         updateHud();
         break;
       case 'launch':
+        if (turn === 'player' && !demo) P.noteLaunch(ev.by);
         if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast('BOOM!', 'good', 700); }
         else if (ev.by === 'seal') { sfx.seal(); buzz(ImpactStyle.Medium); toast('Flipped!', 'good', 700); }
         else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
@@ -1756,10 +1839,12 @@ function tick(dt: number) {
         view3d.bounceBall(700);
         break;
       case 'teleport':
+        if (turn === 'player' && !demo) P.bump('portals');
         if (ev.via === 'igloo') sfx.igloo(); else sfx.portal();
         buzz(ImpactStyle.Light);
         break;
       case 'chute': {
+        if (turn === 'player' && !demo) P.bump('chutes');
         sfx.slide();
         buzz(ImpactStyle.Light);
         // A chute that ends further from the cup than it starts is a snake in the board game
@@ -1771,6 +1856,7 @@ function tick(dt: number) {
         break;
       }
       case 'ladder':
+        if (turn === 'player' && !demo) P.bump('ladders');
         sfx.ladder();
         buzz(ImpactStyle.Light);
         toast(world.level.theme === 'arctic' ? 'All aboard the ski lift!' : world.level.theme === 'tomb' ? 'Up the stairs!' : 'Up the ladder!', 'good', 900);
@@ -1806,6 +1892,7 @@ function tick(dt: number) {
         break;
     }
   }
+  checkEight();
   const sandy = (world.level.sand ?? []).some((z) => inZone(z, b.x, b.y));
   if (sandy && !wasSandy && world.moving) sfx.sand(Math.hypot(b.vx, b.vy));
   wasSandy = sandy;
