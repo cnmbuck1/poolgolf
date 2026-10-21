@@ -73,6 +73,18 @@ export function candyKerb() {
   });
 }
 
+/** Diagonal yellow-and-black hazard stripes round the edge of a moving platform. */
+function hazardMaterial() {
+  return cached('m:hazard', () => {
+    const t = canvasTex(64, 16, (g) => {
+      g.fillStyle = '#ffc83a'; g.fillRect(0, 0, 64, 16);
+      g.fillStyle = '#1a1a1a';
+      for (let k = -1; k < 3; k++) { g.beginPath(); g.moveTo(k * 32, 16); g.lineTo(k * 32 + 16, 16); g.lineTo(k * 32 + 32, 0); g.lineTo(k * 32 + 16, 0); g.fill(); }
+    });
+    return shared(new THREE.MeshToonMaterial({ map: t, gradientMap: toonRamp() }));
+  });
+}
+
 /** Diagonal red-and-white candy-cane stripes (for rails, sticks and posts). */
 function caneMaterial(color = '#e8203a') {
   return cached(`m:cane:${color}`, () => {
@@ -304,7 +316,7 @@ export function tierMesh(L: LevelDef, i: number, toScene: ToScene, HW: number, H
   // Sides, rim and drips
   const area = t.pts.reduce((a, [x1, y1], k) => { const [x2, y2] = t.pts[(k + 1) % t.pts.length]; return a + x1 * y2 - x2 * y1; }, 0);
   const side: number[] = [], sideUv: number[] = [];
-  const beads: THREE.Vector3[] = [], rims: THREE.Vector3[][] = [], drips: { p: THREE.Vector3; len: number }[] = [];
+  const beads: THREE.Vector3[] = [], rims: THREE.Vector3[][] = [], drips: { p: THREE.Vector3; len: number }[] = [], trim: THREE.Vector3[] = [];
   const r = rng(i * 31 + 7);
   let along = 0;
   t.pts.forEach(([ax, ay], k) => {
@@ -318,13 +330,15 @@ export function tierMesh(L: LevelDef, i: number, toScene: ToScene, HW: number, H
       const p = (u: number) => [ax + (bx - ax) * u, ay + (by - ay) * u] as const;
       const [x0, y0] = p(u0), [x1, y1] = p(u1);
       const t0 = topAt(x0, y0), t1 = topAt(x1, y1);
-      const b0 = heightAt(L, x0 + nx * 3, y0 + ny * 3) - 10, b1 = heightAt(L, x1 + nx * 3, y1 + ny * 3) - 10;
+      const deep = t.move ? t.h : 0; // a moving platform's sides reach far enough down to stay hidden when it's lowered
+      const b0 = heightAt(L, x0 + nx * 3, y0 + ny * 3) - 10 - deep, b1 = heightAt(L, x1 + nx * 3, y1 + ny * 3) - 10 - deep;
       const A = toScene(x0, y0), B = toScene(x1, y1);
       const ua = (along + len * u0) / 70, ub = (along + len * u1) / 70;
       const va = (y: number, tt: number) => 1 - (tt - y) / 46; // texture rows keep a fixed size from the top
       side.push(A.x, b0, A.z, B.x, b1, B.z, B.x, t1, B.z, A.x, b0, A.z, B.x, t1, B.z, A.x, t0, A.z);
       sideUv.push(ua, va(b0, t0), ub, va(b1, t1), ub, 1, ua, va(b0, t0), ub, 1, ua, 1);
     }
+    if (t.move) { trim.push(toScene(ax, ay).setY(topAt(ax, ay) + 0.6)); along += len; return; }
     if (!open && look.rim.kind === 'tube') rims.push([toScene(ax, ay).setY(topAt(ax, ay) + look.rim.r * 0.6), toScene(bx, by).setY(topAt(bx, by) + look.rim.r * 0.6)]);
     for (let s = 0; s * 8 < len; s++) {
       const x = ax + dx * s * 8, y = ay + dy * s * 8;
@@ -341,6 +355,13 @@ export function tierMesh(L: LevelDef, i: number, toScene: ToScene, HW: number, H
   sides.castShadow = sides.receiveShadow = true;
   g.add(sides);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+  if (trim.length) {
+    // Yellow-and-black hazard stripes round a moving platform's top edge
+    const loop = new THREE.CatmullRomCurve3(trim, true, 'catmullrom', 0);
+    const mat = hazardMaterial();
+    (mat.map as THREE.Texture).repeat.set(Math.round(along / 16), 1);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(loop, trim.length * 16, 2.2, 6, true), mat));
+  }
   if (beads.length) {
     const im = new THREE.InstancedMesh(new THREE.SphereGeometry(look.rim.r, 10, 6), look.rim.mat, beads.length);
     beads.forEach((p, k) => im.setMatrixAt(k, m4.makeTranslation(p.x, p.y, p.z)));

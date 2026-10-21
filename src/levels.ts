@@ -87,7 +87,13 @@ export interface Crater { x: number; y: number; r: number; depth?: number; rim?:
  * edges are icing rims the ball bounces off, except the `open` ones (edge i runs from pts[i] to pts[i+1]):
  * roll off those and the ball drops to the level below. From below, every edge is a solid wall.
  */
-export interface Tier { pts: Pt[]; h: number; open?: number[] }
+export interface Tier { pts: Pt[]; h: number; open?: number[]; move?: PlatformTimer }
+/**
+ * A moving platform: the tier rests flush with what's under it, rises `h` on a timer, holds, then sinks back
+ * (every `period` seconds, default 6; `phase` 0..1 staggers it). Level with the ground, the ball rolls on and
+ * off freely; raised, its sides are walls, and where it's level with a higher layer the ball rolls across.
+ */
+export interface PlatformTimer { period?: number; phase?: number }
 /**
  * A chute (slide) or ladder along `path`: a ball rolling onto path[0] is carried along it to the last point,
  * sliding down a chute or climbing a ladder, and rolls off the end the way the path ends.
@@ -467,18 +473,23 @@ const SPACE: LevelDef[] = [
     craters: [{ x: 810, y: 150, r: 50 }, { x: 420, y: 330, r: 50 }, { x: 820, y: 350, r: 44 }],
   },
   {
-    // A dogleg round a giant crater; an alien hops round its rim, and the green sits beyond.
+    // A dogleg round a giant crater to a green up on a mesa. The only way up is the hover pad below it:
+    // roll onto it while it's down, ride it up, and roll off onto the green. An alien hops round the crater.
     name: 'Crater Hop',
-    par: 3,
+    par: 4,
     tee: [100, 400],
-    cup: [870, 130],
+    cup: [870, 120],
     outline: [[40, 330], [130, 280], [500, 270], [580, 60], [960, 60], [960, 330], [880, 470], [40, 470]],
-    craters: [{ x: 700, y: 330, r: 95, depth: 10, rim: 5 }, { x: 735, y: 190, r: 40 }],
-    aliens: [{ x: 700, y: 330, orbit: 115, speed: 0.7 }],
+    tiers: [
+      { pts: [[760, 60], [960, 60], [960, 190], [760, 190]], h: 36, open: [2, 3] },
+      { pts: [[800, 190], [900, 190], [900, 265], [800, 265]], h: 36, move: { period: 6, phase: 0.2 } },
+    ],
+    craters: [{ x: 680, y: 345, r: 90, depth: 10, rim: 5 }],
+    aliens: [{ x: 680, y: 345, orbit: 100, speed: 0.7 }],
     rocks: [{ x: 380, y: 420, r: 22 }, { x: 640, y: 120, r: 20 }],
-    palms: [{ x: 480, y: 395 }, { x: 790, y: 105, height: 95 }],
+    palms: [{ x: 480, y: 395 }, { x: 930, y: 160, height: 95 }],
     water: [blob(300, 330, 55, 22, 3, 0.25, 5)],
-    slopes: [{ kind: 'hill', x: 870, y: 130, r: 60, h: -2.5 }],
+    slopes: [{ kind: 'hill', x: 870, y: 120, r: 50, h: -2 }],
   },
   {
     // A crack into space splits the fairway. Cross on the metal bridge, past a moonwalking
@@ -644,16 +655,20 @@ const TOMB: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 880, y: 110, r: 60, h: -2.5 }],
   },
   {
-    // A corridor of three stone doors that rise and sink on staggered timers. Go door by door, or thread them.
+    // A corridor of stone doors that rise and sink on staggered timers, ending at a raised altar. The last
+    // gate is a stone lift: stop on it while it's down, ride it up, and roll onto the altar.
     name: 'Hall of Doors',
     par: 4,
     tee: [100, 250],
     cup: [900, 250],
     outline: [[40, 160], [100, 110], [900, 110], [960, 160], [960, 340], [900, 390], [100, 390], [40, 340]],
+    tiers: [
+      { pts: [[800, 110], [900, 110], [960, 160], [960, 340], [900, 390], [800, 390]], h: 36, open: [5] },
+      { pts: [[715, 195], [800, 195], [800, 305], [715, 305]], h: 36, move: { period: 6, phase: 0.5 } },
+    ],
     doors: [
       { x: 320, y: 250, len: 300, angle: 90, period: 4, phase: 0 },
       { x: 540, y: 250, len: 300, angle: 90, period: 4, phase: 0.3 },
-      { x: 760, y: 250, len: 300, angle: 90, period: 4, phase: 0.6 },
     ],
     pillars: [{ x: 430, y: 160, r: 14 }, { x: 650, y: 340, r: 14 }],
   },
@@ -854,18 +869,21 @@ const CANDY: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 860, y: 390, r: 55, h: -2.5 }],
   },
   {
-    // A cake stands in the middle of the lane. Climb it by the ladder and roll off its open far side
-    // toward the cup, or go round it through the lanes where the gingerbread men stroll.
+    // A cake stands in the middle of the lane. Stop on the platform in front of it while it's down and ride
+    // it up level with the cake, then roll off the cake's open far side toward the cup; or go round it
+    // through the lanes where the gingerbread men stroll.
     name: 'Gingerbread Lane',
     par: 3,
     tee: [100, 250],
     cup: [870, 250],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
-    tiers: [{ pts: [[380, 140], [620, 140], [620, 360], [380, 360]], h: 36, open: [1] }],
-    ladders: [{ path: [[340, 250], [424, 250]] }],
+    tiers: [
+      { pts: [[380, 140], [620, 140], [620, 360], [380, 360]], h: 36, open: [1, 3] },
+      { pts: [[290, 195], [380, 195], [380, 305], [290, 305]], h: 36, move: { period: 5 } },
+    ],
     gingerbread: [{ a: [500, 52], b: [500, 128], speed: 30 }, { a: [520, 448], b: [520, 372], speed: 34, phase: 0.5 }],
     spinners: [{ x: 760, y: 250, len: 50, speed: 0.7, style: 'turnstile', arms: 1 }],
-    bumpers: [gumdrop(240, 120, 2), gumdrop(240, 380, 5)],
+    bumpers: [gumdrop(200, 120, 2), gumdrop(200, 380, 5)],
     sand: [blob(880, 130, 50, 30, 6, 0.2)],
     slopes: [{ kind: 'hill', x: 870, y: 250, r: 60, h: -2.5 }],
   },
@@ -873,7 +891,7 @@ const CANDY: LevelDef[] = [
     // The board game itself: climb two ladders up the cake steps to the top layer. Overshoot the cup and
     // the chute behind it slides the ball all the way back down to the start.
     name: 'Chutes & Ladders',
-    par: 4,
+    par: 5,
     tee: [110, 250],
     cup: [850, 320],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],

@@ -12,7 +12,7 @@ import { arcticLandscape, iceKerb, iceMaterial, igloo, penguin, polarBear, seal,
 import { desertMaterial, mummy, pillar, portal, quicksandPatch, sandstoneMaterial, stoneDoor, templeKerb, tombLandscape } from './tomb';
 import { cannon, circusLandscape, clown, elephant, feltMaterial, sawdustMaterial, stripedKerb, trampoline } from './circus';
 import { alien, asteroid, astronaut, fallingMeteor, landingRocket, launchRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
-import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, groundAt, heightAt, inZone, onBridge, palmR, zoneCentre, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
+import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, groundAt, heightAt, tierLift, inZone, onBridge, palmR, zoneCentre, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -244,7 +244,11 @@ export function buildCourse(world: World, models: Models | null): Course {
   });
   // Raised levels and the ways between them, drawn in the course's own style
   const look = levelLook(L.theme ?? 'candy');
-  (L.tiers ?? []).forEach((_, i) => add(tierMesh(L, i, to3, HW, HH, look)));
+  (L.tiers ?? []).forEach((t, i) => {
+    const m = add(tierMesh(L, i, to3, HW, HH, look));
+    // A moving platform is built at full height and slides down into the ground when lowered
+    if (t.move) anims.push({ group: m, update: () => { m.position.y = tierLift(t, world.time) - t.h + 0.4; } });
+  });
   for (const c of L.chutes ?? []) add(chuteMesh(L, c, to3, look));
   for (const c of L.ladders ?? []) { const a = ladderMesh(L, c, to3, world, look); add(a.group); anims.push(a); }
   for (const lf of L.lifts ?? []) { const a = lf.kind === 'rocket' ? launchRocket(lf, world, L, to3) : geyser(lf, world, L, to3); add(a.group); anims.push(a); }

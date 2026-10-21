@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Cannon, Chute, Lift, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Chute, Lift, Tier, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -50,7 +50,7 @@ const WALL_GRIP = 0.07;
 const BUMPER_GRIP = 0.02;
 
 /** `ledge`: the edge of tier `tier`; an `open` ledge only stops a ball below it (one on top rolls off). */
-export interface Seg { ax: number; ay: number; bx: number; by: number; r: number; kind?: 'wall' | 'rail' | 'bridge' | 'ledge'; tier?: number; open?: boolean }
+export interface Seg { ax: number; ay: number; bx: number; by: number; r: number; kind?: 'wall' | 'rail' | 'bridge' | 'ledge'; tier?: number; open?: boolean; nx?: number; ny?: number }
 
 export interface SpinnerState { x: number; y: number; len: number; speed: number; angle: number; style?: 'windmill' | 'turnstile'; arms?: 1 | 2 }
 
@@ -94,8 +94,8 @@ export class World {
    * onto a higher level lands on it smoothly). `src`: the launcher that fired it, for the renderer.
    */
   air: { t: number; dur: number; x0: number; y0: number; x1: number; y1: number; peak: number; vx: number; vy: number; h0: number; h1: number; src?: Lift } | null = null;
-  /** Falling off the open edge of tier `tier`: still rolling across the level below (walls and all), dropping at `vz`. */
-  drop: { tier: number; vz: number } | null = null;
+  /** Falling off a ledge: still rolling across the level below (walls and all), dropping at `vz`. */
+  drop: { vz: number } | null = null;
   /** Riding a chute or climbing a ladder: `s` units along its track, at `speed`. */
   ride: { track: Track; s: number; speed: number; ladder: boolean } | null = null;
   /** Seconds after landing before a trampoline or cannon can catch the ball again. */
@@ -124,10 +124,15 @@ export class World {
       this.segs.push({ ax, ay, bx, by, r: BRIDGE_RAIL_R, kind: 'bridge' });
     }
     // Tier edges: icing rims on top, cliff faces below
-    (level.tiers ?? []).forEach((t, ti) => t.pts.forEach(([ax, ay], i) => {
-      const [bx, by] = t.pts[(i + 1) % t.pts.length];
-      this.segs.push({ ax, ay, bx, by, r: LEDGE_R, kind: 'ledge', tier: ti, open: t.open?.includes(i) });
-    }));
+    (level.tiers ?? []).forEach((t, ti) => {
+      const area = t.pts.reduce((a, [x1, y1], k) => { const [x2, y2] = t.pts[(k + 1) % t.pts.length]; return a + x1 * y2 - x2 * y1; }, 0);
+      t.pts.forEach(([ax, ay], i) => {
+        const [bx, by] = t.pts[(i + 1) % t.pts.length];
+        const l = Math.hypot(bx - ax, by - ay) || 1, dx = (bx - ax) / l, dy = (by - ay) / l;
+        const [nx, ny] = area > 0 ? [dy, -dx] : [-dy, dx]; // outward
+        this.segs.push({ ax, ay, bx, by, r: LEDGE_R, kind: 'ledge', tier: ti, open: t.open?.includes(i), nx, ny });
+      });
+    });
     const outline = fairwayOutline(level);
     outline.forEach(([ax, ay], i) => {
       const [bx, by] = outline[(i + 1) % outline.length];
@@ -232,19 +237,23 @@ export class World {
         else if (this.teleport(events)) continue;
       }
 
-      const wasOn = tierAt(this.level, b.x, b.y);
-      const hBefore = wasOn >= 0 ? heightAt(this.level, b.x, b.y) + (b.z ?? 0) : 0;
+      const tiered = !!this.level.tiers;
+      const step = (x: number, y: number) => heightNow(this.level, x, y, this.time) - groundAt(this.level, x, y); // levels only, not slopes
+      const hBefore = tiered ? step(b.x, b.y) + (b.z ?? 0) : 0;
       b.x += b.vx * h;
       b.y += b.vy * h;
-      if (wasOn >= 0 && !inTier(this.level, wasOn, b.x, b.y)) {
-        // Rolled off an open ledge: it drops to the level below, still rolling the way it was going
-        const z = hBefore - heightAt(this.level, b.x, b.y);
-        if (z > 1) {
+      if (tiered) {
+        // Rolled off a ledge (or the ground fell away under it): it drops to the level below, still rolling
+        // the way it was going. A platform sinking gently under a resting ball just carries it down.
+        const z = hBefore - step(b.x, b.y);
+        if (z > 1.5 || (this.drop && z > 0)) {
           b.z = z;
-          this.drop = { tier: wasOn, vz: this.drop?.vz ?? 0 };
-          const sp = Math.hypot(b.vx, b.vy);
-          if (sp < DROP_MIN_SPEED) { b.vx *= DROP_MIN_SPEED / (sp || 1); b.vy *= DROP_MIN_SPEED / (sp || 1); } // tips over the edge
-          if (!dropping) events.push({ type: 'drop' });
+          if (!this.drop) {
+            this.drop = { vz: 0 };
+            const sp = Math.hypot(b.vx, b.vy);
+            if (sp < DROP_MIN_SPEED) { b.vx *= DROP_MIN_SPEED / (sp || 1); b.vy *= DROP_MIN_SPEED / (sp || 1); } // tips over the edge
+            events.push({ type: 'drop' });
+          }
         }
       }
       if (this.drop) {
@@ -329,9 +338,9 @@ export class World {
         return events;
       }
 
-      const onTier = this.level.tiers ? tierAt(this.level, b.x, b.y) : -1;
+      const bh = this.level.tiers ? heightNow(this.level, b.x, b.y, this.time) + (b.z ?? 0) : 0;
       for (const s of this.segs) {
-        if (s.open && (s.tier === onTier || s.tier === this.drop?.tier || (onTier >= 0 && inTier(this.level, s.tier!, b.x, b.y)))) continue;
+        if (s.kind === 'ledge' && !this.ledgeSolid(s, b.x, b.y, bh)) continue;
         const rail = s.kind === 'rail';
         this.collideSeg(s, rail ? RAIL_E : WALL_E, 0, 0, 0, events, rail ? 'rail' : 'wall');
       }
@@ -518,6 +527,19 @@ export class World {
     if (hit > 30) { events.push({ type: kind, speed: hit }); this.contacts++; }
   }
 
+  /**
+   * Whether a tier's edge stops a ball at (x, y) whose height is `bh`: only where there's a step (the edge of
+   * a raised platform level with the ground is no edge at all), and an open edge only from below.
+   */
+  private ledgeSolid(s: Seg, x: number, y: number, bh: number) {
+    const reach = BALL_R + s.r;
+    if (x < Math.min(s.ax, s.bx) - reach || x > Math.max(s.ax, s.bx) + reach || y < Math.min(s.ay, s.by) - reach || y > Math.max(s.ay, s.by) + reach) return false;
+    const p = closestOnSeg(s, x, y), o = LEDGE_R + 2;
+    const hIn = heightNow(this.level, p.x - s.nx! * o, p.y - s.ny! * o, this.time), hOut = heightNow(this.level, p.x + s.nx! * o, p.y + s.ny! * o, this.time);
+    if (Math.abs(hIn - hOut) < STEP_H) return false;
+    return !(s.open && bh >= (hIn + hOut) / 2);
+  }
+
   /** Tumbleweeds and dinosaurs: moving circles and swinging tails. */
   private collideMovers(events: Event[]) {
     const m = movers(this.level, this.time);
@@ -576,7 +598,7 @@ export class World {
 
   private staticNormal(x: number, y: number): { x: number; y: number; e: number } | null {
     for (const s of this.segs) {
-      if (s.open && inTier(this.level, s.tier!, x, y)) continue;
+      if (s.kind === 'ledge' && !this.ledgeSolid(s, x, y, heightNow(this.level, x, y, this.time))) continue;
       const reach = BALL_R + s.r;
       if (x < Math.min(s.ax, s.bx) - reach || x > Math.max(s.ax, s.bx) + reach || y < Math.min(s.ay, s.by) - reach || y > Math.max(s.ay, s.by) + reach) continue;
       const p = closestOnSeg(s, x, y);
@@ -761,7 +783,7 @@ function routeField(world: World) {
   const G = 10, O = 60, W = Math.ceil((WORLD_W + 2 * O) / G), H = Math.ceil((WORLD_H + 2 * O) / G);
   const segs = world.segs;
   const blocked = (x: number, y: number) =>
-    segs.some((s) => { if (s.open) return false; if (x < Math.min(s.ax, s.bx) - 30 || x > Math.max(s.ax, s.bx) + 30 || y < Math.min(s.ay, s.by) - 30 || y > Math.max(s.ay, s.by) + 30) return false; const p = closestOnSeg(s, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + s.r; })
+    segs.some((s) => { if (s.open || (s.tier != null && L.tiers![s.tier].move)) return false; if (x < Math.min(s.ax, s.bx) - 30 || x > Math.max(s.ax, s.bx) + 30 || y < Math.min(s.ay, s.by) - 30 || y > Math.max(s.ay, s.by) + 30) return false; const p = closestOnSeg(s, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + s.r; })
     || (L.bumpers ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.rocks ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.palms ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + palmR(b))
@@ -779,7 +801,13 @@ function routeField(world: World) {
   // into the current one: never up onto a higher tier (open ledges are one-way, down), and chutes and
   // ladders carry it from their start to their end.
   const tierH = new Float64Array(W * H);
-  if (L.tiers?.length) for (let i = 0; i < W * H; i++) { const x = (i % W) * G + G / 2 - O, y = ((i / W) | 0) * G + G / 2 - O; tierH[i] = heightAt(L, x, y) - groundAt(L, x, y); }
+  // Moving platforms connect whatever they touch (wait for them to rise or sink)
+  const moving = new Uint8Array(W * H);
+  if (L.tiers?.length) for (let i = 0; i < W * H; i++) {
+    const x = (i % W) * G + G / 2 - O, y = ((i / W) | 0) * G + G / 2 - O;
+    tierH[i] = heightAt(L, x, y) - groundAt(L, x, y);
+    moving[i] = L.tiers.some((t) => t.move && inPoly(t.pts, x, y)) ? 1 : 0;
+  }
   const rides = new Map<number, { from: number; cost: number }[]>();
   for (const c of [...(L.chutes ?? []), ...(L.ladders ?? []), ...(L.lifts ?? []).map((lf) => ({ path: [[lf.x, lf.y], lf.to] as Pt[] }))]) {
     const a = c.path[0], b = c.path[c.path.length - 1], e = cell(b[0], b[1]);
@@ -796,7 +824,7 @@ function routeField(world: World) {
       const nx = cx + dx, ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const n = nx + ny * W;
-      if (d[n] <= dc + G || tierH[c] > tierH[n] + 0.5 || blocked(nx * G + G / 2 - O, ny * G + G / 2 - O)) continue;
+      if (d[n] <= dc + G || (tierH[c] > tierH[n] + 0.5 && !moving[n] && !moving[c]) || blocked(nx * G + G / 2 - O, ny * G + G / 2 - O)) continue;
       relax(n, dc + G);
     }
     for (const r of rides.get(c) ?? []) relax(r.from, dc + r.cost);
@@ -827,8 +855,23 @@ const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 /** Terrain height at a point (0 = flat), tiers included. Shared by physics and the renderer so what you see is what rolls. */
 export function heightAt(level: LevelDef, x: number, y: number) {
   let h = groundAt(level, x, y);
-  for (const t of level.tiers ?? []) if (inPoly(t.pts, x, y)) h += t.h;
+  for (const t of level.tiers ?? []) if (!t.move && inPoly(t.pts, x, y)) h += t.h;
   return h;
+}
+
+/** Height right now, moving platforms included (at rest they're level with what's under them). */
+export function heightNow(level: LevelDef, x: number, y: number, time: number) {
+  let h = heightAt(level, x, y);
+  for (const t of level.tiers ?? []) if (t.move && inPoly(t.pts, x, y)) h += tierLift(t, time);
+  return h;
+}
+
+/** How far a moving platform has risen: down for 35% of its cycle, rising, up for 35%, sinking. */
+export function tierLift(t: Tier, time: number) {
+  if (!t.move) return t.h;
+  const P = t.move.period ?? 6, u = (((time / P + (t.move.phase ?? 0)) % 1) + 1) % 1;
+  const k = u < 0.35 ? 0 : u < 0.5 ? smooth((u - 0.35) / 0.15) : u < 0.85 ? 1 : 1 - smooth((u - 0.85) / 0.15);
+  return t.h * k;
 }
 
 /** Terrain height without the tiers: the gentle slopes the ball feels (a tier top is level with its ground). */
@@ -1124,6 +1167,8 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
 export const LEDGE_R = 5;
 /** How fast a ball falls off a ledge (units/s²; a little floatier than the slopes, so drops read). */
 const DROP_G = 1400;
+/** A difference in height across a tier's edge smaller than this is no step at all (a platform level with its neighbour). */
+const STEP_H = 6;
 /** A ball creeping over an open edge tips off at least this fast, so it clears the face. */
 const DROP_MIN_SPEED = 90;
 export const CHUTE_CATCH = 24;

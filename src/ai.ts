@@ -85,7 +85,8 @@ export class Planner {
     this.sim = sim;
     // Coarse sweep all the way round; with moving obstacles, also try waiting a moment for a gap
     const moving = hasMovers(world.level);
-    const delays = moving ? [0, 0.5, 1] : [0];
+    // Moving platforms run on longer cycles: also try waiting for one to come up or down
+    const delays = world.level.tiers?.some((t) => t.move) ? [0, 0.75, 1.5, 2.25, 3] : moving ? [0, 0.5, 1] : [0];
     for (const dl of delays) for (let deg = 0; deg < 360; deg += moving ? 7 : 5) for (const p of [0.13, 0.22, 0.34, 0.48, 0.64, 0.82, 1]) this.queue.push([deg, p, dl]);
   }
 
@@ -140,7 +141,7 @@ export class Planner {
 
 /** Does anything on the hole move (so the moment of the shot matters)? */
 export function hasMovers(L: LevelDef) {
-  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length || L.penguins?.length || L.gingerbread?.length);
+  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length || L.penguins?.length || L.gingerbread?.length || L.tiers?.some((t) => t.move));
 }
 
 /** Gaussian noise for the computer's aim and power. */

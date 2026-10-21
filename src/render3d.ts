@@ -10,7 +10,7 @@ import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR }
 import { ballMaterial, cueMaterials } from './gear';
 import { getModels } from './models';
 import { Theme } from './levels';
-import { BALL_R, CUP_R, heightAt, routeTarget, spinPath, World } from './physics';
+import { BALL_R, CUP_R, heightNow, routeTarget, spinPath, World } from './physics';
 
 /** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
 const GradeShader = {
@@ -295,7 +295,9 @@ export class Renderer3D {
     this.theme = theme;
   }
 
-  private h(x: number, y: number) { return this.level ? heightAt(this.level, x, y) : 0; }
+  /** Ground height under the ball, cue and guide right now (moving platforms included). */
+  private h(x: number, y: number) { return this.level ? heightNow(this.level, x, y, this.worldTime) : 0; }
+  private worldTime = 0;
 
   // ---------- camera ----------
 
@@ -532,6 +534,7 @@ export class Renderer3D {
   // ---------- per frame ----------
 
   render(world: World, aim: AimState, cue: CueState, fx: FX, time: number, dt: number) {
+    this.worldTime = world.time;
     this.renderer.info.reset(); // stats cover the whole frame, including post-processing passes
     this.adaptQuality(dt);
     this.updateCamera(world, dt, time, aim);
