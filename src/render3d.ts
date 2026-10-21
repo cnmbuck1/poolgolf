@@ -5,8 +5,9 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Animated } from './art';
-import { buildCourse, Course, disposeGroup, HH, HW, to3, woodTexture } from './course';
+import { buildCourse, Course, disposeGroup, HH, HW, to3 } from './course';
 import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR } from './garden';
+import { ballMaterial, cueMaterials } from './gear';
 import { getModels } from './models';
 import { Theme } from './levels';
 import { BALL_R, CUP_R, heightAt, routeTarget, World } from './physics';
@@ -28,8 +29,6 @@ const GradeShader = {
 
 const C = {
   aim: 0xfdf4a4,
-  cue: 0xd9a46a,
-  cueButt: 0x3a2416,
 };
 
 export type GuideMode = 'full' | 'short';
@@ -140,7 +139,7 @@ export class Renderer3D {
 
     this.ball = new THREE.Mesh(
       new THREE.SphereGeometry(BALL_R, 40, 24),
-      new THREE.MeshPhysicalMaterial({ map: cueBallTexture(), roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.06 }),
+      ballMaterial('cue'),
     );
     this.ball.castShadow = true;
     this.scene.add(this.ball);
@@ -187,10 +186,14 @@ export class Renderer3D {
     this.scene.add(this.drops);
   }
 
-  private buildCue() {
+  /** Build the cue from a design in the Cues & Balls menu (rebuilt when the player picks another). */
+  private buildCue(id = 'classic') {
+    for (const c of [...this.cuePitch.children]) { this.cuePitch.remove(c); (c as THREE.Mesh).geometry.dispose(); }
+    for (const m of this.cueMats) { m.map?.dispose(); m.dispose(); }
+    this.cueMats = [];
+    const mats = cueMaterials(id);
     const len = 320;
-    const mk = (geo: THREE.BufferGeometry, color: number, x: number, extra: THREE.MeshStandardMaterialParameters = {}) => {
-      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.35, transparent: true, ...extra });
+    const mk = (geo: THREE.BufferGeometry, mat: THREE.MeshStandardMaterial, x: number) => {
       this.cueMats.push(mat);
       const m = new THREE.Mesh(geo, mat);
       m.rotation.z = -Math.PI / 2; // cylinder axis along +x, thin end toward the ball
@@ -198,16 +201,22 @@ export class Renderer3D {
       m.castShadow = true;
       this.cuePitch.add(m);
     };
-    mk(new THREE.CylinderGeometry(2.6, 4.6, len * 0.62, 18), C.cue, -len * 0.31 - 8, { map: woodTexture() });
-    mk(new THREE.CylinderGeometry(4.6, 6.2, len * 0.38, 18), C.cueButt, -len * 0.62 - len * 0.19 - 8, { roughness: 0.25, metalness: 0.1 });
-    mk(new THREE.CylinderGeometry(4.65, 4.65, 6, 18), 0xd8c08a, -len * 0.62 - 8, { metalness: 0.8, roughness: 0.25 }); // brass joint
-    mk(new THREE.CylinderGeometry(2.6, 2.6, 7, 14), 0xf3efe2, -4.5); // ferrule
-    mk(new THREE.CylinderGeometry(2.5, 2.6, 2.4, 14), 0x3f74a8, -0.2, { roughness: 0.9 }); // chalked tip
+    mk(new THREE.CylinderGeometry(2.6, 4.6, len * 0.62, 18), mats.shaft, -len * 0.31 - 8);
+    mk(new THREE.CylinderGeometry(4.6, 6.2, len * 0.38, 18), mats.butt, -len * 0.62 - len * 0.19 - 8);
+    mk(new THREE.CylinderGeometry(4.65, 4.65, 6, 18), mats.joint, -len * 0.62 - 8);
+    mk(new THREE.CylinderGeometry(2.6, 2.6, 7, 14), mats.ferrule, -4.5);
+    mk(new THREE.CylinderGeometry(2.5, 2.6, 2.4, 14), mats.tip, -0.2); // chalked tip
+    if (this.cue.children.length) return;
     this.cuePitch.rotation.z = -0.09; // lift the butt a little
     this.cue.add(this.cuePitch);
     this.cue.visible = false;
     this.scene.add(this.cue);
   }
+
+  /** Switch to a cue design from the Cues & Balls menu. */
+  setCue(id: string) { this.buildCue(id); }
+  /** Switch to a ball design from the Cues & Balls menu. */
+  setBall(id: string) { this.ball.material = ballMaterial(id); }
 
   // ---------- per hole ----------
 
@@ -647,15 +656,6 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 4;
   return t;
-}
-
-function cueBallTexture() {
-  return canvasTex(256, 128, (g) => {
-    g.fillStyle = '#f2f6f6';
-    g.fillRect(0, 0, 256, 128);
-    g.fillStyle = '#c8473b';
-    for (const [x, y] of [[64, 64], [192, 64], [128, 10], [128, 118]]) { g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill(); }
-  });
 }
 
 function blobTexture() {

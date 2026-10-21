@@ -14,6 +14,7 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   6. **Eight Ball**: brick walls funnel toward a racked set of pool balls in front of a raised green, with bunkers on both sides
 - **Jurassic Canyon**, a second 6-hole course (par 19), picked from **Courses** on the main menu. Drawn in a cartoon style (flat toon shading and ink outlines) under a lilac-and-peach sunset: packed-dirt fairways with a rounded rock kerb; glowing lava rivers and pools (+1 stroke), volcanoes whose slopes push the ball away, tumbleweeds that roll across the line, and big-eyed dinosaurs you can roll the ball between the legs of: a brontosaurus that walks across the course, a T-rex that sweeps its tail behind it, and a plated stegosaurus. Dressed with chunky palms, round bushes, boulders, a ribcage, an egg nest and smoking volcanoes on the horizon.
 - **Lunar Links**, a third 6-hole course (par 19) on the moon, in the same cartoon style under a starry sky with the Earth, a ringed planet and a passing UFO: pale moon-dust fairways pocked with craters that curl the ball, cracks into open space (+1 stroke) crossed by metal bridges, moon rocks, moon trees, asteroids drifting across the line, asteroids that crash down after a red warning ring and sit there until they crumble, rockets that land on their pads and blast off again, little aliens hopping in circles, and astronauts that wave or moonwalk on patrol. Dressed with glowing crystals, craters, a rocket and a flag.
+- **Cues & Balls** on the main menu: 15 ball designs (classic, eight ball, tennis, soccer, basketball, baseball, beach ball, golf ball, tie-dye, galaxy, watermelon, smiley, gold, chrome, neon glow) and 13 cues (classic maple; USA-themed Old Glory, Uncle Sam, Fourth of July and Bald Eagle; candy cane, light saber, hot rod flames, royal gold, camo, tie-dye, slugger and galaxy). All are painted in code (`src/gear.ts`); the choice is saved on the device.
   1. **Lava Run**: a lava river crossed by a wide bridge on the line to the cup
   2. **Tumbleweed Flats**: time the gaps between three rolling tumbleweeds
   3. **Bronto Crossing**: under the brontosaurus or round the lava pools
@@ -59,6 +60,7 @@ src/garden.ts    evening sky and sun
 src/landscape.ts curved kerb, rolling lawn, flower beds, grasses, topiary, river stones
 src/jurassic.ts  Jurassic course: dirt, lava, volcanoes, tumbleweeds, dinosaurs, prehistoric planting (and the shared toon helpers)
 src/space.ts     Lunar course: moon dust, the void, asteroids, aliens, astronauts, stars, planets, rocket
+src/gear.ts      Ball and cue designs for the Cues & Balls menu
 src/main.ts      game flow, input, HUD, haptics
 src/audio.ts     WebAudio sound effects
 ios/  android/   generated native projects (Capacitor)

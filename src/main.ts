@@ -6,6 +6,7 @@ import { COURSE, COURSES, LEVELS, setCourse } from './levels';
 import { inZone, MAX_SHOT_SPEED, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
+import { ballPreview, BALLS, cuePreview, CUES } from './gear';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
 
 const MAX_STROKES = 10;
@@ -55,6 +56,8 @@ aim.guide = settings.guide ? 'full' : 'short';
 view3d.follow = settings.follow;
 view3d.setSlopeArrows(settings.arrows);
 view3d.setOverview(settings.top);
+view3d.setBall(localGet('ball') ?? 'cue');
+view3d.setCue(localGet('cue') ?? 'classic');
 
 function syncSettingsUi() {
   $('set-sound').setAttribute('aria-pressed', String(settings.sound));
@@ -510,6 +513,36 @@ function openStats() {
     <p>Stats are saved on this device only.</p>`);
 }
 
+/** Previews are painted once per design, the first time the menu opens. */
+const previews = new Map<string, string>();
+const preview = (key: string, make: () => string) => previews.get(key) ?? (previews.set(key, make()), previews.get(key)!);
+
+function openGear() {
+  const ballId = localGet('ball') ?? 'cue', cueId = localGet('cue') ?? 'classic';
+  const balls = BALLS.map((b) => `<button class="gear ball${b.id === ballId ? ' on' : ''}" data-ball="${b.id}"><img alt="" src="${preview(`b:${b.id}`, () => ballPreview(b.id))}"><span>${b.name}</span></button>`).join('');
+  const cues = CUES.map((c) => `<button class="gear cue${c.id === cueId ? ' on' : ''}" data-cue="${c.id}"><img alt="" src="${preview(`c:${c.id}`, () => cuePreview(c.id))}"><span>${c.name}</span></button>`).join('');
+  sheet('Cues & Balls', `<p>Pick a ball and a cue. Your choice is saved on this device.</p>
+    <h3 class="gear-head">BALLS</h3><div class="gear-balls">${balls}</div>
+    <h3 class="gear-head">CUES</h3><div class="gear-cues">${cues}</div>`);
+  const body = $('sheet-body');
+  body.querySelectorAll<HTMLButtonElement>('[data-ball]').forEach((b) => {
+    b.onclick = () => {
+      sfx.ui();
+      localSet('ball', b.dataset.ball!);
+      view3d.setBall(b.dataset.ball!);
+      body.querySelectorAll('[data-ball]').forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+  body.querySelectorAll<HTMLButtonElement>('[data-cue]').forEach((b) => {
+    b.onclick = () => {
+      sfx.ui();
+      localSet('cue', b.dataset.cue!);
+      view3d.setCue(b.dataset.cue!);
+      body.querySelectorAll('[data-cue]').forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+}
+
 function comingSoon(title: string, icon: string, what: string) {
   sheet(title, `<div class="soon"><svg><use href="#${icon}"/></svg><p>${what}</p><p><b>Not in this prototype yet.</b></p></div>`);
 }
@@ -517,7 +550,7 @@ function comingSoon(title: string, icon: string, what: string) {
 click('btn-courses', openCourses);
 click('btn-settings', openSettings);
 click('btn-stats', openStats);
-click('btn-cues', () => comingSoon('Cues & Balls', 'i-cue', 'Unlock new cues and ball designs.'));
+click('btn-cues', openGear);
 click('btn-achievements', () => comingSoon('Achievements', 'i-trophy', 'Earn trophies for bank shots, aces and clean rounds.'));
 click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
