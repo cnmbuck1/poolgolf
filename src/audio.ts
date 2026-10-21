@@ -2,15 +2,24 @@
 // compressor so stacked hits never clip.
 
 let ctx: AudioContext | null = null;
-let master: GainNode | null = null;
+let master: GainNode | null = null; // sound effects
+let musicBus: GainNode | null = null; // background music (its own on/off)
 let noiseBuf: AudioBuffer | null = null;
 let roll: { gain: GainNode; filter: BiquadFilterNode } | null = null;
 export let soundOn = true;
+export let musicOn = true;
+const MUSIC_LEVEL = 0.5;
 
 export function setSound(on: boolean) {
   soundOn = on;
   if (master && ctx) master.gain.setTargetAtTime(on ? 0.9 : 0, ctx.currentTime, 0.02);
 }
+export function setMusic(on: boolean) {
+  musicOn = on;
+  if (musicBus && ctx) musicBus.gain.setTargetAtTime(on ? MUSIC_LEVEL : 0, ctx.currentTime, 0.3);
+}
+/** The audio context and the music bus, once the player has tapped (for music.ts). */
+export const audioOut = () => (ctx && musicBus ? { ctx, bus: musicBus, noise: noiseBuf! } : null);
 
 export function unlockAudio() {
   if (!ctx) {
@@ -23,6 +32,9 @@ export function unlockAudio() {
     master = ctx.createGain();
     master.gain.value = soundOn ? 0.9 : 0;
     master.connect(comp).connect(ctx.destination);
+    musicBus = ctx.createGain();
+    musicBus.gain.value = musicOn ? MUSIC_LEVEL : 0;
+    musicBus.connect(comp);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -51,6 +63,25 @@ function tone(freq: number, decay: number, type: OscillatorType, vol: number, op
   o.connect(g).connect(master);
   o.start(t);
   o.stop(t + decay + 0.05);
+}
+
+/** A tone with vibrato (for trumpets, groans and whistles). */
+function warble(freq: number, decay: number, type: OscillatorType, vol: number, opts: { at?: number; slideTo?: number; attack?: number; rate?: number; depth?: number; filter?: number } = {}) {
+  if (!ctx || !master) return;
+  const t = now() + (opts.at ?? 0);
+  const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  if (opts.slideTo) o.frequency.exponentialRampToValueAtTime(opts.slideTo, t + decay);
+  lfo.frequency.value = opts.rate ?? 6;
+  lg.gain.value = (opts.depth ?? 0.03) * freq;
+  lfo.connect(lg).connect(o.frequency);
+  env(g, t, vol, opts.attack ?? 0.03, decay);
+  let out: AudioNode = o;
+  if (opts.filter) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = opts.filter; o.connect(f); out = f; }
+  out.connect(g).connect(master);
+  o.start(t); lfo.start(t);
+  o.stop(t + decay + 0.1); lfo.stop(t + decay + 0.1);
 }
 
 function noise(decay: number, vol: number, type: BiquadFilterType, freq: number, opts: { at?: number; q?: number; sweepTo?: number; attack?: number } = {}) {
@@ -126,20 +157,79 @@ export const sfx = {
     tone(700, 0.09, 'square', 0.12 * v(speed), { slideTo: 380 });
     noise(0.05, 0.3 * v(speed), 'bandpass', 1200, { q: 2 });
   },
-  /** Rattle around the cup, then the drop. */
+  /** Rattle round the rim, then the hollow clunk of the ball dropping to the bottom of the cup. */
   sink: () => {
     [0, 0.07, 0.12, 0.155].forEach((at, i) => tone(1800 - i * 150, 0.04, 'triangle', 0.25 - i * 0.04, { at }));
     tone(160, 0.25, 'sine', 0.55, { at: 0.2, slideTo: 70 });
     noise(0.12, 0.3, 'lowpass', 600, { at: 0.2 });
+    tone(520, 0.09, 'triangle', 0.3, { at: 0.22, slideTo: 380 }); // the cup's "tok"
+    tone(240, 0.06, 'sine', 0.18, { at: 0.34, slideTo: 200 }); // a little settle
+  },
+  /**
+   * The crowd reacts to holing out: 0 a polite smattering, 1 applause, 2 cheers and a whistle,
+   * 3 (a hole in one) a roar. Clapping is lots of tiny noise bursts; the roar is swelling filtered noise.
+   */
+  cheer: (level: number) => {
+    const claps = [10, 28, 45, 70][level], len = [0.9, 1.6, 2.2, 3][level];
+    for (let i = 0; i < claps; i++) noise(0.03, 0.14 + Math.random() * 0.1, 'bandpass', 1500 + Math.random() * 1500, { at: 0.25 + Math.random() * len, q: 1.5 });
+    if (level >= 1) noise(len, 0.12 + level * 0.06, 'bandpass', 900, { at: 0.2, attack: 0.4, q: 0.7 });
+    if (level >= 2) {
+      warble(1900, 0.5, 'sine', 0.1, { at: 0.5, slideTo: 2600, depth: 0.01 }); // a whistle
+      noise(len * 0.8, 0.12, 'bandpass', 450, { at: 0.3, attack: 0.3, q: 1.2 }); // "yeahhh"
+    }
+    if (level >= 3) {
+      warble(1700, 0.35, 'sine', 0.1, { at: 1.1 }); warble(2300, 0.4, 'sine', 0.08, { at: 1.3, slideTo: 1800 });
+      noise(2.4, 0.18, 'lowpass', 1600, { at: 0.2, attack: 0.5 });
+    }
+  },
+  /** A sympathetic "ohhh" from the crowd. */
+  groan: () => {
+    noise(1.1, 0.16, 'bandpass', 520, { at: 0.2, attack: 0.25, q: 3, sweepTo: 380 });
+    noise(1.1, 0.1, 'bandpass', 1050, { at: 0.2, attack: 0.25, q: 3, sweepTo: 760 });
+  },
+  /** The ball dropping into sand: a soft, gritty crunch. */
+  sand: (speed: number) => {
+    noise(0.22, 0.35 * v(speed), 'bandpass', 2200, { q: 0.8, sweepTo: 900 });
+    noise(0.12, 0.25 * v(speed), 'lowpass', 400);
+  },
+  /** Obstacle characters react when the ball hits them. */
+  elephant: () => {
+    warble(320, 0.7, 'sawtooth', 0.22, { slideTo: 760, rate: 9, depth: 0.04, filter: 2200, attack: 0.05 });
+    noise(0.5, 0.12, 'bandpass', 1400, { q: 2, attack: 0.05 });
+  },
+  clown: () => {
+    for (const at of [0, 0.22]) { tone(430, 0.14, 'square', 0.12, { at }); tone(452, 0.14, 'square', 0.1, { at }); }
+  },
+  roar: () => {
+    warble(130, 0.9, 'sawtooth', 0.3, { slideTo: 70, rate: 22, depth: 0.08, filter: 700, attack: 0.08 });
+    noise(0.8, 0.25, 'lowpass', 500, { attack: 0.08, sweepTo: 200 });
+  },
+  groanMummy: () => {
+    warble(150, 1.0, 'sine', 0.3, { slideTo: 95, rate: 5, depth: 0.06, attack: 0.15 });
+    noise(0.9, 0.1, 'bandpass', 600, { q: 2, attack: 0.2 });
+  },
+  alien: () => {
+    [0, 0.06, 0.12, 0.18].forEach((at, i) => warble(700 + i * 260, 0.08, 'sine', 0.14, { at, rate: 30, depth: 0.1 }));
+  },
+  astronaut: () => {
+    tone(1250, 0.07, 'sine', 0.15);
+    tone(1250, 0.07, 'sine', 0.15, { at: 0.12 });
+    noise(0.15, 0.06, 'bandpass', 2500, { at: 0.2, q: 3 }); // radio crackle
+  },
+  rustle: () => {
+    noise(0.35, 0.12, 'highpass', 3500, { attack: 0.05 });
+    noise(0.25, 0.08, 'highpass', 5000, { at: 0.08, attack: 0.04 });
   },
   lip: () => {
     tone(1700, 0.04, 'triangle', 0.2);
     tone(1500, 0.04, 'triangle', 0.14, { at: 0.06 });
   },
+  /** The ball plunging into water: a plop, the splash, then droplets falling back. */
   water: () => {
     noise(0.12, 0.5, 'bandpass', 1800, { q: 0.8 });
     noise(0.7, 0.45, 'lowpass', 2500, { sweepTo: 200, at: 0.03, attack: 0.02 });
     tone(320, 0.25, 'sine', 0.2, { slideTo: 900, at: 0.04 });
+    for (let i = 0; i < 6; i++) tone(1400 + Math.random() * 1600, 0.05, 'sine', 0.06, { at: 0.25 + Math.random() * 0.5, slideTo: 2800 });
   },
   /** Hiss and bubble as the ball drops into lava. */
   lava: () => {

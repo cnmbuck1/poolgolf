@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
 import { COURSE, COURSES, LevelDef, LEVELS, setCourse } from './levels';
-import { inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
+import { alienAt, astronautAt, BALL_R, dinoPose, inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
@@ -13,7 +13,8 @@ import { execute, hasMovers, Opponent, OPPONENTS, Planner } from './ai';
 import { bestToday, Daily, dailyCourse, dailyFor, dailyName, dateLabel, isDoneToday, recordDaily, streak, today, untilTomorrow } from './daily';
 import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
-import { setRolling, setSound, sfx, unlockAudio } from './audio';
+import { setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
+import { playMusic } from './music';
 
 const MAX_STROKES = 10;
 /** Aim turn per pixel of sideways drag on the shot camera (radians). */
@@ -74,6 +75,8 @@ function localSet(k: string, v: string) { try { localStorage.setItem(`poolgolf.$
 
 const settings = {
   sound: localGet('sound') !== '0',
+  music: localGet('music') !== '0',
+  vibrate: localGet('vibrate') !== '0',
   guide: localGet('guide') !== 'short',
   follow: localGet('follow') !== '0',
   arrows: localGet('arrows') !== '0',
@@ -81,6 +84,7 @@ const settings = {
   tutorialDone: localGet('tutorial') === '1',
 };
 setSound(settings.sound);
+setMusic(settings.music);
 aim.guide = settings.guide ? 'full' : 'short';
 view3d.follow = settings.follow;
 view3d.setSlopeArrows(settings.arrows);
@@ -90,6 +94,8 @@ view3d.setCue(localGet('cue') ?? 'classic');
 
 function syncSettingsUi() {
   $('set-sound').setAttribute('aria-pressed', String(settings.sound));
+  $('set-music').setAttribute('aria-pressed', String(settings.music));
+  $('set-vibrate').setAttribute('aria-pressed', String(settings.vibrate));
   $('set-guide').setAttribute('aria-pressed', String(settings.guide));
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
   $('set-arrows').setAttribute('aria-pressed', String(settings.arrows));
@@ -117,8 +123,27 @@ function recordHole(i: number, score: number) {
   localSet('holes', String(stat('holes') + 1));
 }
 
+// ---------- Characters ----------
+let wasSandy = false; // the ball was in a bunker last frame (for the crunch on the way in)
+let lastCreature = -9;
+/** The ball just hit something: if it's a character, it reacts (an elephant trumpets, a clown honks...). */
+function creatureHit() {
+  if (time - lastCreature < 0.8) return;
+  const L = world.level, b = world.ball, t = world.time;
+  const near = (x: number, y: number, r: number) => Math.hypot(b.x - x, b.y - y) < BALL_R + r + 8;
+  const say = (f: () => void) => { lastCreature = time; f(); };
+  if ((L.elephants ?? []).some((e) => near(e.x, e.y, e.r ?? 38))) return say(sfx.elephant);
+  if ((L.clowns ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.clown);
+  if ((L.mummies ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.groanMummy);
+  if ((L.astronauts ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.astronaut);
+  if ((L.aliens ?? []).some((a) => { const p = alienAt(a, t); return near(p.x, p.y, p.r); })) return say(sfx.alien);
+  if ((L.dinos ?? []).some((d) => { const p = dinoPose(d, t); return near(p.x, p.y, 110); })) return say(sfx.roar);
+  if ((L.palms ?? []).some((p) => near(p.x, p.y, 16))) return say(sfx.rustle);
+}
+
 // ---------- Haptics ----------
 function buzz(style: ImpactStyle) {
+  if (!settings.vibrate) return;
   if (native) void Haptics.impact({ style }).catch(() => {});
   else navigator.vibrate?.(style === ImpactStyle.Heavy ? 30 : style === ImpactStyle.Medium ? 18 : 10);
 }
@@ -561,6 +586,8 @@ function toggleView() {
   syncSettingsUi();
 }
 function toggleSound() { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); }
+function toggleMusic() { settings.music = !settings.music; setMusic(settings.music); localSet('music', settings.music ? '1' : '0'); syncSettingsUi(); }
+function toggleVibrate() { settings.vibrate = !settings.vibrate; localSet('vibrate', settings.vibrate ? '1' : '0'); syncSettingsUi(); buzz(ImpactStyle.Medium); }
 function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.guide ? 'full' : 'short'; localSet('guide', settings.guide ? 'full' : 'short'); syncSettingsUi(); }
 function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
@@ -611,7 +638,9 @@ function openCourses() {
 
 function openSettings() {
   sheet('Settings', `<div class="settings">
-    <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound</span><em></em></button>
+    <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound effects</span><em></em></button>
+    <button class="toggle" data-set="music" aria-pressed="${settings.music}"><span>Music</span><em></em></button>
+    <button class="toggle" data-set="vibrate" aria-pressed="${settings.vibrate}"><span>Vibration</span><em></em></button>
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
     <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
@@ -619,8 +648,10 @@ function openSettings() {
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
-      const k = b.dataset.set as 'sound' | 'guide' | 'follow' | 'top' | 'arrows';
+      const k = b.dataset.set as 'sound' | 'music' | 'vibrate' | 'guide' | 'follow' | 'top' | 'arrows';
       if (k === 'sound') toggleSound();
+      if (k === 'music') toggleMusic();
+      if (k === 'vibrate') toggleVibrate();
       if (k === 'guide') toggleGuide();
       if (k === 'follow') toggleFollow();
       if (k === 'arrows') toggleArrows();
@@ -1266,6 +1297,8 @@ click('btn-next', () => {
   if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
 });
 click('set-sound', toggleSound);
+click('set-music', toggleMusic);
+click('set-vibrate', toggleVibrate);
 click('set-guide', toggleGuide);
 click('set-follow', toggleFollow);
 click('set-arrows', toggleArrows);
@@ -1291,6 +1324,7 @@ function frame(now: number) {
   updateCue(phase === 'play' ? dt : 0);
   updateFinger();
   fadeScoreCard();
+  playMusic(phase === 'title' ? 'menu' : world.level.theme ?? 'garden');
   // Slow motion slows the whole scene, not just the ball
   view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt * (replay ? replay.speed : 1));
   requestAnimationFrame(frame);
@@ -1340,11 +1374,13 @@ function tick(dt: number) {
     switch (ev.type) {
       case 'rail':
         sfx.rail(ev.speed);
+        creatureHit();
         view3d.bounceBall(ev.speed);
         if (ev.speed > 400) buzz(ImpactStyle.Light);
         break;
       case 'wall':
         sfx.wall(ev.speed);
+        creatureHit();
         view3d.bounceBall(ev.speed);
         if (ev.speed > 900) view3d.shake(1.5);
         if (ev.speed > 300) buzz(ImpactStyle.Light);
@@ -1369,23 +1405,32 @@ function tick(dt: number) {
           // It dropped, but did it follow the trick's rule?
           const why = checkRule(trick, world.contacts, lastSpin);
           trickMissed = !!why;
-          if (why) { sfx.lip(); fx.sink = { t: 0 }; busyTimer = 1.3; toast(why, 'bad', 2600); break; }
+          if (why) { sfx.lip(); sfx.groan(); fx.sink = { t: 0 }; busyTimer = 1.3; toast(why, 'bad', 2600); break; }
         }
         sfx.sink();
-        if (native) void Haptics.notification({ type: NotificationType.Success }).catch(() => {});
+        if (native && settings.vibrate) void Haptics.notification({ type: NotificationType.Success }).catch(() => {});
         fx.sink = { t: 0 };
         busyTimer = 1.3;
         view3d.setMode('sink');
         const banks = world.contacts;
         const name = resultName(strokes, world.level.par);
         const good = strokes <= world.level.par;
-        if (turn === 'ai' && match) { toast(`${match.opp.emoji} ${name}`, good ? 'bad' : 'good', 1200); break; }
+        if (turn === 'ai' && match) { sfx.cheer(0); toast(`${match.opp.emoji} ${name}`, good ? 'bad' : 'good', 1200); break; }
         sinkBanked = banks > 0;
+        // The crowd: a roar for an ace, cheers under par, applause for par, polite claps or an "ohh" after
+        const d = strokes - world.level.par;
+        if (trick || shootout) sfx.cheer(2);
+        else if (strokes === 1) sfx.cheer(3);
+        else if (d < 0) sfx.cheer(2);
+        else if (d === 0) sfx.cheer(1);
+        else if (d === 1) sfx.cheer(0);
+        else sfx.groan();
         toast(banks > 0 ? `Bank shot · ${name}` : name, good ? 'good' : '', 1200);
         break;
       }
       case 'water':
         if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else sfx.water();
+        if (turn === 'player') sfx.groan();
         buzz(ImpactStyle.Heavy);
         fx.splash = { x: b.x, y: b.y, t: 0 };
         fx.ripples.push({ x: b.x, y: b.y, t: 0 }, { x: b.x, y: b.y, t: -0.25 });
@@ -1420,6 +1465,7 @@ function tick(dt: number) {
       case 'oob':
         // Bounced right out of the ring: a stroke, and back to where it was hit from
         sfx.whistle();
+        if (turn === 'player') sfx.groan();
         buzz(ImpactStyle.Heavy);
         fx.splash = { x: b.x, y: b.y, t: 0 };
         strokes++;
@@ -1435,6 +1481,8 @@ function tick(dt: number) {
     }
   }
   const sandy = (world.level.sand ?? []).some((z) => inZone(z, b.x, b.y));
+  if (sandy && !wasSandy && world.moving) sfx.sand(Math.hypot(b.vx, b.vy));
+  wasSandy = sandy;
   setRolling(world.moving ? Math.hypot(b.vx, b.vy) : 0, sandy);
 }
 
