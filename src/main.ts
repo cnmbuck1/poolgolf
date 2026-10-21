@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
 import { COURSE, COURSES, LevelDef, LEVELS, setCourse } from './levels';
-import { inZone, MAX_SHOT_SPEED, shotSpeed, World } from './physics';
+import { inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
@@ -57,6 +57,9 @@ let pendingBanked = false; // the player's sinking shot was a bank shot (paid wh
 /** The computer's current shot: planning, then lining up until `fireAt` (world time). */
 let aiShot: { planner: Planner; shot?: { deg: number; power: number }; fireAt?: number } | null = null;
 let fastAi = false;
+/** A closest-to-the-pin shootout settling a halved match: one shot each from the same spot. */
+let shootout: { spot: [number, number]; you?: number } | null = null;
+let shootoutPending = false; // the match is all square: the next button starts the shootout
 let aiBudgetMs = 10; // planning time per frame, so the game keeps animating while the computer thinks
 let aiLead = 1.4; // seconds ahead the computer plans for; grows if planning runs late on a slow device
 let trickMissed = false; // the ball dropped but broke the trick's rule
@@ -228,6 +231,8 @@ function updateFinger() {
 // ---------- Flow ----------
 function loadHole(i: number) {
   holeIdx = i;
+  shootout = null;
+  shootoutPending = false;
   trick = null;
   endAiTurnUi();
   aiShot = null;
@@ -295,7 +300,8 @@ function playSingle(i: number) {
 
 /** The ball is in (or the hole is given up): the player's hole, or the computer's in a match. */
 function holeOut(score: number, pickedUp = false) {
-  if (match && turn === 'ai') finishAiHole(score);
+  if (shootout) shootoutShot(0);
+  else if (match && turn === 'ai') finishAiHole(score);
   else if (match) { scores[holeIdx] = score; pendingBanked = sinkBanked; sinkBanked = false; startAiTurn(); }
   else finishHole(score, pickedUp);
 }
@@ -789,6 +795,7 @@ function startAiTurn() {
 
 function endAiTurnUi() {
   turn = 'player';
+  view3d.setMarker(null);
   $('hud').classList.remove('ai-turn');
   $('ai-bar').classList.add('hidden');
 }
@@ -855,19 +862,15 @@ function finishAiHole(aiScore: number) {
   const unlocked: string[] = [];
   if (you === 1) unlocked.push(earn('ace') ?? '');
   if (last) {
-    // Match over: most holes won takes it
+    // Match over: most holes won takes it; all square goes to a closest-to-the-pin shootout
     const won = scores.filter((s, i) => s! < m.ai[i]!).length, lost = scores.filter((s, i) => s! > m.ai[i]!).length;
-    const key = won > lost ? 'wins' : won < lost ? 'losses' : 'halves';
-    const firstWin = won > lost && vsGet(`${m.opp.id}.wins`) === 0;
-    localSet(`vs.${m.opp.id}.${key}`, String(vsGet(`${m.opp.id}.${key}`) + 1));
-    $('hole-kicker').textContent = `MATCH COMPLETE · VS ${m.opp.name.toUpperCase()}`;
-    h.textContent = won > lost ? 'You win the match!' : won < lost ? `${m.opp.name} wins` : 'Match halved';
-    h.className = won > lost ? 'ace' : won < lost ? 'over' : 'par';
-    $('hole-detail').textContent = `Holes won ${won}–${lost}${won === lost ? '' : ` · last hole: you ${you}, ${m.opp.name} ${aiScore}`}`;
-    if (won > lost) lines.push([firstWin ? 'Match won' : 'Rematch won', firstWin ? m.opp.reward : Math.round(m.opp.reward / 3)]);
-    else if (won === lost) lines.push(['Match halved', 20]);
-    const next = OPPONENTS[OPPONENTS.indexOf(m.opp) + 1];
-    if (firstWin && next) unlocked.push(`${next.name} challenges you`);
+    if (won === lost) {
+      shootoutPending = true;
+      $('hole-kicker').textContent = `ALL SQUARE · VS ${m.opp.name.toUpperCase()}`;
+      h.textContent = 'All square!';
+      h.className = 'par';
+      $('hole-detail').textContent = `Holes won ${won}–${lost}. A closest-to-the-pin shootout decides it.`;
+    } else concludeMatch(won > lost, `Holes won ${won}–${lost} · last hole: you ${you}, ${m.opp.name} ${aiScore}`, lines, unlocked);
   }
   const earned = lines.reduce((a, [, n]) => a + n, 0);
   addCoins(earned);
@@ -886,8 +889,111 @@ function finishAiHole(aiScore: number) {
   $('btn-replay').classList.add('hidden');
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
   $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH YOUR SHOTS';
-  setLabel('btn-next', last ? 'OPPONENTS' : 'NEXT HOLE');
+  setLabel('btn-next', shootoutPending ? 'SHOOTOUT' : last ? 'OPPONENTS' : 'NEXT HOLE');
   sfx.result(you - aiScore, you === 1);
+  updateHud();
+  show('screen-hole');
+}
+
+/** Record the match result and add its headline, coins and unlocks to the results screen. */
+function concludeMatch(win: boolean, detail: string, lines: [string, number][], unlocked: string[]) {
+  const m = match!;
+  const firstWin = win && vsGet(`${m.opp.id}.wins`) === 0;
+  const key = win ? 'wins' : 'losses';
+  localSet(`vs.${m.opp.id}.${key}`, String(vsGet(`${m.opp.id}.${key}`) + 1));
+  const h = $('hole-result');
+  $('hole-kicker').textContent = `MATCH COMPLETE · VS ${m.opp.name.toUpperCase()}`;
+  h.textContent = win ? 'You win the match!' : `${m.opp.name} wins`;
+  h.className = win ? 'ace' : 'over';
+  $('hole-detail').textContent = detail;
+  if (win) lines.push([firstWin ? 'Match won' : 'Rematch won', firstWin ? m.opp.reward : Math.round(m.opp.reward / 3)]);
+  const next = OPPONENTS[OPPONENTS.indexOf(m.opp) + 1];
+  if (firstWin && next) unlocked.push(`${next.name} challenges you`);
+}
+
+/** A clear spot about 300 units from the cup with a straight, open line to it (the tee if there's none). */
+function shootoutSpot(L: LevelDef): [number, number] {
+  const w = new World(L);
+  const [cx, cy] = L.cup, toTee = Math.atan2(L.tee[1] - cy, L.tee[0] - cx);
+  let best: [number, number] = L.tee, bestScore = Infinity;
+  for (const r of [300, 260, 340, 220]) for (let a = 0; a < Math.PI * 2; a += Math.PI / 18) {
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+    let open = true;
+    for (let d = 30; d <= r && open; d += 10) open = Number.isFinite(routeDistance(w, cx + Math.cos(a) * d, cy + Math.sin(a) * d));
+    if (!open || (L.sand ?? []).some((z) => inZone(z, x, y)) || (L.quicksand ?? []).some((z) => inZone(z, x, y))) continue;
+    // Prefer a line that faces the cup the way the hole is played, and the nearer radius
+    const score = Math.abs(Math.atan2(Math.sin(a - toTee), Math.cos(a - toTee))) + Math.abs(r - 300) / 200;
+    if (score < bestScore) { bestScore = score; best = [x, y]; }
+  }
+  return best;
+}
+
+function startShootout(again = false) {
+  shootoutPending = false;
+  const spot = shootout?.spot ?? shootoutSpot(LEVELS[holeIdx]);
+  shootout = { spot };
+  enterLevel(LEVELS[holeIdx]);
+  placeForShootout();
+  view3d.setMarker(null);
+  $('banner-hole').textContent = again ? 'DEAD HEAT · SHOOT AGAIN' : 'SHOOTOUT';
+  const b = $('banner');
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  toast('Closest to the pin wins · one shot each', 'good', 2600);
+}
+
+/** Put the ball on the shootout spot for the next shot. */
+function placeForShootout() {
+  const [x, y] = shootout!.spot;
+  world.ball.x = x; world.ball.y = y; world.ball.vx = world.ball.vy = 0;
+  world.moving = false;
+  lastRest = { x, y };
+  fx.sink = fx.splash = undefined;
+  busyTimer = 0;
+  strokes = 0;
+  view3d.setMode('play');
+}
+
+/** How far from the pin, in pool-ball terms (a ball is about 2¼ inches across). */
+function pinDistance(d: number) {
+  if (d === 0) return 'in the cup!';
+  if (!Number.isFinite(d)) return 'in the hazard';
+  const inches = Math.round(Math.max(0, d - CUP_RADIUS) * 0.094);
+  return inches < 12 ? `${inches} in` : `${Math.floor(inches / 12)} ft ${inches % 12} in`;
+}
+const CUP_RADIUS = 21;
+
+/** A shootout shot has finished: `d` is the distance to the cup (0 sunk, Infinity in a hazard). */
+function shootoutShot(d: number) {
+  const so = shootout!, m = match!;
+  if (turn === 'player') {
+    so.you = d;
+    if (Number.isFinite(d) && d > 0) view3d.setMarker(world.ball.x, world.ball.y);
+    toast(`You: ${pinDistance(d)}`, d === 0 ? 'good' : '', 1800);
+    startAiTurn();
+    placeForShootout();
+    $('banner-hole').textContent = `${m.opp.name.toUpperCase()}'S SHOT`;
+    return;
+  }
+  // Both have shot: closest wins; a dead heat goes again
+  const you = so.you!;
+  if (d === you) { endAiTurnUi(); toast('Dead heat!', 'good', 1600); startShootout(true); return; }
+  endAiTurnUi();
+  phase = 'holeDone';
+  setRolling(0, false);
+  const lines: [string, number][] = [], unlocked: string[] = [];
+  concludeMatch(you < d, `Closest to the pin: you ${pinDistance(you)}, ${m.opp.name} ${pinDistance(d)}`, lines, unlocked);
+  $('hole-kicker').textContent = `SHOOTOUT · VS ${m.opp.name.toUpperCase()}`;
+  const earned = lines.reduce((a, [, n]) => a + n, 0);
+  addCoins(earned);
+  $('hole-coins').innerHTML = earned ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
+    + (unlocked.length ? `<span class="unlocks">${unlocked.map((n) => `<span class="unlock">${n}!</span>`).join('')}</span>` : '') : '';
+  $('hole-card').innerHTML = '';
+  $('btn-replay').classList.add('hidden');
+  $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
+  $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH YOUR SHOT';
+  setLabel('btn-next', 'OPPONENTS');
+  sfx.result(you < d ? -1 : 1, false);
+  shootout = null;
   updateHud();
   show('screen-hole');
 }
@@ -1143,13 +1249,14 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
   <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
   <p>In <b>Pharaoh's Tomb</b>, roll into a teal scarab portal to come out of its violet partner; stone doors rise and sink on a timer; and quicksand grips the ball and drags it in: stop in it and it's swallowed (+1 stroke).</p>
-  <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next.</p>
+  <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
   if (match) {
+    if (shootoutPending) { startShootout(); return; }
     if (holeIdx === LEVELS.length - 1) { match = null; toTitle(); openVersus(); } else loadHole(holeIdx + 1);
     return;
   }
@@ -1214,7 +1321,8 @@ function tick(dt: number) {
         fx.splash = undefined;
         world.ball.x = lastRest.x;
         world.ball.y = lastRest.y;
-        if (strokes >= MAX_STROKES) holeOut(MAX_STROKES, true);
+        if (shootout) shootoutShot(Infinity);
+        else if (strokes >= MAX_STROKES) holeOut(MAX_STROKES, true);
       }
     }
     world.step(dt); // spinners keep turning during sequences
@@ -1320,6 +1428,7 @@ function tick(dt: number) {
         updateHud();
         break;
       case 'stop':
+        if (shootout) { shootoutShot(Math.hypot(b.x - world.level.cup[0], b.y - world.level.cup[1])); break; }
         if (trick) { toast('Missed! Try again', 'bad', 1100); trickReset = 0.9; break; }
         if (strokes >= MAX_STROKES) holeOut(MAX_STROKES, true);
         break;
@@ -1349,6 +1458,7 @@ if (import.meta.env.DEV) {
     trick: (id: string) => loadTrick(TRICKS.find((t) => t.id === id)!),
     daily: (offset = 0) => startDaily(today() + offset),
     aiBudget: (ms: number) => { aiBudgetMs = ms; },
+    shootout: (id: string, course: string) => { startMatch(OPPONENTS.find((o) => o.id === id)!, course); loadHole(LEVELS.length - 1); startShootout(); },
     versus: (id: string, course: string) => startMatch(OPPONENTS.find((o) => o.id === id)!, course),
     stats: () => view3d.stats,
     view: () => view3d,

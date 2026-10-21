@@ -213,6 +213,22 @@ export class Renderer3D {
     this.scene.add(this.cue);
   }
 
+  /** A gold marker where the player's shootout ball stopped (null removes it). */
+  private marker: THREE.Group | null = null;
+  setMarker(x: number | null, y?: number) {
+    if (this.marker) { this.scene.remove(this.marker); this.marker = null; }
+    if (x == null || y == null) return;
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.RingGeometry(BALL_R + 1, BALL_R + 5, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.95, depthWrite: false })));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 34, 6).translate(0, 17, 0), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    g.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(16, 10).translate(8, 29, 0), new THREE.MeshStandardMaterial({ color: 0xffd23a, side: THREE.DoubleSide }));
+    g.add(flag);
+    g.position.copy(to3(x, y)).setY(this.h(x, y) + 0.6);
+    this.scene.add(g);
+    this.marker = g;
+  }
+
   /** Switch to a cue design from the Cues & Balls menu. */
   setCue(id: string) { this.buildCue(id); }
   /** Switch to a ball design from the Cues & Balls menu. */
