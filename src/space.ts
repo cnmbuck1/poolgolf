@@ -4,9 +4,9 @@
 // Purely visual; positions of moving things come from physics.ts so what you see is what you hit.
 import * as THREE from 'three';
 import { Animated } from './art';
-import { Alien, Asteroid, Astronaut, LevelDef, Meteor, Palm, Pt, Rocket } from './levels';
+import { Alien, Asteroid, Astronaut, LevelDef, Lift, Meteor, Palm, Pt, Rocket } from './levels';
 import { Models, PieceBatch } from './models';
-import { alienAt, astronautAt, heightAt, meteorAt, palmR, rocketAt, tumbleweedAt, World } from './physics';
+import { alienAt, astronautAt, BALL_R, heightAt, LIFT_CATCH, meteorAt, palmR, rocketAt, tumbleweedAt, World } from './physics';
 import { blob, cached, canvasTex, eye, mergeGeos, organic, part, place, rng, shared, toon, toonRamp, V } from './jurassic';
 import { outlineDistance, resample } from './landscape';
 
@@ -676,4 +676,64 @@ export function spaceLandscape(L: LevelDef, outline: Pt[], models: Models, toSce
     group.add(m);
   }
   return group;
+}
+
+// ---------- launch rockets ----------
+
+/**
+ * A launch rocket on its pad: roll the ball into it and it blasts off with the ball inside, arcs over to
+ * the landing spot, drops the ball off and roars away into the sky before a new one is wheeled out.
+ */
+export function launchRocket(lf: Lift, world: World, L: LevelDef, toScene: ToScene): Animated {
+  const root = new THREE.Group();
+  const base = toScene(lf.x, lf.y).setY(heightAt(L, lf.x, lf.y));
+  root.position.copy(base);
+  const pad = new THREE.Group();
+  pad.add(part(new THREE.CylinderGeometry(LIFT_CATCH + 10, LIFT_CATCH + 12, 2, 32), toon(0x7c80a4), 0.8, false));
+  place(pad, part(new THREE.TorusGeometry(LIFT_CATCH + 2, 1.8, 6, 32).rotateX(Math.PI / 2), toon(0x6ad8ff), 0, false), 0, 1.2, 0);
+  // A launch tower beside the pad
+  const tower = part(new THREE.BoxGeometry(5, 70, 5).translate(0, 35, 0), toon(0xd8202e), 0.8);
+  tower.position.set(-LIFT_CATCH - 14, 0, 0);
+  pad.add(tower);
+  root.add(pad);
+  const ship = new THREE.Group();
+  const body = rocket();
+  body.scale.setScalar(0.5);
+  ship.add(body);
+  const flame = new THREE.Group();
+  flame.add(new THREE.Mesh(new THREE.ConeGeometry(9, 40, 14).rotateX(Math.PI).translate(0, -20, 0), glow(0xffb02a, 0xff7a10, 'flame')));
+  flame.add(new THREE.Mesh(new THREE.ConeGeometry(5, 26, 12).rotateX(Math.PI).translate(0, -13, 0), glow(0xfff6c0, 0xffe080, 'core')));
+  flame.position.y = 4;
+  ship.add(flame);
+  root.add(ship);
+  let phase: 'pad' | 'flying' | 'away' = 'pad', awayT = 0;
+  const last = new THREE.Vector3(), dir = new THREE.Vector3(0, 1, 0), up = new THREE.Vector3(0, 1, 0);
+  return {
+    group: root,
+    update(_a, t) {
+      const flying = world.air?.src === lf;
+      if (flying) {
+        // The ball rides in the rocket's belly
+        const b = world.ball;
+        const p = toScene(b.x, b.y).setY(heightAt(L, b.x, b.y) + BALL_R + (b.z ?? 0)).sub(base);
+        if (phase !== 'flying') { phase = 'flying'; last.copy(p).y -= 1; }
+        const d = p.clone().sub(last);
+        if (d.lengthSq() > 0.01) dir.lerp(d.normalize(), 0.25).normalize();
+        last.copy(p);
+        ship.quaternion.setFromUnitVectors(up, dir);
+        ship.position.copy(p).addScaledVector(dir, -14);
+      } else if (phase === 'flying') { phase = 'away'; awayT = 0; }
+      if (phase === 'away') {
+        // Off it goes, curving up into the sky, then a fresh rocket stands on the pad
+        awayT += 1 / 60;
+        dir.lerp(up, 0.05).normalize();
+        ship.quaternion.setFromUnitVectors(up, dir);
+        ship.position.addScaledVector(dir, 12);
+        if (awayT > 2.2) phase = 'pad';
+      }
+      if (phase === 'pad') { ship.position.set(0, 0, 0); ship.quaternion.identity(); dir.set(0, 1, 0); }
+      flame.visible = phase !== 'pad';
+      flame.scale.setScalar(1 + 0.15 * Math.sin(t * 40));
+    },
+  };
 }

@@ -307,6 +307,18 @@ export const sfx = {
   ladder: () => {
     [523, 587, 659, 784, 880, 1047].forEach((f, i) => { tone(f, 0.12, 'triangle', 0.16, { at: i * 0.11 }); tone(f * 4, 0.04, 'sine', 0.04, { at: i * 0.11 }); });
   },
+  /** A launch rocket: ignition crackle, then a roaring climb. */
+  rocket: () => {
+    noise(0.15, 0.3, 'bandpass', 3000, { q: 0.7 });
+    noise(1.6, 0.4, 'lowpass', 300, { sweepTo: 1400, attack: 0.15, at: 0.08 });
+    tone(70, 1.4, 'sawtooth', 0.12, { slideTo: 160, at: 0.08 });
+  },
+  /** A geyser: a gurgle from below, then a hissing burst of water. */
+  geyser: () => {
+    for (let i = 0; i < 4; i++) tone(120 + i * 30, 0.12, 'sine', 0.15, { at: i * 0.06, slideTo: 220 + i * 40 });
+    noise(1.2, 0.35, 'highpass', 1500, { attack: 0.08, at: 0.2 });
+    noise(0.9, 0.25, 'lowpass', 600, { at: 0.2, attack: 0.05 });
+  },
   /** Off the edge of a cake layer: a little falling "whee". */
   drop: () => warble(900, 0.3, 'sine', 0.12, { slideTo: 420, rate: 12, depth: 0.03, attack: 0.01 }),
   /** A gingerbread man yelps when the ball bonks him. */

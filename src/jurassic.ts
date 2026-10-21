@@ -3,7 +3,7 @@
 // Purely visual; positions of moving things come from physics.ts so what you see is what you hit.
 import * as THREE from 'three';
 import { Animated } from './art';
-import { Dino, LevelDef, Palm, Pt, Tumbleweed, Volcano } from './levels';
+import { Dino, LevelDef, Lift, Palm, Pt, Tumbleweed, Volcano } from './levels';
 import { Models, PieceBatch } from './models';
 import { DINO_LEGS, dinoPose, heightAt, palmR, tumbleweedAt, VOLCANO_SLOPE, volcanoCore, World } from './physics';
 import { outlineDistance, resample } from './landscape';
@@ -716,3 +716,45 @@ export function jurassicLandscape(L: LevelDef, outline: Pt[], models: Models, to
 }
 
 export { volcanoMesh, VOLCANO_SLOPE };
+
+// ---------- geysers ----------
+
+/**
+ * A geyser vent ringed with rock, steaming quietly. Roll the ball in and it erupts: a column of water
+ * shoots up and throws the ball high over to its landing spot.
+ */
+export function geyser(lf: Lift, world: World, L: LevelDef, toScene: (x: number, y: number) => THREE.Vector3): Animated {
+  const root = new THREE.Group();
+  root.position.copy(toScene(lf.x, lf.y)).setY(heightAt(L, lf.x, lf.y));
+  root.add(part(new THREE.TorusGeometry(24, 7, 8, 20).rotateX(Math.PI / 2).scale(1, 0.6, 1), toon(0x8a6a50, { vertexColors: false }), 1.2));
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(20, 24).rotateX(-Math.PI / 2), toon(0x3ab8c8));
+  pool.position.y = 0.6;
+  root.add(pool);
+  const steamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false });
+  const puffs = Array.from({ length: 6 }, (_, k) => { const m = new THREE.Mesh(new THREE.SphereGeometry(6, 10, 8), steamMat); root.add(m); return { m, o: k / 6 }; });
+  const waterMat = new THREE.MeshBasicMaterial({ color: 0xc8f4ff, transparent: true, opacity: 0.75, depthWrite: false });
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(10, 16, 1, 16, 1, true).translate(0, 0.5, 0), waterMat);
+  column.visible = false;
+  root.add(column);
+  let erupt = -1;
+  return {
+    group: root,
+    update(_a, t) {
+      if (world.air?.src === lf && erupt < 0) erupt = t;
+      for (const p of puffs) {
+        const u = (t * 0.35 + p.o) % 1;
+        p.m.position.set(Math.sin(p.o * 9 + t) * 6, 4 + u * 50, Math.cos(p.o * 7) * 6);
+        p.m.scale.setScalar(0.6 + u * 1.6);
+      }
+      steamMat.opacity = 0.4;
+      if (erupt >= 0) {
+        // The column shoots up, hangs, and falls back as spray
+        const e = t - erupt;
+        column.visible = e < 1.6;
+        column.scale.y = e < 0.3 ? (e / 0.3) * 170 : 170 * Math.max(0, 1 - (e - 0.8) / 0.8);
+        waterMat.opacity = 0.75 * Math.min(1, Math.max(0, (1.6 - e) / 0.6));
+        if (e >= 1.6 && world.air?.src !== lf) erupt = -1;
+      }
+    },
+  };
+}

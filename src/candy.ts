@@ -7,7 +7,12 @@ import * as THREE from 'three';
 import { Animated } from './art';
 import { Astronaut, Bumper, Chute, LevelDef, Palm, Pt } from './levels';
 import { astronautAt, BALL_R, CHUTE_CATCH, chuteTrack, groundAt, heightAt, LADDER_RUNG, palmR, Track, trackAt, World } from './physics';
-import { blob, cached, canvasTex, eye, part, place, rng, shared, toon, toonRamp, V } from './jurassic';
+import { basaltPlain, blob, cached, canvasTex, dirtMaterial, eye, part, place, rng, shared, toon, toonRamp, V } from './jurassic';
+import { moonDustMaterial, moonKerb } from './space';
+import { feltMaterial } from './circus';
+import { sandstoneMaterial, templeKerb } from './tomb';
+import { snowMaterial } from './arctic';
+import { TURF_TILE } from './art';
 import { outlineDistance, resample } from './landscape';
 
 type ToScene = (x: number, y: number) => THREE.Vector3;
@@ -157,14 +162,108 @@ function inPoly(pts: Pt[], x: number, y: number) {
   return inside;
 }
 
-// ---------- cake layers ----------
+// ---------- levels on every course ----------
 
 /**
- * One cake layer: its frosted top (following the gentle slopes, with the cup cut out if it's up here), the
- * sponge sides down to whatever it stands on, an icing rim piped along its solid edges and frosting dripping
- * over its open ones.
+ * How one course draws its raised levels, chutes and ladders. Candy Land has cake layers with icing rims
+ * and frosting drips; the other courses use their own fairway on top and their own cliff faces, rims,
+ * slides and ways up.
  */
-export function cakeTier(L: LevelDef, i: number, toScene: ToScene, HW: number, HH: number) {
+export interface LevelLook {
+  /** Material for a tier's top at stacking level `n` (0 = the lowest), and world units per texture tile. */
+  top: (n: number) => THREE.Material;
+  tile: number;
+  side: (n: number) => THREE.Material;
+  /** Solid edges: piped beads (icing, snow) or a low rail. */
+  rim: { kind: 'beads' | 'tube'; mat: THREE.Material; r: number };
+  /** Over open edges: frosting drips or icicles. */
+  drip?: { mat: (n: number) => THREE.Material; icicle?: boolean };
+  chute: { colors: number[]; lip: number; post: () => THREE.Material; mouth: [string, string]; ring: number[] };
+  ladder: { kind: 'cane' | 'rails' | 'stairs' | 'lift'; rail?: () => THREE.Material; rung?: number; ring: number };
+}
+
+/** Cliff and wall faces: a 256x128 texture whose top rows sit at the top edge (drawn by `draw`). */
+const sideTex = (key: string, draw: (g: CanvasRenderingContext2D, r: () => number) => void) => cached(`m:side:${key}`, () => {
+  const map = canvasTex(256, 128, (g) => draw(g, rng(key.length * 13 + 5)));
+  map.wrapT = THREE.ClampToEdgeWrapping;
+  return shared(new THREE.MeshToonMaterial({ map, gradientMap: toonRamp(), side: THREE.DoubleSide }));
+});
+const bands = (g: CanvasRenderingContext2D, r: () => number, cols: string[], from: number) => {
+  for (let y = from; y < 128; ) { const h = 8 + r() * 16; g.fillStyle = cols[Math.floor(r() * cols.length)]; g.fillRect(0, y, 256, h + 1); y += h; }
+};
+const speckle = (g: CanvasRenderingContext2D, r: () => number, n: number, cols: string[]) => {
+  for (let i = 0; i < n; i++) { g.fillStyle = cols[i % cols.length]; g.beginPath(); g.arc(r() * 256, r() * 128, 0.8 + r() * 2, 0, Math.PI * 2); g.fill(); }
+};
+
+export function levelLook(theme: string): LevelLook {
+  const ring = (cols: number[]) => cols;
+  switch (theme) {
+    case 'jurassic': return {
+      top: () => dirtMaterial(), tile: TURF_TILE,
+      side: () => sideTex('jurassic', (g, r) => { bands(g, r, ['#c0643a', '#d88850', '#a85030', '#e0a060', '#b45a34'], 0); speckle(g, r, 200, ['rgba(80,30,10,0.35)', 'rgba(255,220,170,0.3)']); g.fillStyle = '#6e4a38'; g.fillRect(0, 0, 256, 8); }),
+      rim: { kind: 'tube', mat: basaltPlain(), r: 3.6 },
+      chute: { colors: [0xa86a3a, 0x8a5428], lip: 0x5a3418, post: () => toon(0x6a4020), mouth: ['#2a1408', '#ff8a30'], ring: ring([0xff8a30, 0xffc060]) },
+      ladder: { kind: 'rails', rail: () => toon(0x7a4a24), rung: 0xd8b878, ring: 0xffb050 },
+    };
+    case 'space': return {
+      top: () => moonDustMaterial(), tile: TURF_TILE,
+      side: () => sideTex('space', (g, r) => { bands(g, r, ['#8a8898', '#7a7888', '#9c9aac', '#6e6c7e'], 0); speckle(g, r, 260, ['rgba(30,30,50,0.4)', 'rgba(230,230,255,0.35)']); g.fillStyle = '#c8c6d8'; g.fillRect(0, 0, 256, 6); }),
+      rim: { kind: 'tube', mat: moonKerb(), r: 3 },
+      chute: { colors: [0xb8bcc8, 0x6ad8ff], lip: 0x3e4270, post: () => toon(0x8a8ea0), mouth: ['#0a0a20', '#6ad8ff'], ring: ring([0x6ad8ff, 0xc8a8ff]) },
+      ladder: { kind: 'rails', rail: () => toon(0x9aa0b0), rung: 0x6ad8ff, ring: 0x6ad8ff },
+    };
+    case 'circus': return {
+      top: () => feltMaterial(), tile: TURF_TILE,
+      side: () => sideTex('circus', (g) => { for (let x = 0; x < 256; x += 32) { g.fillStyle = '#d8202e'; g.fillRect(x, 0, 16, 128); g.fillStyle = '#f8f0e0'; g.fillRect(x + 16, 0, 16, 128); } g.fillStyle = '#ffc83a'; g.fillRect(0, 0, 256, 12); g.fillStyle = '#b8862a'; g.fillRect(0, 12, 256, 3); for (let x = 8; x < 256; x += 32) { g.fillStyle = '#ffe08a'; g.beginPath(); g.arc(x, 6, 3, 0, Math.PI * 2); g.fill(); } }),
+      rim: { kind: 'tube', mat: toon(0xffc83a), r: 3 },
+      chute: { colors: [0xd8202e, 0xf8f0e0, 0x2a6ad8, 0xf8f0e0], lip: 0xffc83a, post: () => toon(0xffc83a), mouth: ['#1a0a10', '#ffc83a'], ring: ring([0xd8202e, 0xffc83a]) },
+      ladder: { kind: 'rails', rail: () => caneMaterial('#d8202e'), rung: 0xffc83a, ring: 0xffc83a },
+    };
+    case 'tomb': return {
+      top: () => sandstoneMaterial(), tile: TURF_TILE,
+      side: () => sideTex('tomb', (g, r) => {
+        g.fillStyle = '#e0b070'; g.fillRect(0, 0, 256, 128);
+        g.strokeStyle = 'rgba(140,90,40,0.6)'; g.lineWidth = 2;
+        for (let y = 0; y < 128; y += 24) { g.beginPath(); g.moveTo(0, y); g.lineTo(256, y); g.stroke(); for (let x = (y / 24) % 2 ? 20 : 0; x < 256; x += 40) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 24); g.stroke(); } }
+        g.fillStyle = '#2a6a8a'; g.fillRect(0, 50, 256, 18);
+        for (let x = 6; x < 256; x += 18) { g.fillStyle = r() > 0.5 ? '#ffc83a' : '#f4e8c8'; g.fillRect(x, 54, 3 + r() * 6, 10); g.beginPath(); g.arc(x + 10, 59, 3, 0, Math.PI * 2); g.fill(); }
+      }),
+      rim: { kind: 'tube', mat: templeKerb(), r: 3.6 },
+      chute: { colors: [0xe0b070, 0xc89050], lip: 0x2a6a8a, post: () => toon(0xc89050), mouth: ['#1a2a3a', '#ffc83a'], ring: ring([0x2ad8c8, 0xffc83a]) },
+      ladder: { kind: 'stairs', ring: 0x2ad8c8 },
+    };
+    case 'arctic': return {
+      top: () => snowMaterial(), tile: 260,
+      side: () => sideTex('arctic', (g, r) => {
+        const gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#d8f0ff'); gr.addColorStop(1, '#6aa8d8');
+        g.fillStyle = gr; g.fillRect(0, 0, 256, 128);
+        g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 2;
+        for (let i = 0; i < 18; i++) { let x = r() * 256, y = 20 + r() * 100; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 40; y += r() * 20; g.lineTo(x, y); } g.stroke(); }
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 14);
+        for (let x = 0; x < 256; x += 20) { g.beginPath(); g.arc(x + 10, 14, 10, 0, Math.PI); g.fill(); }
+      }),
+      rim: { kind: 'beads', mat: toon(0xffffff), r: 5 },
+      drip: { mat: () => toon(0xd8f0ff), icicle: true },
+      chute: { colors: [0xeaf8ff, 0xbfe6fa], lip: 0x2a6ad8, post: () => toon(0x8a6a4a), mouth: ['#14304e', '#bfe6fa'], ring: ring([0x6ad8ff, 0xffffff]) },
+      ladder: { kind: 'lift', ring: 0x6ad8ff },
+    };
+    default: return {
+      top: (n) => tierTopMaterial(n), tile: 260,
+      side: (n) => cakeSideMaterial(n),
+      rim: { kind: 'beads', mat: toon(0xffffff), r: 4.4 },
+      drip: { mat: (n) => toon(new THREE.Color(TIER_FROSTING[n % TIER_FROSTING.length]).getHex()) },
+      chute: { colors: CANDY, lip: 0xffffff, post: () => caneMaterial(), mouth: ['#2a1a4a', '#7a4aff'], ring: CANDY.filter((_, k) => k % 2 === 0) },
+      ladder: { kind: 'cane', ring: 0xfff07a },
+    };
+  }
+}
+
+/**
+ * One raised level: its top (the course's surface, following the gentle slopes, with the cup cut out if
+ * it's up here), the faces down to whatever it stands on, a rim along its solid edges and, on some courses,
+ * drips or icicles over its open ones.
+ */
+export function tierMesh(L: LevelDef, i: number, toScene: ToScene, HW: number, HH: number, look: LevelLook) {
   const tiers = L.tiers!, t = tiers[i];
   const g = new THREE.Group();
   const cxy = t.pts.reduce((a, [x, y]) => [a[0] + x / t.pts.length, a[1] + y / t.pts.length], [0, 0]);
@@ -189,7 +288,7 @@ export function cakeTier(L: LevelDef, i: number, toScene: ToScene, HW: number, H
   for (let k = 0; k < pos.length / 3; k++) {
     const x = pos[k * 3] + HW, y = pos[k * 3 + 2] + HH;
     pos[k * 3 + 1] = topAt(x, y) + 0.05;
-    uv[k * 2] = x / 260; uv[k * 2 + 1] = y / 260;
+    uv[k * 2] = x / look.tile; uv[k * 2 + 1] = y / look.tile;
     const shade = Math.max(0.85, Math.min(1.12, 1 + (groundAt(L, x, y)) * 0.035));
     col[k * 3] = col[k * 3 + 1] = col[k * 3 + 2] = shade;
   }
@@ -198,14 +297,14 @@ export function cakeTier(L: LevelDef, i: number, toScene: ToScene, HW: number, H
   top.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   top.setAttribute('color', new THREE.BufferAttribute(col, 3));
   top.computeVertexNormals();
-  const topMesh = new THREE.Mesh(top, tierTopMaterial(level));
+  const topMesh = new THREE.Mesh(top, look.top(level));
   topMesh.receiveShadow = true;
   g.add(topMesh);
 
   // Sides, rim and drips
   const area = t.pts.reduce((a, [x1, y1], k) => { const [x2, y2] = t.pts[(k + 1) % t.pts.length]; return a + x1 * y2 - x2 * y1; }, 0);
   const side: number[] = [], sideUv: number[] = [];
-  const beads: THREE.Vector3[] = [], drips: { p: THREE.Vector3; len: number }[] = [];
+  const beads: THREE.Vector3[] = [], rims: THREE.Vector3[][] = [], drips: { p: THREE.Vector3; len: number }[] = [];
   const r = rng(i * 31 + 7);
   let along = 0;
   t.pts.forEach(([ax, ay], k) => {
@@ -226,10 +325,11 @@ export function cakeTier(L: LevelDef, i: number, toScene: ToScene, HW: number, H
       side.push(A.x, b0, A.z, B.x, b1, B.z, B.x, t1, B.z, A.x, b0, A.z, B.x, t1, B.z, A.x, t0, A.z);
       sideUv.push(ua, va(b0, t0), ub, va(b1, t1), ub, 1, ua, va(b0, t0), ub, 1, ua, 1);
     }
+    if (!open && look.rim.kind === 'tube') rims.push([toScene(ax, ay).setY(topAt(ax, ay) + look.rim.r * 0.6), toScene(bx, by).setY(topAt(bx, by) + look.rim.r * 0.6)]);
     for (let s = 0; s * 8 < len; s++) {
       const x = ax + dx * s * 8, y = ay + dy * s * 8;
-      if (!open) beads.push(toScene(x, y).setY(topAt(x, y) + 2.2));
-      else if (s % 2 === 0) drips.push({ p: toScene(x + nx * 1.2, y + ny * 1.2).setY(topAt(x, y)), len: 3 + r() * 12 });
+      if (!open && look.rim.kind === 'beads') beads.push(toScene(x, y).setY(topAt(x, y) + look.rim.r * 0.5));
+      else if (open && look.drip && s % 2 === 0) drips.push({ p: toScene(x + nx * 1.2, y + ny * 1.2).setY(topAt(x, y)), len: 3 + r() * 12 });
     }
     along += len;
   });
@@ -237,21 +337,27 @@ export function cakeTier(L: LevelDef, i: number, toScene: ToScene, HW: number, H
   sg.setAttribute('position', new THREE.Float32BufferAttribute(side, 3));
   sg.setAttribute('uv', new THREE.Float32BufferAttribute(sideUv, 2));
   sg.computeVertexNormals();
-  const sides = new THREE.Mesh(sg, cakeSideMaterial(level));
+  const sides = new THREE.Mesh(sg, look.side(level));
   sides.castShadow = sides.receiveShadow = true;
   g.add(sides);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
   if (beads.length) {
-    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(4.4, 10, 6), toon(0xffffff), beads.length);
-    const m4 = new THREE.Matrix4();
+    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(look.rim.r, 10, 6), look.rim.mat, beads.length);
     beads.forEach((p, k) => im.setMatrixAt(k, m4.makeTranslation(p.x, p.y, p.z)));
     im.castShadow = true;
     g.add(im);
   }
-  if (drips.length) {
-    const frost = toon(new THREE.Color(TIER_FROSTING[level % TIER_FROSTING.length]).getHex());
-    // Each drip: a rounded drop 7 units long, stretched to its length, hanging from the top edge
-    const im = new THREE.InstancedMesh(new THREE.CapsuleGeometry(3, 1, 4, 8), frost, drips.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+  for (const [a, b] of rims) {
+    const rail = new THREE.Mesh(new THREE.CapsuleGeometry(look.rim.r, a.distanceTo(b), 4, 8).rotateZ(Math.PI / 2), look.rim.mat);
+    rail.position.copy(a).add(b).multiplyScalar(0.5);
+    rail.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+    rail.castShadow = true;
+    g.add(rail);
+  }
+  if (drips.length && look.drip) {
+    // Frosting drips are rounded drops stretched to length; icicles are cones pointing down
+    const geo = look.drip.icicle ? new THREE.ConeGeometry(2.6, 7, 6).rotateX(Math.PI) : new THREE.CapsuleGeometry(3, 1, 4, 8);
+    const im = new THREE.InstancedMesh(geo, look.drip.mat(level), drips.length);
     drips.forEach(({ p, len }, k) => im.setMatrixAt(k, m4.compose(new THREE.Vector3(p.x, p.y + 1 - len / 2, p.z), q, new THREE.Vector3(1, len / 7, 1))));
     g.add(im);
   }
@@ -272,10 +378,10 @@ function trackFrames(tr: Track, step: number, toScene: ToScene) {
 }
 
 /**
- * A rainbow slide: a half-pipe trough the ball rides in, held up on candy-stick posts, with a swirled
- * mouth on the level it starts from.
+ * A slide (a rainbow chute in Candy Land, an ice toboggan run in the Arctic, a striped circus slide...):
+ * a half-pipe trough the ball rides in, held up on posts, with a swirled mouth where it starts.
  */
-export function chuteMesh(L: LevelDef, c: Chute, toScene: ToScene) {
+export function chuteMesh(L: LevelDef, c: Chute, toScene: ToScene, look: LevelLook) {
   const g = new THREE.Group();
   const tr = chuteTrack(L, c, false);
   const fr = trackFrames(tr, 6, toScene);
@@ -283,8 +389,9 @@ export function chuteMesh(L: LevelDef, c: Chute, toScene: ToScene) {
   const pos: number[] = [], col: number[] = [], idx: number[] = [];
   const M = 12;
   const tmp = new THREE.Color();
+  const cols = look.chute.colors;
   fr.forEach((f, i) => {
-    tmp.setHex(CANDY[Math.floor(f.s / 22) % CANDY.length]);
+    tmp.setHex(cols[Math.floor(f.s / 22) % cols.length]);
     for (let j = 0; j <= M; j++) {
       const a = -A + (2 * A * j) / M;
       const p = f.c.clone().addScaledVector(f.side, Math.sin(a) * R).setY(f.c.y + R - Math.cos(a) * R);
@@ -301,31 +408,28 @@ export function chuteMesh(L: LevelDef, c: Chute, toScene: ToScene) {
   const trough = new THREE.Mesh(geo, toon(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
   trough.castShadow = trough.receiveShadow = true;
   g.add(trough);
-  // White lips along both edges
   for (const sgn of [-1, 1]) {
     const pts = fr.map((f) => f.c.clone().addScaledVector(f.side, sgn * Math.sin(A) * R).setY(f.c.y + R - Math.cos(A) * R));
-    g.add(part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 1.8, 6), toon(0xffffff), 0.4, false));
+    g.add(part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 1.8, 6), toon(look.chute.lip), 0.4, false));
   }
-  // Candy-stick posts wherever the slide is up off the ground
+  // Posts wherever the slide is up off the ground
   let last = -Infinity;
   for (const f of fr) {
     const ground = heightAt(L, f.x, f.y), gap = f.c.y - ground;
     if (gap < 8 || f.s - last < 60) continue;
     last = f.s;
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, gap + 4, 10).translate(0, (gap + 4) / 2 - 4, 0), caneMaterial());
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, gap + 4, 10).translate(0, (gap + 4) / 2 - 4, 0), look.chute.post());
     post.position.copy(f.c).setY(ground);
     post.castShadow = true;
     g.add(post);
   }
-  // The mouth: a swirled lollipop disc ringed in rainbow, where the ball drops in
+  // The mouth: a swirled disc ringed in the course's colours, where the ball drops in
   const [mx, my] = c.path[0];
   const mouth = new THREE.Group();
   mouth.position.copy(toScene(mx, my)).setY(heightAt(L, mx, my) + 0.4);
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(CHUTE_CATCH, 32).rotateX(-Math.PI / 2), new THREE.MeshToonMaterial({ map: swirlTex('#2a1a4a', '#7a4aff'), gradientMap: toonRamp() }));
-  mouth.add(disc);
-  CANDY.forEach((cc, k) => {
-    if (k % 2) return;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(CHUTE_CATCH + 2 + k, 1.6, 6, 40).rotateX(Math.PI / 2), toon(cc));
+  mouth.add(new THREE.Mesh(new THREE.CircleGeometry(CHUTE_CATCH, 32).rotateX(-Math.PI / 2), new THREE.MeshToonMaterial({ map: swirlTex(...look.chute.mouth), gradientMap: toonRamp() })));
+  look.chute.ring.forEach((cc, k) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(CHUTE_CATCH + 2 + k * 2, 1.6, 6, 40).rotateX(Math.PI / 2), toon(cc));
     ring.position.y = 1;
     mouth.add(ring);
   });
@@ -344,41 +448,109 @@ function swirlTex(a: string, b: string) {
   }));
 }
 
-// ---------- ladders ----------
+// ---------- ladders, stairs and ski lifts ----------
 
-/** A candy-cane ladder: striped rails with hooked tops and white rungs, and a ring round its foot. */
-export function ladderMesh(L: LevelDef, c: Chute, toScene: ToScene): Animated {
+/**
+ * The way up a level: a ladder (candy canes, timber, striped poles or a metal gantry), a flight of stone
+ * stairs in the tomb, or a chairlift in the Arctic whose chair carries the ball up. A glowing ring marks
+ * where to roll the ball on.
+ */
+export function ladderMesh(L: LevelDef, c: Chute, toScene: ToScene, world: World, look: LevelLook): Animated {
   const g = new THREE.Group();
   const tr = chuteTrack(L, c, true);
-  // The ladder itself runs up to the lip; past it the track is just the cake top
+  // The ladder itself runs up to the lip; past it the track is just the top of the level
   const zTop = tr.pts[tr.pts.length - 1].z;
   const lip = tr.pts.find((p) => p.z >= zTop - 0.01)?.s ?? tr.len;
   const fr = trackFrames({ ...tr, len: lip }, 4, toScene);
   const W = BALL_R - 1;
-  for (const sgn of [-1, 1]) {
-    const pts = fr.map((f) => f.c.clone().addScaledVector(f.side, sgn * W).setY(f.c.y + 4));
-    const end = pts[pts.length - 1], dir = end.clone().sub(pts[pts.length - 2]).setY(0).normalize();
-    // The hook at the top, curling over forward
-    for (let k = 1; k <= 6; k++) { const a = (k / 6) * Math.PI; pts.push(end.clone().addScaledVector(dir, Math.sin(a) * 6).setY(end.y + (1 - Math.cos(a)) * 6)); }
-    const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, 2.4, 8);
-    const mat = caneMaterial();
-    (mat.map as THREE.Texture).repeat.set(Math.max(1, Math.round(tr.len / 10)), 1);
-    g.add(part(tube, mat, 0.5));
-  }
-  for (let s = LADDER_RUNG / 2; s < lip; s += LADDER_RUNG) {
-    const p = trackAt(tr, s);
-    const cpos = toScene(p.x, p.y).setY(p.z + 2.5);
-    const rung = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, W * 2, 8).rotateX(Math.PI / 2), toon(0xffffff));
-    rung.position.copy(cpos);
-    rung.rotation.y = -Math.atan2(p.dy, p.dx);
-    rung.castShadow = true;
-    g.add(rung);
+  const kind = look.ladder.kind;
+  let chair: THREE.Group | null = null;
+  if (kind === 'cane' || kind === 'rails') {
+    for (const sgn of [-1, 1]) {
+      const pts = fr.map((f) => f.c.clone().addScaledVector(f.side, sgn * W).setY(f.c.y + 4));
+      if (kind === 'cane') {
+        // The hook at the top, curling over forward
+        const end = pts[pts.length - 1], dir = end.clone().sub(pts[pts.length - 2]).setY(0).normalize();
+        for (let k = 1; k <= 6; k++) { const a = (k / 6) * Math.PI; pts.push(end.clone().addScaledVector(dir, Math.sin(a) * 6).setY(end.y + (1 - Math.cos(a)) * 6)); }
+      }
+      const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, 2.4, 8);
+      const mat = kind === 'cane' ? caneMaterial() : look.ladder.rail!();
+      if (mat instanceof THREE.MeshToonMaterial && mat.map) mat.map.repeat.set(Math.max(1, Math.round(tr.len / 10)), 1);
+      g.add(part(tube, mat, 0.5));
+    }
+    for (let s = LADDER_RUNG / 2; s < lip; s += LADDER_RUNG) {
+      const p = trackAt(tr, s);
+      const rung = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, W * 2, 8).rotateX(Math.PI / 2), toon(kind === 'cane' ? 0xffffff : look.ladder.rung ?? 0xffffff));
+      rung.position.copy(toScene(p.x, p.y).setY(p.z + 2.5));
+      rung.rotation.y = -Math.atan2(p.dy, p.dx);
+      rung.castShadow = true;
+      g.add(rung);
+    }
+  } else if (kind === 'stairs') {
+    // Sandstone steps, each a block from the ground up to the track
+    const stone = toon(0xe0b070), edge = toon(0xc89050);
+    for (let s = 0; s < lip; s += LADDER_RUNG) {
+      const p = trackAt(tr, Math.min(lip, s + LADDER_RUNG)), base = heightAt(L, p.x, p.y) - 4, h = p.z - base;
+      if (h <= 0.5) continue;
+      const step = part(new THREE.BoxGeometry(LADDER_RUNG, h, W * 2 + 10).translate(0, h / 2, 0), stone, 0.8);
+      const m = trackAt(tr, s + LADDER_RUNG / 2);
+      step.position.copy(toScene(m.x, m.y).setY(base));
+      step.rotation.y = -Math.atan2(p.dy, p.dx);
+      g.add(step);
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(2, 1.6, W * 2 + 10), edge);
+      nose.position.copy(step.position).setY(base + h - 0.8).addScaledVector(new THREE.Vector3(p.dx, 0, p.dy), -LADDER_RUNG / 2);
+      nose.rotation.y = step.rotation.y;
+      g.add(nose);
+    }
+  } else {
+    // A chairlift: a pylon at each end, the cable between them, and a chair that waits at the bottom and
+    // rides up with the ball
+    const a = fr[0], b = fr[fr.length - 1];
+    const H = 46;
+    for (const f of [a, b]) {
+      const pylon = part(new THREE.CylinderGeometry(2.2, 3, H + (f === a ? 0 : 0), 8).translate(0, H / 2, 0), toon(0x5a6a7a), 0.8);
+      pylon.position.copy(f.c).addScaledVector(f.side, W + 10).setY(heightAt(L, f.x, f.y));
+      g.add(pylon);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(3, 3, W + 12), toon(0x5a6a7a));
+      arm.position.copy(f.c).addScaledVector(f.side, (W + 10) / 2).setY(heightAt(L, f.x, f.y) + H);
+      arm.rotation.y = -Math.atan2(f.side.z, f.side.x) + Math.PI / 2;
+      g.add(arm);
+    }
+    const cableA = a.c.clone().setY(heightAt(L, a.x, a.y) + H), cableB = b.c.clone().setY(heightAt(L, b.x, b.y) + H);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, cableA.distanceTo(cableB), 6), toon(0x2a2a30));
+    cable.position.copy(cableA).add(cableB).multiplyScalar(0.5);
+    cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), cableB.clone().sub(cableA).normalize());
+    g.add(cable);
+    chair = new THREE.Group();
+    const seat = part(new THREE.BoxGeometry(22, 3, 26), toon(0xd8202e), 0.6);
+    chair.add(seat);
+    const back = part(new THREE.BoxGeometry(3, 16, 26).translate(-11, 8, 0), toon(0xd8202e), 0.6);
+    chair.add(back);
+    const hanger = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 1, 6).translate(0, 0.5, 0), toon(0x2a2a30));
+    chair.add(hanger);
+    chair.userData = { hanger, cableA, cableB };
+    g.add(chair);
   }
   const [fx, fy] = c.path[0];
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(CHUTE_CATCH, 2.2, 6, 36).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfff07a, transparent: true, opacity: 0.85 }));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(CHUTE_CATCH, 2.2, 6, 36).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: look.ladder.ring, transparent: true, opacity: 0.85 }));
   ring.position.copy(toScene(fx, fy)).setY(heightAt(L, fx, fy) + 1);
   g.add(ring);
-  return { group: g, update: (_a, t) => { const s = 1 + 0.08 * Math.sin(t * 4); ring.scale.set(s, 1, s); } };
+  return {
+    group: g,
+    update: (_a, t) => {
+      const s = 1 + 0.08 * Math.sin(t * 4); ring.scale.set(s, 1, s);
+      if (!chair) return;
+      // The chair sits under the ball while it rides, otherwise it waits at the bottom
+      const r = world.ride?.track === tr ? world.ride : null;
+      const p = trackAt(tr, r ? Math.min(r.s, lip) : 0);
+      chair.position.copy(toScene(p.x, p.y)).setY(p.z - 2);
+      chair.rotation.y = -Math.atan2(p.dy, p.dx);
+      const { hanger, cableA, cableB } = chair.userData as { hanger: THREE.Mesh; cableA: THREE.Vector3; cableB: THREE.Vector3 };
+      const u = Math.min(1, (r ? Math.min(r.s, lip) : 0) / (lip || 1));
+      const cy = cableA.y + (cableB.y - cableA.y) * u;
+      hanger.scale.y = Math.max(1, cy - chair.position.y);
+    },
+  };
 }
 
 // ---------- gumdrops, lollipops, gingerbread men ----------

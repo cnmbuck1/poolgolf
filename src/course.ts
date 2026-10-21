@@ -6,12 +6,12 @@ import { Bridge, Bumper, LevelDef, Theme, WORLD_H, WORLD_W, Zone } from './level
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
 import { lawnMaterial } from './art';
 import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
-import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, setInkColor, toon, tumbleweed } from './jurassic';
-import { cakeTier, candyKerb, candyLandscape, chuteMesh, frostingMaterial, gingerbreadMan, gumdrop, ladderMesh, lollipop, sugarGroundMaterial } from './candy';
+import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, geyser, jurassicLandscape, lavaSurfaceMaterial, setInkColor, toon, tumbleweed } from './jurassic';
+import { candyKerb, candyLandscape, chuteMesh, frostingMaterial, gingerbreadMan, gumdrop, ladderMesh, levelLook, lollipop, sugarGroundMaterial, tierMesh } from './candy';
 import { arcticLandscape, iceKerb, iceMaterial, igloo, penguin, polarBear, seal, skiRamp, snowfieldMaterial, snowMaterial } from './arctic';
 import { desertMaterial, mummy, pillar, portal, quicksandPatch, sandstoneMaterial, stoneDoor, templeKerb, tombLandscape } from './tomb';
 import { cannon, circusLandscape, clown, elephant, feltMaterial, sawdustMaterial, stripedKerb, trampoline } from './circus';
-import { alien, asteroid, astronaut, fallingMeteor, landingRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
+import { alien, asteroid, astronaut, fallingMeteor, landingRocket, launchRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
 import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, groundAt, heightAt, inZone, onBridge, palmR, zoneCentre, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
@@ -242,9 +242,12 @@ export function buildCourse(world: World, models: Models | null): Course {
     }), iceMaterial()));
     m.receiveShadow = true;
   });
-  (L.tiers ?? []).forEach((_, i) => add(cakeTier(L, i, to3, HW, HH)));
-  for (const c of L.chutes ?? []) add(chuteMesh(L, c, to3));
-  for (const c of L.ladders ?? []) { const a = ladderMesh(L, c, to3); add(a.group); anims.push(a); }
+  // Raised levels and the ways between them, drawn in the course's own style
+  const look = levelLook(L.theme ?? 'candy');
+  (L.tiers ?? []).forEach((_, i) => add(tierMesh(L, i, to3, HW, HH, look)));
+  for (const c of L.chutes ?? []) add(chuteMesh(L, c, to3, look));
+  for (const c of L.ladders ?? []) { const a = ladderMesh(L, c, to3, world, look); add(a.group); anims.push(a); }
+  for (const lf of L.lifts ?? []) { const a = lf.kind === 'rocket' ? launchRocket(lf, world, L, to3) : geyser(lf, world, L, to3); add(a.group); anims.push(a); }
   for (const gm of L.gingerbread ?? []) { const a = gingerbreadMan(gm, world, L, to3); add(a.group); anims.push(a); }
   for (const sl of L.seals ?? []) { const a = seal(sl, world, L, to3); add(a.group); anims.push(a); }
   for (const rp of L.ramps ?? []) add(skiRamp(rp, L, to3));

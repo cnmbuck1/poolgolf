@@ -1253,7 +1253,7 @@ function stepReplay(dt: number) {
     if (ev.type === 'wall' || ev.type === 'rail' || ev.type === 'bumper' || ev.type === 'spinner') {
       sfx[ev.type](ev.speed);
       view3d.bounceBall(ev.speed);
-    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing })[ev.by]();
+    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing, rocket: sfx.rocket, geyser: sfx.geyser })[ev.by]();
     else if (ev.type === 'teleport') (ev.via === 'igloo' ? sfx.igloo : sfx.portal)();
     else if (ev.type === 'chute') sfx.slide();
     else if (ev.type === 'ladder') sfx.ladder();
@@ -1311,6 +1311,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
   <p>In <b>Pharaoh's Tomb</b>, roll into a teal scarab portal to come out of its violet partner; stone doors rise and sink on a timer; and quicksand grips the ball and drags it in: stop in it and it's swallowed (+1 stroke).</p>
   <p>In <b>Candy Land</b>, roll off the open edge of a cake layer to drop to the level below (edges with an icing rim are solid). Roll onto a <b>ladder</b>'s glowing foot to climb up a layer, and into a <b>chute</b>'s swirl to slide down one. Some chutes are shortcuts; some send you back to the start! Chocolate costs a stroke.</p>
+  <p>Every course has <b>raised levels</b>. Look for the way up: a geyser in the canyon, a launch rocket on the moon, the cannon or a ladder in the circus, stairs or a portal in the tomb, and a ski lift in the Arctic. Watch out for a toboggan run behind the cup!</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
@@ -1477,6 +1478,8 @@ function tick(dt: number) {
         if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast('BOOM!', 'good', 700); }
         else if (ev.by === 'seal') { sfx.seal(); buzz(ImpactStyle.Medium); toast('Flipped!', 'good', 700); }
         else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
+        else if (ev.by === 'rocket') { sfx.rocket(); view3d.shake(3); buzz(ImpactStyle.Heavy); toast('Blast off!', 'good', 900); }
+        else if (ev.by === 'geyser') { sfx.geyser(); view3d.shake(2); buzz(ImpactStyle.Heavy); toast('Geyser!', 'good', 900); }
         else { sfx.boing(); buzz(ImpactStyle.Medium); toast('Boing!', 'good', 600); }
         break;
       case 'land':
@@ -1494,13 +1497,14 @@ function tick(dt: number) {
         const c = (world.level.chutes ?? []).find((k) => Math.hypot(b.x - k.path[0][0], b.y - k.path[0][1]) < 30);
         const [cx, cy] = world.level.cup, end = c?.path[c.path.length - 1];
         const back = !!end && Math.hypot(end[0] - cx, end[1] - cy) > Math.hypot(b.x - cx, b.y - cy) + 150;
-        toast(back ? 'Down the chute! Back you go' : 'Wheee!', back ? 'bad' : 'good', 1000);
+        const name = world.level.theme === 'arctic' ? 'toboggan' : world.level.theme === 'circus' ? 'slide' : 'chute';
+        toast(back ? `Down the ${name}! Back you go` : 'Wheee!', back ? 'bad' : 'good', 1000);
         break;
       }
       case 'ladder':
         sfx.ladder();
         buzz(ImpactStyle.Light);
-        toast('Up the ladder!', 'good', 900);
+        toast(world.level.theme === 'arctic' ? 'All aboard the ski lift!' : world.level.theme === 'tomb' ? 'Up the stairs!' : 'Up the ladder!', 'good', 900);
         break;
       case 'drop':
         sfx.drop();

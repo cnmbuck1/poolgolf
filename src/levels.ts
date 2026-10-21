@@ -93,6 +93,12 @@ export interface Tier { pts: Pt[]; h: number; open?: number[] }
  * sliding down a chute or climbing a ladder, and rolls off the end the way the path ends.
  */
 export interface Chute { path: Pt[] }
+/**
+ * A launcher that carries the ball through the air to `to`, usually up onto another level: a ball rolling
+ * onto it is caught (any speed) and lands gently at `to`, rolling on the way it flew. A launch rocket on the
+ * moon, a geyser in the canyon.
+ */
+export interface Lift { x: number; y: number; to: Pt; kind: 'rocket' | 'geyser' }
 export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy';
 
 /**
@@ -152,6 +158,7 @@ export interface LevelDef {
   chutes?: Chute[];
   /** Ladders that carry the ball up from one level to another. */
   ladders?: Chute[];
+  lifts?: Lift[];
   /** Gingerbread men strolling between two points (same motion as an astronaut). */
   gingerbread?: Astronaut[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
@@ -389,18 +396,22 @@ const JURASSIC: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 880, y: 130, r: 60, h: -2.5 }],
   },
   {
-    // Two volcanoes shoulder the fairway; their slopes push the ball away. A lava channel
-    // runs behind the left one, and a gravel pit waits by the cup.
-    name: 'Volcano Ridge',
+    // The cup sits up on a red-rock mesa. Roll into the geyser between the volcanoes and it blasts the
+    // ball up onto the mesa, or go round the second volcano to the timber ladder.
+    name: 'Geyser Mesa',
     par: 3,
     tee: [100, 250],
-    cup: [900, 250],
+    cup: [875, 300],
     outline: [[40, 160], [180, 40], [820, 40], [960, 160], [960, 340], [820, 460], [180, 460], [40, 340]],
-    volcanoes: [{ x: 400, y: 205, r: 95 }, { x: 620, y: 300, r: 95 }],
+    tiers: [{ pts: [[700, 40], [820, 40], [960, 160], [960, 340], [820, 460], [700, 460]], h: 40 }],
+    lifts: [{ x: 620, y: 235, to: [800, 200], kind: 'geyser' }],
+    ladders: [{ path: [[655, 400], [739, 400]] }],
+    volcanoes: [{ x: 400, y: 190, r: 85 }, { x: 545, y: 330, r: 75 }],
     water: [creek([[250, 40], [330, 60], [440, 50], [520, 40]], 50, 5)],
-    sand: [blob(810, 140, 55, 30, 7, 0.2, 20)],
-    rocks: [{ x: 520, y: 250, r: 18 }],
-    palms: [{ x: 250, y: 330 }, { x: 790, y: 360, height: 140 }],
+    sand: [blob(830, 150, 45, 26, 7, 0.2, 20)],
+    rocks: [{ x: 520, y: 110, r: 18 }],
+    palms: [{ x: 250, y: 330 }, { x: 790, y: 390, height: 140 }],
+    slopes: [{ kind: 'hill', x: 875, y: 300, r: 50, h: -2 }],
   },
   {
     // The finale: a stegosaurus blocks the middle, tumbleweeds patrol the lane past it, and
@@ -502,23 +513,27 @@ const SPACE: LevelDef[] = [
     sand: [blob(830, 130, 48, 26, 7, 0.2, 20)],
   },
   {
-    // The finale: an asteroid stream, an astronaut on patrol, a crack into space with one bridge,
-    // and a rocket landing on the raised green.
+    // The finale: the green is up on a landing plateau. Roll into the launch rocket and it flies the ball
+    // up there over the crack into space, or cross the bridge and climb the gantry. Asteroids, an astronaut
+    // on patrol and a rocket landing by the cup.
     name: 'Lunar Landing',
     par: 4,
     tee: [100, 250],
     cup: [905, 250],
     outline: [[40, 150], [160, 40], [840, 40], [960, 150], [960, 350], [840, 460], [160, 460], [40, 350]],
+    tiers: [{ pts: [[780, 40], [840, 40], [960, 150], [960, 350], [840, 460], [780, 460]], h: 40 }],
+    lifts: [{ x: 560, y: 120, to: [860, 140], kind: 'rocket' }],
+    ladders: [{ path: [[735, 330], [819, 330]] }],
     asteroids: [{ a: [290, 70], b: [290, 430], speed: 110, r: 22 }, { a: [390, 430], b: [390, 70], speed: 90, r: 18, phase: 0.5 }],
-    astronauts: [{ a: [530, 120], b: [530, 380], speed: 50, phase: 0.3 }],
-    water: [creek([[700, 40], [670, 160], [720, 300], [690, 460]], 64, 8)],
-    bridges: [{ x: 700, y: 250, len: 140, width: 60, angle: 5 }],
+    astronauts: [{ a: [480, 200], b: [480, 400], speed: 50, phase: 0.3 }],
+    water: [creek([[640, 40], [615, 160], [660, 300], [630, 460]], 64, 8)],
+    bridges: [{ x: 644, y: 250, len: 140, width: 60, angle: 5 }],
     rockets: [{ x: 835, y: 250, period: 10, phase: 0.4 }],
     meteors: [{ x: 160, y: 360, r: 20, period: 9, phase: 0.2 }],
-    craters: [{ x: 200, y: 140, r: 55 }, { x: 450, y: 250, r: 45 }, { x: 790, y: 385, r: 40 }],
-    rocks: [{ x: 600, y: 420, r: 20 }],
-    palms: [{ x: 610, y: 110 }],
-    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+    craters: [{ x: 200, y: 140, r: 55 }, { x: 450, y: 300, r: 40 }, { x: 725, y: 410, r: 30 }],
+    rocks: [{ x: 540, y: 420, r: 20 }],
+    palms: [{ x: 720, y: 110 }],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 80, h: 3 }],
   },
 ];
 
@@ -547,17 +562,20 @@ const CIRCUS: LevelDef[] = [
     sand: [blob(830, 360, 50, 24, 4, 0.2, -10)],
   },
   {
-    // The human cannonball: roll into the cannon and it fires you across the tent. It swings, so time it:
-    // too early or too late and you're out of the ring. The long way round is safe but slow.
+    // The human cannonball: roll into the cannon and it fires you up onto the stage where the cup is. It
+    // swings, so time it: too early and you're out of the ring, too late and you land on the floor below
+    // and have to climb the ladder.
     name: 'Human Cannonball',
     par: 4,
     tee: [100, 400],
-    cup: [880, 140],
+    cup: [705, 115],
     outline: [[40, 330], [140, 290], [560, 290], [620, 60], [960, 60], [960, 330], [880, 470], [40, 470]],
+    tiers: [{ pts: [[640, 60], [960, 60], [960, 240], [640, 240]], h: 36 }],
     cannons: [{ x: 430, y: 380, angle: -20, sweep: 25, speed: 0.9, dist: 470 }],
+    ladders: [{ path: [[800, 290], [800, 206]] }],
     elephants: [{ x: 680, y: 390, r: 36, angle: 160 }],
-    clowns: [{ a: [780, 90], b: [780, 300], speed: 55 }],
-    slopes: [{ kind: 'hill', x: 880, y: 140, r: 60, h: -2.5 }],
+    clowns: [{ a: [800, 90], b: [800, 180], speed: 40 }],
+    slopes: [{ kind: 'hill', x: 705, y: 115, r: 55, h: -2.5 }],
   },
   {
     // A zig-zag of walls with trampolines to hop them, but bounce too hard near the edge and you're out.
@@ -666,19 +684,22 @@ const TOMB: LevelDef[] = [
     quicksand: [blob(720, 300, 60, 40, 8, 0.25)],
   },
   {
-    // The pharaoh's chamber: a great door, a portal, quicksand by the steps and a mummy on guard,
-    // with the burial chamber raised at the far end.
+    // The pharaoh's chamber: the burial chamber stands on a raised dais. Time the great door, then climb the
+    // stairs or roll into the scarab portal, which transports the ball up onto the far end of the dais. A second door
+    // guards the cup, with quicksand either side and a mummy on patrol.
     name: "Pharaoh's Chamber",
     par: 4,
     tee: [100, 250],
     cup: [905, 250],
     outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
-    doors: [{ x: 640, y: 250, len: 400, angle: 90, period: 5, phase: 0.2 }, { x: 800, y: 250, len: 130, angle: 90, period: 3, phase: 0.5 }],
-    portals: [{ a: [330, 100], b: [740, 420], exit: -95 }],
+    tiers: [{ pts: [[760, 50], [840, 50], [960, 150], [960, 350], [840, 450], [760, 450]], h: 36 }],
+    ladders: [{ path: [[715, 250], [799, 250]] }],
+    doors: [{ x: 640, y: 250, len: 400, angle: 90, period: 5, phase: 0.2 }, { x: 850, y: 250, len: 210, angle: 90, period: 3, phase: 0.5 }],
+    portals: [{ a: [700, 110], b: [790, 410], exit: -80 }],
     mummies: [{ a: [470, 120], b: [470, 380], speed: 50 }],
-    quicksand: [blob(850, 130, 50, 36, 4, 0.25), blob(850, 370, 50, 36, 6, 0.25)],
+    quicksand: [blob(880, 135, 40, 30, 4, 0.25), blob(880, 370, 40, 30, 6, 0.25)],
     pillars: [{ x: 250, y: 380, r: 18 }, { x: 560, y: 100, r: 16 }],
-    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 80, h: 3 }],
   },
 ];
 
@@ -711,17 +732,21 @@ const ARCTIC: LevelDef[] = [
     ice: [blob(240, 250, 70, 50, 5, 0.2)],
   },
   {
-    // A crevasse of icy water splits the field. Hit the ski jump with pace to fly it, or take the
-    // narrow ice bridge the long way round.
+    // A crevasse of icy water splits the field and the cup is up on a snowy ridge. Fly the ski jump over the
+    // crevasse or cross the ice bridge, then ride the ski lift up.
+    // Overshoot the cup and the toboggan run takes you all the way back down.
     name: 'Ski Jump',
     par: 4,
     tee: [100, 380],
     cup: [860, 160],
     outline: [[40, 120], [130, 50], [900, 50], [960, 120], [960, 380], [880, 460], [40, 460]],
-    water: [creek([[520, 30], [480, 160], [540, 300], [500, 480]], 90, 2), blob(760, 215, 40, 28, 4, 0.25)],
+    tiers: [{ pts: [[640, 50], [900, 50], [960, 120], [960, 270], [640, 270]], h: 40 }],
+    ladders: [{ path: [[720, 320], [720, 230]] }],
+    chutes: [{ path: [[932, 165], [990, 210], [995, 420], [800, 505], [400, 505], [200, 475], [160, 420]] }],
+    water: [creek([[520, 30], [480, 160], [540, 300], [500, 480]], 90, 2)],
     bridges: [{ x: 512, y: 92, len: 150, width: 50, angle: -5 }],
-    ramps: [{ x: 330, y: 330, angle: -8 }],
-    elephants: [{ x: 720, y: 330, r: 36, angle: 200 }],
+    ramps: [{ x: 330, y: 340, angle: 4 }],
+    elephants: [{ x: 850, y: 400, r: 36, angle: 200 }],
     sand: [blob(770, 110, 45, 26, 6, 0.2, 10)],
     slopes: [{ kind: 'hill', x: 860, y: 160, r: 60, h: -2.5 }],
   },

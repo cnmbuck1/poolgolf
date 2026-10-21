@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Cannon, Chute, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Chute, Lift, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -66,7 +66,7 @@ export type Event =
   | { type: 'spinner'; speed: number }
   | { type: 'sink' }
   | { type: 'water' }
-  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' }
+  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' | 'rocket' | 'geyser' }
   | { type: 'land' }
   | { type: 'oob' }
   | { type: 'teleport'; via?: 'igloo' }
@@ -89,7 +89,11 @@ export class World {
   /** Spin left on the ball from the last shot. */
   spin: Spin = { side: 0, vert: 0 };
   /** A flight off a trampoline or out of a cannon: from (x0, y0) to (x1, y1), then rolling on at (vx, vy). */
-  air: { t: number; dur: number; x0: number; y0: number; x1: number; y1: number; peak: number; vx: number; vy: number } | null = null;
+  /**
+   * `h0`, `h1`: ground height at take-off and landing (the arc rises from one to the other, so a flight up
+   * onto a higher level lands on it smoothly). `src`: the launcher that fired it, for the renderer.
+   */
+  air: { t: number; dur: number; x0: number; y0: number; x1: number; y1: number; peak: number; vx: number; vy: number; h0: number; h1: number; src?: Lift } | null = null;
   /** Falling off the open edge of tier `tier`: still rolling across the level below (walls and all), dropping at `vz`. */
   drop: { tier: number; vz: number } | null = null;
   /** Riding a chute or climbing a ladder: `s` units along its track, at `speed`. */
@@ -185,7 +189,9 @@ export class World {
         const u = Math.min(1, a.t / a.dur);
         b.x = a.x0 + (a.x1 - a.x0) * u;
         b.y = a.y0 + (a.y1 - a.y0) * u;
-        b.z = 4 * a.peak * u * (1 - u);
+        // Height above the line from take-off to landing, kept just clear of anything taller below
+        const ground = heightAt(this.level, b.x, b.y);
+        b.z = Math.max(a.h0 + (a.h1 - a.h0) * u + 4 * a.peak * u * (1 - u), ground + (u < 1 ? 2 : 0)) - ground;
         if (u < 1) continue;
         b.z = 0;
         this.air = null;
@@ -391,6 +397,14 @@ export class World {
       events.push({ type: 'launch', by: 'ramp' });
       return true;
     }
+    for (const lf of L.lifts ?? []) {
+      if (Math.hypot(b.x - lf.x, b.y - lf.y) > LIFT_CATCH) continue;
+      // Up and away, high over everything, then down gently onto the target
+      const d = Math.hypot(lf.to[0] - lf.x, lf.to[1] - lf.y), dx = (lf.to[0] - lf.x) / (d || 1), dy = (lf.to[1] - lf.y) / (d || 1);
+      this.fly(lf.x, lf.y, lf.to[0], lf.to[1], 1.1 + d / 900, lf.kind === 'rocket' ? 190 + d * 0.15 : 120 + d * 0.15, dx * 90, dy * 90, lf);
+      events.push({ type: 'launch', by: lf.kind });
+      return true;
+    }
     for (const c of L.cannons ?? []) {
       if (Math.hypot(b.x - c.x, b.y - c.y) > CANNON_CATCH) continue;
       const a = cannonAngle(c, this.time), dx = Math.cos(a), dy = Math.sin(a);
@@ -439,8 +453,8 @@ export class World {
     return false;
   }
 
-  private fly(x0: number, y0: number, x1: number, y1: number, dur: number, peak: number, vx: number, vy: number) {
-    this.air = { t: 0, dur, x0, y0, x1, y1, peak, vx, vy };
+  private fly(x0: number, y0: number, x1: number, y1: number, dur: number, peak: number, vx: number, vy: number, src?: Lift) {
+    this.air = { t: 0, dur, x0, y0, x1, y1, peak, vx, vy, h0: heightAt(this.level, x0, y0), h1: heightAt(this.level, x1, y1), src };
     // The ball's velocity points along the flight (the camera and the spin animation follow it)
     this.ball.vx = (x1 - x0) / dur; this.ball.vy = (y1 - y0) / dur;
     this.spin = { side: 0, vert: 0 };
@@ -767,7 +781,7 @@ function routeField(world: World) {
   const tierH = new Float64Array(W * H);
   if (L.tiers?.length) for (let i = 0; i < W * H; i++) { const x = (i % W) * G + G / 2 - O, y = ((i / W) | 0) * G + G / 2 - O; tierH[i] = heightAt(L, x, y) - groundAt(L, x, y); }
   const rides = new Map<number, { from: number; cost: number }[]>();
-  for (const c of [...(L.chutes ?? []), ...(L.ladders ?? [])]) {
+  for (const c of [...(L.chutes ?? []), ...(L.ladders ?? []), ...(L.lifts ?? []).map((lf) => ({ path: [[lf.x, lf.y], lf.to] as Pt[] }))]) {
     const a = c.path[0], b = c.path[c.path.length - 1], e = cell(b[0], b[1]);
     rides.set(e, [...(rides.get(e) ?? []), { from: cell(a[0], a[1]), cost: G }]);
   }
@@ -1113,6 +1127,7 @@ const DROP_G = 1400;
 /** A ball creeping over an open edge tips off at least this fast, so it clears the face. */
 const DROP_MIN_SPEED = 90;
 export const CHUTE_CATCH = 24;
+export const LIFT_CATCH = 22;
 const CHUTE_START = 160, CHUTE_G = 900, CHUTE_MAX = 620, CHUTE_EXIT = 180;
 export const LADDER_SPEED = 130, LADDER_EXIT = 150, LADDER_RUNG = 14;
 
