@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Cannon, Crater, Dino, Door, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -65,10 +65,10 @@ export type Event =
   | { type: 'spinner'; speed: number }
   | { type: 'sink' }
   | { type: 'water' }
-  | { type: 'launch'; by: 'trampoline' | 'cannon' }
+  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' }
   | { type: 'land' }
   | { type: 'oob' }
-  | { type: 'teleport' }
+  | { type: 'teleport'; via?: 'igloo' }
   | { type: 'quicksand' }
   | { type: 'lip' }
   | { type: 'stop' };
@@ -223,7 +223,8 @@ export class World {
       if (sp > 0) {
         // Topspin keeps it rolling; backspin bites; quicksand grips hardest of all
         const vertGrip = sn.vert > 0 ? 1 - 0.3 * sn.vert : 1 - 0.2 * sn.vert;
-        const sinking = quick ? QUICKSAND_FACTOR : sandy ? SAND_FACTOR : 1;
+        const icy = (this.level.ice ?? []).some((z) => inZone(z, b.x, b.y));
+        const sinking = quick ? QUICKSAND_FACTOR : sandy ? SAND_FACTOR : icy ? ICE_FACTOR : 1;
         const decel = (ROLL_DECEL + LIN_DAMP * sp) * sinking * vertGrip * h;
         const ns = Math.max(0, sp - decel);
         b.vx *= ns / sp;
@@ -270,6 +271,7 @@ export class World {
       for (const pm of this.level.palms ?? []) this.collideCircle(pm.x, pm.y, palmR(pm), PALM_E, events, 'wall');
       for (const el of this.level.elephants ?? []) this.collideCircle(el.x, el.y, el.r ?? ELEPHANT_R, ROCK_E, events, 'wall');
       for (const pl of this.level.pillars ?? []) this.collideCircle(pl.x, pl.y, pl.r, ROCK_E, events, 'wall');
+      for (const ig of this.level.igloos ?? []) this.collideCircle((ig.a[0] + ig.b[0]) / 2, (ig.a[1] + ig.b[1]) / 2, iglooDome(ig), ROCK_E, events, 'wall');
       for (const d of this.level.doors ?? []) if (doorClosed(d, this.time)) this.collideSeg(doorSeg(d), WALL_E, 0, 0, 0, events, 'wall');
       for (const v of this.level.volcanoes ?? []) this.collideCircle(v.x, v.y, volcanoCore(v.r), ROCK_E, events, 'wall');
       this.collideMovers(events);
@@ -304,6 +306,28 @@ export class World {
       events.push({ type: 'launch', by: 'trampoline' });
       return true;
     }
+    for (const sl of L.seals ?? []) {
+      if (Math.hypot(b.x - sl.x, b.y - sl.y) > SEAL_CATCH) continue;
+      // The seal flips it with its tail, over everything, toward where it's facing
+      const a = (sl.angle * Math.PI) / 180, dx = Math.cos(a), dy = Math.sin(a);
+      const x0 = sl.x + dx * 26, y0 = sl.y + dy * 26;
+      this.fly(x0, y0, x0 + dx * sl.dist, y0 + dy * sl.dist, 0.5 + sl.dist / 1000, 50 + sl.dist * 0.25, dx * 150, dy * 150);
+      events.push({ type: 'launch', by: 'seal' });
+      return true;
+    }
+    for (const rp of L.ramps ?? []) {
+      const a = (rp.angle * Math.PI) / 180, ux = Math.cos(a), uy = Math.sin(a);
+      const along = (b.x - rp.x) * ux + (b.y - rp.y) * uy, across = -(b.x - rp.x) * uy + (b.y - rp.y) * ux;
+      const len = rp.len ?? RAMP_LEN, w = rp.width ?? RAMP_W;
+      // Only taking off from the lip, heading up the ramp
+      if (sp < 120 || along < len / 2 - 18 || along > len / 2 + 4 || Math.abs(across) > w / 2) continue;
+      if ((b.vx * ux + b.vy * uy) / sp < 0.5) continue;
+      const dist = Math.max(160, Math.min(440, sp * 0.5));
+      const x0 = rp.x + ux * (len / 2), y0 = rp.y + uy * (len / 2);
+      this.fly(x0, y0, x0 + ux * dist, y0 + uy * dist, 0.45 + dist / 1000, 40 + dist * 0.3, ux * sp * 0.8, uy * sp * 0.8);
+      events.push({ type: 'launch', by: 'ramp' });
+      return true;
+    }
     for (const c of L.cannons ?? []) {
       if (Math.hypot(b.x - c.x, b.y - c.y) > CANNON_CATCH) continue;
       const a = cannonAngle(c, this.time), dx = Math.cos(a), dy = Math.sin(a);
@@ -315,9 +339,19 @@ export class World {
     return false;
   }
 
-  /** Scarab portals: a ball rolling into one comes out of its partner. */
+  /** Scarab portals and igloo tunnels: a ball rolling into one comes out of its partner. */
   private teleport(events: Event[]) {
     const b = this.ball;
+    for (const ig of this.level.igloos ?? []) {
+      if (Math.hypot(b.x - ig.a[0], b.y - ig.a[1]) > IGLOO_DOOR) continue;
+      const a = Math.atan2(ig.b[1] - ig.a[1], ig.b[0] - ig.a[0]), sp = Math.max(140, Math.hypot(b.vx, b.vy) * 0.9);
+      b.x = ig.b[0] + Math.cos(a) * (IGLOO_DOOR + 4);
+      b.y = ig.b[1] + Math.sin(a) * (IGLOO_DOOR + 4);
+      b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+      this.portalCool = 0.4;
+      events.push({ type: 'teleport', via: 'igloo' });
+      return;
+    }
     for (const p of this.level.portals ?? []) {
       if (Math.hypot(b.x - p.a[0], b.y - p.a[1]) > PORTAL_R) continue;
       const sp = Math.max(160, Math.hypot(b.vx, b.vy) * 0.95);
@@ -463,6 +497,10 @@ export class World {
     for (const bp of this.level.bumpers ?? []) {
       const d = Math.hypot(x - bp.x, y - bp.y);
       if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
+    }
+    for (const ig of this.level.igloos ?? []) {
+      const mx = (ig.a[0] + ig.b[0]) / 2, my = (ig.a[1] + ig.b[1]) / 2, d = Math.hypot(x - mx, y - my);
+      if (d < BALL_R + iglooDome(ig)) return { x: (x - mx) / d, y: (y - my) / d, e: ROCK_E };
     }
     for (const pl of this.level.pillars ?? []) {
       const d = Math.hypot(x - pl.x, y - pl.y);
@@ -640,6 +678,7 @@ function routeField(world: World) {
     || (L.palms ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + palmR(b))
     || (L.elephants ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + (b.r ?? ELEPHANT_R))
     || (L.pillars ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
+    || (L.igloos ?? []).some((ig) => Math.hypot(x - (ig.a[0] + ig.b[0]) / 2, y - (ig.a[1] + ig.b[1]) / 2) < BALL_R + iglooDome(ig))
     || (L.quicksand ?? []).some((z) => inZone(z, x, y))
     || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
     || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
@@ -733,6 +772,15 @@ export function zoneCentre(z: Zone): [number, number] {
 }
 
 export const TRAMPOLINE_R = 30;
+/** How close to a seal the ball must roll for its tail to flip it. */
+export const SEAL_CATCH = 24;
+export const RAMP_LEN = 90, RAMP_W = 56;
+/** Igloo doors: how close to a door's centre the ball must roll to go in. */
+export const IGLOO_DOOR = 20;
+/** Igloo dome radius: the doors sit just outside it. */
+export const iglooDome = (ig: Igloo) => Math.hypot(ig.b[0] - ig.a[0], ig.b[1] - ig.a[1]) / 2 - 6;
+/** Ice grips this much as hard as the felt. */
+const ICE_FACTOR = 0.22;
 /** How close to a scarab portal's centre the ball must roll to be taken. */
 export const PORTAL_R = 20;
 /** Quicksand grips this many times harder than the felt, and pulls toward its middle (units/s²). */
@@ -886,6 +934,7 @@ export function astronautAt(s: Astronaut, t: number) {
   return { x: s.a[0] + (s.b[0] - s.a[0]) * u, y: s.a[1] + (s.b[1] - s.a[1]) * u, vx: (s.b[0] - s.a[0]) * k, vy: (s.b[1] - s.a[1]) * k, r: ASTRONAUT_R };
 }
 export const ASTRONAUT_R = 17;
+export const PENGUIN_R = 14;
 
 /**
  * A landing rocket's cycle at time t: `h` is its height (1 = out of sight, 0 = on the pad), `u` the
@@ -933,6 +982,7 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const s of level.astronauts ?? []) circles.push({ ...astronautAt(s, t), e: 0.5, kind: 'wall' });
   for (const s of level.clowns ?? []) circles.push({ ...astronautAt(s, t), e: 0.6, kind: 'wall' });
   for (const s of level.mummies ?? []) circles.push({ ...astronautAt(s, t), e: 0.45, kind: 'wall' });
+  for (const s of level.penguins ?? []) circles.push({ ...astronautAt(s, t), r: PENGUIN_R, e: 0.55, kind: 'wall' });
   for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });
   for (const m of level.meteors ?? []) { const p = meteorAt(m, t); if (p.grounded) circles.push({ x: m.x, y: m.y, r: p.r, vx: 0, vy: 0, e: 0.5, kind: 'wall' }); }
   for (const d of level.dinos ?? []) {

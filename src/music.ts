@@ -22,6 +22,8 @@ interface Style {
   /** Chance of a melody note on each eighth. */
   density: number;
   swing?: number;
+  /** A high bell-like overtone on the melody (celesta). */
+  shimmer?: boolean;
 }
 
 const MAJOR = [0, 2, 4, 5, 7, 9, 11], MINOR_PENT = [0, 3, 5, 7, 10], LYDIAN = [0, 2, 4, 6, 7, 9, 11], HIJAZ = [0, 1, 4, 5, 7, 8, 10], MAJOR_PENT = [0, 2, 4, 7, 9];
@@ -32,6 +34,7 @@ const STYLES: Record<string, Style> = {
   jurassic: { bpm: 100, steps: 16, root: 57, scale: MINOR_PENT, chords: [0, 4, 3, 4], lead: 'sine', leadVol: 0.16, pluck: 0.22, bass: 'triangle', drums: 'tribal', density: 0.55 },
   space: { bpm: 84, steps: 16, root: 62, scale: LYDIAN, chords: [0, 1, 0, 4], lead: 'sine', leadVol: 0.08, pluck: 0.9, bass: 'sine', pad: 'sawtooth', arp: true, drums: 'pulse', density: 0.25 },
   circus: { bpm: 168, steps: 12, root: 60, scale: MAJOR, chords: [0, 4, 4, 0, 3, 0, 4, 0], lead: 'square', leadVol: 0.06, pluck: 0.2, bass: 'sawtooth', drums: 'oompah', density: 0.75 },
+  arctic: { bpm: 80, steps: 16, root: 67, scale: MAJOR_PENT, chords: [0, 3, 1, 4], lead: 'sine', leadVol: 0.12, pluck: 0.6, bass: 'sine', pad: 'triangle', arp: true, drums: 'soft', density: 0.4, shimmer: true },
   tomb: { bpm: 96, steps: 16, root: 62, scale: HIJAZ, chords: [0, 1, 0, 6], lead: 'sawtooth', leadVol: 0.06, pluck: 0.25, bass: 'triangle', drums: 'darbuka', density: 0.5 },
 };
 
@@ -110,6 +113,7 @@ function playStep(s: Style, i: number, t: number, dur: number) {
     voice(s.lead, f, t, Math.max(dur * 1.2, s.pluck), s.leadVol, s.lead === 'sawtooth' ? 1800 : 4000);
     if (s.drums === 'tribal') voice('sine', f * 4, t, 0.05, s.leadVol * 0.4, 8000); // marimba click
     if (s.drums === 'oompah') voice('square', f * 2, t, Math.max(dur, s.pluck), s.leadVol * 0.5, 5000); // calliope octave
+    if (s.shimmer) voice('sine', f * 3, t, 0.25, s.leadVol * 0.35, 9000); // celesta overtone
   }
   drums(s.drums, pos, perBeat, t, s.steps);
 }

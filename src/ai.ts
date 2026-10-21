@@ -41,6 +41,8 @@ function misread(L: LevelDef, k: number): LevelDef {
     ...L,
     slopes: (L.slopes ?? []).map((s) => (s.kind === 'hill' ? { ...s, h: s.h * k } : { ...s, drop: s.drop * k })),
     craters: (L.craters ?? []).map((c) => ({ ...c, depth: (c.depth ?? 7) * k, rim: (c.rim ?? 4) * k })),
+    // Ice is the hardest thing to judge: anyone short of a perfect reader plans as if it were snow
+    ice: [],
     // Volcano flanks can't be scaled: weak readers see just the cone's core as a boulder
     volcanoes: k >= 0.5 ? L.volcanoes : [],
     rocks: k >= 0.5 ? L.rocks : [...(L.rocks ?? []), ...(L.volcanoes ?? []).map((v) => ({ x: v.x, y: v.y, r: v.r * 0.42 }))],
@@ -138,7 +140,7 @@ export class Planner {
 
 /** Does anything on the hole move (so the moment of the shot matters)? */
 export function hasMovers(L: LevelDef) {
-  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length);
+  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length || L.penguins?.length);
 }
 
 /** Gaussian noise for the computer's aim and power. */

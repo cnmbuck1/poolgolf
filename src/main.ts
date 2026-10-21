@@ -132,7 +132,9 @@ function creatureHit() {
   const L = world.level, b = world.ball, t = world.time;
   const near = (x: number, y: number, r: number) => Math.hypot(b.x - x, b.y - y) < BALL_R + r + 8;
   const say = (f: () => void) => { lastCreature = time; f(); };
-  if ((L.elephants ?? []).some((e) => near(e.x, e.y, e.r ?? 38))) return say(sfx.elephant);
+  if ((L.elephants ?? []).some((e) => near(e.x, e.y, e.r ?? 38))) return say(L.theme === 'arctic' ? sfx.bear : sfx.elephant);
+  if ((L.penguins ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.penguin);
+  if ((L.seals ?? []).some((c) => near(c.x, c.y, 26))) return say(sfx.seal);
   if ((L.clowns ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.clown);
   if ((L.mummies ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.groanMummy);
   if ((L.astronauts ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.astronaut);
@@ -1226,8 +1228,8 @@ function stepReplay(dt: number) {
     if (ev.type === 'wall' || ev.type === 'rail' || ev.type === 'bumper' || ev.type === 'spinner') {
       sfx[ev.type](ev.speed);
       view3d.bounceBall(ev.speed);
-    } else if (ev.type === 'launch') (ev.by === 'cannon' ? sfx.cannon : sfx.boing)();
-    else if (ev.type === 'teleport') sfx.portal();
+    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing })[ev.by]();
+    else if (ev.type === 'teleport') (ev.via === 'igloo' ? sfx.igloo : sfx.portal)();
     else if (ev.type === 'land') sfx.land();
   }
   r.idx = p.i;
@@ -1280,6 +1282,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
   <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
   <p>In <b>Pharaoh's Tomb</b>, roll into a teal scarab portal to come out of its violet partner; stone doors rise and sink on a timer; and quicksand grips the ball and drags it in: stop in it and it's swallowed (+1 stroke).</p>
+  <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
@@ -1429,7 +1432,7 @@ function tick(dt: number) {
         break;
       }
       case 'water':
-        if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else sfx.water();
+        if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else if (world.level.theme === 'arctic') sfx.icewater(); else sfx.water();
         if (turn === 'player') sfx.groan();
         buzz(ImpactStyle.Heavy);
         fx.splash = { x: b.x, y: b.y, t: 0 };
@@ -1437,11 +1440,13 @@ function tick(dt: number) {
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
         updateHud();
         break;
       case 'launch':
         if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast('BOOM!', 'good', 700); }
+        else if (ev.by === 'seal') { sfx.seal(); buzz(ImpactStyle.Medium); toast('Flipped!', 'good', 700); }
+        else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
         else { sfx.boing(); buzz(ImpactStyle.Medium); toast('Boing!', 'good', 600); }
         break;
       case 'land':
@@ -1449,7 +1454,7 @@ function tick(dt: number) {
         view3d.bounceBall(700);
         break;
       case 'teleport':
-        sfx.portal();
+        if (ev.via === 'igloo') sfx.igloo(); else sfx.portal();
         buzz(ImpactStyle.Light);
         break;
       case 'quicksand':

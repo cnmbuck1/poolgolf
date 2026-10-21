@@ -273,6 +273,31 @@ export const sfx = {
     tone(260, 0.9, 'sine', 0.3, { slideTo: 60 });
     noise(0.8, 0.3, 'lowpass', 500, { sweepTo: 120 });
   },
+  /** A seal's bark as its tail flips the ball. */
+  seal: () => {
+    for (const at of [0, 0.18]) warble(420, 0.14, 'sawtooth', 0.18, { at, slideTo: 300, rate: 30, depth: 0.05, filter: 1600, attack: 0.01 });
+    tone(140, 0.12, 'sine', 0.3, { slideTo: 80 }); // the slap of the tail
+  },
+  /** Off a ski jump: a rising whoosh. */
+  whoosh: () => noise(0.5, 0.3, 'bandpass', 600, { sweepTo: 3000, q: 1.5, attack: 0.05 }),
+  /** Into a hole in the ice: a heavy plunk and a crackle of ice. */
+  icewater: () => {
+    noise(0.12, 0.45, 'bandpass', 1500, { q: 0.8 });
+    noise(0.6, 0.4, 'lowpass', 1800, { sweepTo: 150, at: 0.03, attack: 0.02 });
+    for (let i = 0; i < 5; i++) tone(3000 + Math.random() * 2500, 0.03, 'triangle', 0.05, { at: 0.1 + Math.random() * 0.4 });
+  },
+  /** Through an igloo: a hollow, echoing rumble. */
+  igloo: () => {
+    noise(0.5, 0.25, 'lowpass', 500, { attack: 0.05 });
+    tone(180, 0.4, 'sine', 0.15, { slideTo: 120, at: 0.05 });
+  },
+  penguin: () => {
+    for (const at of [0, 0.1, 0.2]) warble(700, 0.07, 'square', 0.08, { at, slideTo: 520, rate: 40, depth: 0.08, filter: 2500 });
+  },
+  bear: () => {
+    warble(95, 0.9, 'sawtooth', 0.28, { slideTo: 70, rate: 18, depth: 0.1, filter: 500, attack: 0.1 });
+    noise(0.7, 0.2, 'lowpass', 350, { attack: 0.1 });
+  },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];

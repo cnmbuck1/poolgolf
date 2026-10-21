@@ -66,11 +66,23 @@ export interface Portal { a: Pt; b: Pt; exit?: number }
  * floor and back up: open for the second half of every `period` seconds; `phase` (0..1) staggers doors.
  */
 export interface Door { x: number; y: number; len: number; angle: number; period?: number; phase?: number }
-/** An elephant standing on a drum: a big solid obstacle. */
+/**
+ * A seal on an ice floe: a ball rolling up to it is flipped by its tail through the air, `dist` units
+ * the way `angle` (degrees) points, over anything in between.
+ */
+export interface Seal { x: number; y: number; angle: number; dist: number }
+/**
+ * A ski-jump ramp centred at (x, y), rising toward `angle` (degrees): a ball running up it (roughly that
+ * way) takes off and flies, further the faster it arrives.
+ */
+export interface Ramp { x: number; y: number; angle: number; len?: number; width?: number }
+/** An igloo tunnel: roll in at the `a` door and slide out of the `b` door; the dome between is solid. */
+export interface Igloo { a: Pt; b: Pt }
+/** An elephant standing on a drum (a polar bear on the Arctic course): a big solid obstacle. */
 export interface Elephant { x: number; y: number; r?: number; angle?: number }
 /** An impact crater: a bowl `depth` deep inside radius r, ringed by a raised rim `rim` high. */
 export interface Crater { x: number; y: number; r: number; depth?: number; rim?: number }
-export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb';
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -116,6 +128,13 @@ export interface LevelDef {
   mummies?: Astronaut[];
   /** Columns and obelisks: solid round posts. */
   pillars?: Rock[];
+  /** Ice: the ball barely slows on it. */
+  ice?: Zone[];
+  seals?: Seal[];
+  ramps?: Ramp[];
+  igloos?: Igloo[];
+  /** Penguins waddling between two points (same motion as an astronaut). */
+  penguins?: Astronaut[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -643,6 +662,98 @@ const TOMB: LevelDef[] = [
   },
 ];
 
+const ARCTIC: LevelDef[] = [
+  {
+    // Ice through the gate slides a long way, so mind the drifts. Or roll up to the seal and let it
+    // flip you over everything to the green.
+    name: 'Snowfall',
+    par: 4,
+    tee: [110, 250],
+    cup: [880, 250],
+    outline: [[40, 160], [170, 50], [830, 50], [960, 160], [960, 340], [830, 450], [170, 450], [40, 340]],
+    ice: [blob(470, 250, 150, 80, 2, 0.2)],
+    bars: [{ x: 650, y: 115, len: 150, angle: 90 }, { x: 650, y: 385, len: 150, angle: 90 }],
+    sand: [blob(810, 120, 50, 28, 3, 0.2, 15), blob(810, 380, 50, 28, 4, 0.2, -15)],
+    seals: [{ x: 300, y: 395, angle: -6, dist: 495 }],
+    rocks: [{ x: 770, y: 250, r: 26 }, { x: 850, y: 175, r: 22 }],
+    penguins: [{ a: [420, 90], b: [420, 410], speed: 40 }],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // Three penguins waddle across the lane; an igloo tunnel runs straight through the middle.
+    name: 'Penguin Parade',
+    par: 3,
+    tee: [100, 250],
+    cup: [890, 340],
+    outline: [[40, 170], [140, 90], [860, 90], [960, 170], [960, 330], [860, 410], [140, 410], [40, 330]],
+    penguins: [{ a: [320, 110], b: [320, 390], speed: 55 }, { a: [690, 390], b: [690, 110], speed: 65, phase: 0.4 }, { a: [800, 120], b: [800, 380], speed: 45, phase: 0.7 }],
+    igloos: [{ a: [440, 250], b: [560, 250] }],
+    ice: [blob(240, 250, 70, 50, 5, 0.2)],
+  },
+  {
+    // A crevasse of icy water splits the field. Hit the ski jump with pace to fly it, or take the
+    // narrow ice bridge the long way round.
+    name: 'Ski Jump',
+    par: 4,
+    tee: [100, 380],
+    cup: [860, 160],
+    outline: [[40, 120], [130, 50], [900, 50], [960, 120], [960, 380], [880, 460], [40, 460]],
+    water: [creek([[520, 30], [480, 160], [540, 300], [500, 480]], 90, 2), blob(760, 215, 40, 28, 4, 0.25)],
+    bridges: [{ x: 512, y: 92, len: 150, width: 50, angle: -5 }],
+    ramps: [{ x: 330, y: 330, angle: -8 }],
+    elephants: [{ x: 720, y: 330, r: 36, angle: 200 }],
+    sand: [blob(770, 110, 45, 26, 6, 0.2, 10)],
+    slopes: [{ kind: 'hill', x: 860, y: 160, r: 60, h: -2.5 }],
+  },
+  {
+    // Two polar bears guard the approach and an ice wall seals the green, all but a small gap at the
+    // top. The seal on the right flips you clean over it.
+    name: 'Polar Bear Pass',
+    par: 4,
+    tee: [100, 250],
+    cup: [890, 250],
+    outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
+    elephants: [{ x: 420, y: 160, r: 42, angle: 160 }, { x: 420, y: 340, r: 42, angle: 200 }],
+    ice: [blob(280, 250, 90, 60, 7, 0.2)],
+    bars: [{ x: 680, y: 290, len: 330, angle: 90 }],
+    seals: [{ x: 580, y: 390, angle: -12, dist: 290 }],
+    penguins: [{ a: [780, 100], b: [780, 400], speed: 50 }],
+    slopes: [{ kind: 'hill', x: 890, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // A frozen lake: the ball slides and slides, and there are holes in the ice. A seal on a floe
+    // mid-lake can flip you toward the green.
+    name: 'Frozen Lake',
+    par: 4,
+    tee: [110, 400],
+    cup: [880, 120],
+    outline: [[40, 320], [120, 60], [960, 60], [960, 230], [880, 460], [40, 460]],
+    ice: [blob(520, 270, 330, 170, 9, 0.15)],
+    water: [blob(400, 200, 46, 34, 3, 0.25), blob(620, 360, 50, 36, 4, 0.25), blob(700, 200, 40, 30, 8, 0.25), blob(500, 262, 38, 30, 5, 0.25)],
+    seals: [{ x: 560, y: 320, angle: -48, dist: 270 }],
+    rocks: [{ x: 800, y: 150, r: 24 }],
+    sand: [blob(880, 260, 50, 30, 2, 0.2), blob(790, 90, 40, 24, 6, 0.2)],
+    slopes: [{ kind: 'hill', x: 880, y: 120, r: 60, h: -2.5 }],
+  },
+  {
+    // The finale under the northern lights: an ice wall sealed by an igloo. Go through the tunnel or
+    // fly the wall off the ski jump, then hold the slippery raised green.
+    name: 'Northern Lights',
+    par: 4,
+    tee: [100, 250],
+    cup: [905, 250],
+    outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
+    bars: [{ x: 520, y: 125, len: 150, angle: 90 }, { x: 520, y: 375, len: 150, angle: 90 }],
+    igloos: [{ a: [462, 250], b: [578, 210] }],
+    ramps: [{ x: 330, y: 120, angle: -4 }],
+    penguins: [{ a: [700, 90], b: [700, 410], speed: 55 }, { a: [820, 400], b: [820, 100], speed: 45, phase: 0.5 }],
+    rocks: [{ x: 860, y: 175, r: 20 }, { x: 860, y: 325, r: 20 }],
+    ice: [blob(780, 250, 70, 110, 6, 0.2)],
+    sand: [blob(880, 110, 40, 26, 5, 0.2), blob(880, 390, 40, 26, 7, 0.2)],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+  },
+];
+
 export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
 
 export const COURSES: CourseDef[] = [
@@ -651,6 +762,7 @@ export const COURSES: CourseDef[] = [
   { id: 'space', name: 'Lunar Links', theme: 'space', holes: SPACE },
   { id: 'circus', name: 'Big Top Circus', theme: 'circus', holes: CIRCUS },
   { id: 'tomb', name: "Pharaoh's Tomb", theme: 'tomb', holes: TOMB },
+  { id: 'arctic', name: 'Arctic Peaks', theme: 'arctic', holes: ARCTIC },
 ];
 for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
 
