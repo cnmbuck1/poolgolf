@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
+import { execSync } from 'node:child_process';
+
+// Build label shown with playtest feedback: the commit and the date
+const commit = (() => { try { return execSync('git rev-parse --short HEAD').toString().trim(); } catch { return 'local'; } })();
+const BUILD = `${commit} ${new Date().toISOString().slice(0, 10)}`;
 
 // Relative base so the build works inside the Capacitor WebView and on any static host.
 export default defineConfig({
   base: './',
+  define: { __BUILD__: JSON.stringify(BUILD) },
   build: { target: 'es2020' },
   // three.js add-ons (loaders, post-processing) must share the one copy of three
   resolve: { dedupe: ['three'] },

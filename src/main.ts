@@ -15,6 +15,8 @@ import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
 import { playMusic } from './music';
+import { PLAYTEST_URL } from './playtest.config';
+import { BUILD, flush, loadRecords, PlaytestRecord, setTesterName, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
 /** Aim turn per pixel of sideways drag on the shot camera (radians). */
@@ -34,6 +36,7 @@ type Phase = 'title' | 'play' | 'paused' | 'holeDone' | 'replay';
 
 let phase: Phase = 'title';
 let holeIdx = 0;
+let holeStartedAt = 0; // for playtest records: how long each hole took
 setCourse(localGet('course') ?? 'candy');
 let world = new World(LEVELS[0]);
 let strokes = 0;
@@ -268,6 +271,7 @@ function updateFinger() {
 // ---------- Flow ----------
 function loadHole(i: number) {
   holeIdx = i;
+  holeStartedAt = performance.now();
   shootout = null;
   shootoutPending = false;
   trick = null;
@@ -336,7 +340,18 @@ function playSingle(i: number) {
 }
 
 /** The ball is in (or the hole is given up): the player's hole, or the computer's in a match. */
+/** Which course and hole (1-based) a level is, for playtest records (trick shots aren't course holes). */
+function whereIs(L: LevelDef) {
+  const c = COURSES.find((k) => k.holes.includes(L));
+  return c ? { course: c.id, hole: c.holes.indexOf(L) + 1 } : null;
+}
+
 function holeOut(score: number, pickedUp = false) {
+  const at = whereIs(world.level);
+  if (at && !shootout && !(match && turn === 'ai')) {
+    const mode = daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round';
+    track({ type: 'hole', ...at, name: world.level.name, par: world.level.par, strokes: score, mode, seconds: Math.round((performance.now() - holeStartedAt) / 1000), pickedUp });
+  }
   if (shootout) shootoutShot(0);
   else if (match && turn === 'ai') finishAiHole(score);
   else if (match) { scores[holeIdx] = score; pendingBanked = sinkBanked; sinkBanked = false; startAiTurn(); }
@@ -671,7 +686,9 @@ function openSettings() {
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
     <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
-    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button></div>`);
+    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button></div>
+    <button class="btn" id="btn-playtest">Playtest results</button>`);
+  $('btn-playtest').onclick = () => void openPlaytest();
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
@@ -686,6 +703,33 @@ function openSettings() {
       b.setAttribute('aria-pressed', String(settings[k]));
     };
   });
+}
+
+/** The feedback form, over the menu or the pause screen, noting where the player is. */
+function openFeedback() {
+  sfx.ui();
+  const at = phase === 'title' ? null : whereIs(world.level);
+  $('fb-context').textContent = at ? `About hole ${at.hole} · ${world.level.name} (${COURSES.find((c) => c.id === at.course)!.name}), ${strokes} stroke${strokes === 1 ? '' : 's'} so far. Build ${BUILD}.` : `Tell us anything: bugs, ideas, what you love. Build ${BUILD}.`;
+  ($('fb-name') as HTMLInputElement).value = testerName();
+  $('screen-feedback').classList.remove('hidden');
+}
+
+/** Playtest results: average strokes per hole against par (hardest first) and the latest feedback. */
+async function openPlaytest() {
+  sheet('Playtest', '<p>Loading…</p>');
+  const { records, everyone } = await loadRecords();
+  if ($('sheet-title').textContent !== 'Playtest') return; // closed meanwhile
+  const { holes, testers } = summarize(records);
+  const name = (id: string) => COURSES.find((c) => c.id === id)?.name ?? id;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
+  const rows = holes.sort((a, b) => b.diff - a.diff).map((h) =>
+    `<tr><td>${esc(name(h.course))} ${h.hole}</td><td>${esc(h.name)}</td><td class="num">${h.n}</td><td class="num">${h.par}</td><td class="num">${h.avg.toFixed(1)}</td><td class="num ${h.diff > 0.75 ? 'hard' : h.diff < -0.5 ? 'easy' : ''}">${h.diff >= 0 ? '+' : ''}${h.diff.toFixed(1)}</td></tr>`).join('');
+  const fb = records.filter((r): r is PlaytestRecord & { type: 'feedback' } => r.type === 'feedback').sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 40);
+  const icon = { bug: '🐞', idea: '💡', love: '❤️' } as const;
+  const items = fb.map((f) => `<li>${icon[f.kind] ?? ''} ${esc(f.text || '(no text)')}<small>${esc(f.testerName || 'Tester ' + f.tester)} · ${f.course === 'menu' ? 'menu' : esc(name(f.course)) + ' hole ' + f.hole} · ${esc(f.device)} · build ${esc(f.build)} · ${new Date(f.at).toLocaleString()}</small></li>`).join('');
+  $('sheet-body').innerHTML = `<p>${everyone ? `Everyone's results on this game page: ${testers} tester${testers === 1 ? '' : 's'}.` : `Results played on this device.${PLAYTEST_URL ? ' Every tester\'s results also go to the playtest sheet.' : ''}`}</p>
+    ${rows ? `<div class="card-wrap"><table class="pt-table"><tr><th>Hole</th><th></th><th>Plays</th><th>Par</th><th>Avg</th><th>vs par</th></tr>${rows}</table></div>` : '<p>No holes finished yet.</p>'}
+    <h3>Feedback</h3>${items ? `<ul class="pt-fb">${items}</ul>` : '<p>None yet.</p>'}`;
 }
 
 function openStats() {
@@ -1294,6 +1338,24 @@ function comingSoon(title: string, icon: string, what: string) {
 
 click('btn-courses', openCourses);
 click('btn-settings', openSettings);
+click('btn-feedback', () => openFeedback());
+click('btn-pause-feedback', () => openFeedback());
+click('btn-fb-close', () => $('screen-feedback').classList.add('hidden'));
+document.querySelectorAll<HTMLButtonElement>('.fb-kind').forEach((b) => {
+  b.onclick = () => { sfx.ui(); document.querySelectorAll('.fb-kind').forEach((k) => k.setAttribute('aria-pressed', String(k === b))); };
+});
+click('btn-fb-send', () => {
+  const text = ($('fb-text') as HTMLTextAreaElement).value.trim();
+  const kind = (document.querySelector('.fb-kind[aria-pressed="true"]') as HTMLElement | null)?.dataset.kind as 'bug' | 'idea' | 'love' ?? 'bug';
+  if (text.length < 3 && kind !== 'love') { ($('fb-text') as HTMLTextAreaElement).focus(); toast('Tell us a little more', 'bad'); return; }
+  setTesterName(($('fb-name') as HTMLInputElement).value);
+  const at = phase === 'title' ? null : whereIs(world.level);
+  track({ type: 'feedback', kind, text, course: at?.course ?? 'menu', hole: at?.hole ?? 0, strokes: at ? strokes : 0 });
+  ($('fb-text') as HTMLTextAreaElement).value = '';
+  $('screen-feedback').classList.add('hidden');
+  toast('Thanks! Feedback sent', 'good', 1600);
+});
+void flush(); // anything that didn't get out last time (offline)
 click('btn-stats', openStats);
 click('btn-cues', openGear);
 click('btn-career', () => openCareer());
