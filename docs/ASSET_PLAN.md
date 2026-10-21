@@ -1,4 +1,4 @@
-# Pool Golf: premium asset plan (Steps A–C)
+# Rack & Roll: premium asset plan (Steps A–C)
 
 Status: **proposal, awaiting approval.** Nothing has been downloaded, bought or integrated yet.
 

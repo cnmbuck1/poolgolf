@@ -166,7 +166,7 @@ export const BALLS: BallDesign[] = [
     paint: (g, w, h) => {
       g.fillStyle = '#fafafa'; g.fillRect(0, 0, w, h);
       g.fillStyle = '#d82a2a'; g.font = `bold ${h * 0.12}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.save(); g.translate(w * 0.25, h * 0.5); g.scale(0.55, 1); g.fillText('POOL GOLF', 0, 0); g.restore();
+      g.save(); g.translate(w * 0.25, h * 0.5); g.scale(0.55, 1); g.fillText('RACK & ROLL', 0, 0); g.restore();
     },
   },
   {

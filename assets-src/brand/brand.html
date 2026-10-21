@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Rack & Roll brand art: the app icon and splash screen, rendered to PNG by assets-src/brand/render.cjs. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@800&family=Saira:wght@800;900&display=block">
+<style>
+  html, body { margin: 0; background: transparent; }
+  .felt { position: absolute; inset: 0; background: radial-gradient(circle at 50% 42%, #2f9a5a 0%, #1d7a44 45%, #0e4a28 100%); }
+  .felt::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 6px); }
+  .dark { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, #2a5a3a 0%, #143422 45%, #0b1d14 100%); }
+  .logo { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; line-height: 0.86; font-family: 'Saira', sans-serif; font-weight: 900; }
+  .top { display: flex; align-items: center; gap: 0.3em; width: 100%; font-size: 0.39em; letter-spacing: 0.14em; color: #f2b84a; background: linear-gradient(180deg, #fff1b8 10%, #f2b84a 55%, #b9771b); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0.02em 0 #5a3507); }
+  .top i { flex: 1; height: 0.08em; border-radius: 1em; background: linear-gradient(90deg, transparent, #f2b84a); }
+  .top i:last-child { transform: scaleX(-1); }
+  .main { display: flex; align-items: center; font-size: 1em; background: linear-gradient(180deg, #ffffff 25%, #dfe5ea 55%, #9aa6b1 62%, #e8edf1 90%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0.03em 0 #4b5560) drop-shadow(0 0.055em 0 #2a3038) drop-shadow(0 0.12em 0.2em rgba(0,0,0,0.6)); }
+  .ball { display: inline-grid; place-items: center; width: 0.74em; height: 0.74em; margin: 0 0.03em; border-radius: 50%; background: radial-gradient(circle at 34% 28%, #6c6c6c 0, #1c1c1c 32%, #050505 70%); box-shadow: inset -0.06em -0.08em 0.14em rgba(0,0,0,0.6); -webkit-text-fill-color: initial; }
+  .ball span { display: grid; place-items: center; width: 0.86em; height: 0.86em; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff, #e9e3d4); color: #111; -webkit-text-fill-color: #111; font-family: 'Saira Condensed', sans-serif; font-size: 0.42em; font-weight: 800; line-height: 1; }
+  .tag { margin-top: 0.5em; font-family: 'Saira Condensed', sans-serif; font-weight: 800; font-size: 0.16em; letter-spacing: 0.3em; color: #e8f0e8; }
+</style></head>
+<body>
+<div id="art"></div>
+<script>
+const P = new URLSearchParams(location.search), kind = P.get('kind'), W = +P.get('w'), H = +P.get('h');
+const art = document.getElementById('art');
+art.style.cssText = `position:relative;width:${W}px;height:${H}px;overflow:hidden`;
+// The 8-ball rolling across felt, with a golf flag planted beside it: pool meets mini golf
+const icon = (bg) => `
+  ${bg ? '<div class="felt"></div>' : ''}
+  <svg viewBox="0 0 100 100" style="position:absolute;inset:0;width:100%;height:100%">
+    <defs>
+      <radialGradient id="b" cx="36%" cy="30%" r="75%"><stop offset="0" stop-color="#7a7a7a"/><stop offset="0.3" stop-color="#202020"/><stop offset="0.75" stop-color="#050505"/></radialGradient>
+      <radialGradient id="w" cx="42%" cy="38%" r="70%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e4dcc8"/></radialGradient>
+      <radialGradient id="s" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity="0.45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    </defs>
+    <ellipse cx="47" cy="77" rx="25" ry="6" fill="url(#s)"/>
+    <g stroke="#fff" stroke-opacity="0.45" stroke-linecap="round" stroke-width="2.2">
+      <line x1="12" y1="46" x2="20" y2="46"/><line x1="9" y1="54" x2="20" y2="54"/><line x1="13" y1="62" x2="21" y2="62"/>
+    </g>
+    <line x1="73" y1="18" x2="73" y2="76" stroke="#f4f0e6" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M74 18 L90 23.5 L74 29 Z" fill="#e8203a"/>
+    <circle cx="47" cy="53" r="23" fill="url(#b)"/>
+    <circle cx="44" cy="48" r="10" fill="url(#w)"/>
+    <text x="44" y="52.6" text-anchor="middle" font-family="Saira Condensed, sans-serif" font-weight="800" font-size="13" fill="#111">8</text>
+    <ellipse cx="38" cy="39" rx="6" ry="3" fill="#fff" opacity="0.18" transform="rotate(-30 38 39)"/>
+  </svg>`;
+if (kind === 'icon') art.innerHTML = icon(true);
+if (kind === 'fg') art.innerHTML = `<div style="position:absolute;inset:18%">${icon(false)}</div>`;
+if (kind === 'splash') {
+  const size = Math.min(W, H) * (W > H ? 0.2 : 0.17);
+  art.innerHTML = `<div class="dark"></div><div class="logo" style="font-size:${size}px"><span class="top"><i></i>RACK &amp;<i></i></span><span class="main">R<span class="ball"><span>8</span></span>LL</span><span class="tag">AIM · BANK · AVOID · SINK</span></div>`;
+}
+document.fonts.ready.then(() => (document.body.dataset.ready = '1'));
+</script>
+</body></html>

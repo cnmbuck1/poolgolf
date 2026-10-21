@@ -1,4 +1,4 @@
-"""Shared modelling helpers for the Pool Golf asset scripts (Blender 5.x, run headless via `bpy`).
+"""Shared modelling helpers for the Rack & Roll asset scripts (Blender 5.x, run headless via `bpy`).
 
 Units are game units (the ball has radius 12). Blender is Z-up; the glTF exporter
 converts to Y-up, so Blender -Y becomes the game's +Z (toward the default camera).

@@ -1,4 +1,4 @@
-# Pool Golf — prototype
+# Rack & Roll — prototype
 
 A landscape mini-golf game played with a pool cue and pool ball across six themed courses: **Aim • Bank • Avoid • Sink.**
 One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **Android (Google Play)** with [Capacitor](https://capacitorjs.com).
@@ -103,8 +103,8 @@ npm run android      # build → sync → opens Android Studio
 ```
 
 Before you submit to the stores:
-1. Change `appId` in `capacitor.config.ts` (now `com.example.poolgolf`) to a reverse-domain ID you own. Then update it in Xcode (Bundle Identifier) and `android/app/build.gradle` (`applicationId`), or re-create the platforms.
-2. Add an app icon and splash screen, for example with `npx @capacitor/assets generate`.
+1. Change `appId` in `capacitor.config.ts` (now the placeholder `com.example.poolgolf`) to a reverse-domain ID you own, such as `com.yourcompany.rackandroll`. Then update it in Xcode (Bundle Identifier) and `android/app/build.gradle` (`applicationId`), or re-create the platforms.
+2. The **Rack & Roll** app icon (an 8-ball rolling past a golf flag on green felt) and splash screen (the wordmark on dark felt) are already in both projects. They're drawn in `assets-src/brand/brand.html`; after changing it, run `node assets-src/brand/render.cjs` to regenerate every size.
 3. iOS: set your signing team in Xcode, then Product → Archive → upload to App Store Connect / TestFlight.
 4. Android: Build → Generate Signed Bundle (.aab) → upload to a Play Console internal-testing track.
 
