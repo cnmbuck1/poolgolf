@@ -300,6 +300,8 @@ export class Renderer3D {
   setMode(m: CamMode) { this.mode = m; }
   /** Keep the shot camera facing the current aim after a drag that didn't shoot. */
   holdAim() { this.restYaw = this.shotYaw; }
+  /** Point the shot camera along a direction (replays line up each shot like the player did). */
+  faceYaw(yaw: number) { this.restYaw = yaw; }
   shake(amount: number) { this.shakeAmt = Math.min(10, this.shakeAmt + amount); }
 
   /** Dev only: frame a table point up close. */

@@ -29,6 +29,7 @@
       <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4.2" height="16" rx="1.4" fill="currentColor"/><rect x="13.8" y="4" width="4.2" height="16" rx="1.4" fill="currentColor"/></symbol>
       <symbol id="i-restart" viewBox="0 0 24 24"><path d="M18.5 12a6.5 6.5 0 1 1-2.1-4.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M19 3v5.5h-5.5z" fill="currentColor"/></symbol>
       <symbol id="i-camera" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
     </svg>
 
@@ -70,6 +71,11 @@
       <div id="toast" class="toast"></div>
       </div>
       <div id="finger" class="finger hidden"><span></span></div>
+      <div id="replay-bar" class="replay-bar glass hidden">
+        <span class="rec"></span><b id="replay-label">Replay</b>
+        <button id="btn-slowmo" class="pill">SLO-MO</button>
+        <button id="btn-skip" class="pill">DONE</button>
+      </div>
     </div>
 
     <!-- Main menu -->
@@ -86,9 +92,9 @@
         <p class="tagline">AIM · BANK · AVOID · SINK</p>
         <button class="btn-gold" id="btn-play">PLAY 6 HOLES<svg><use href="#i-chev"/></svg></button>
         <div class="menu-rows">
+          <button class="menu-row" id="btn-career"><svg class="ico"><use href="#i-trophy"/></svg><span>CAREER</span><svg class="chev"><use href="#i-chev"/></svg></button>
           <button class="menu-row" id="btn-courses"><svg class="ico"><use href="#i-flag"/></svg><span>COURSES</span><svg class="chev"><use href="#i-chev"/></svg></button>
           <button class="menu-row" id="btn-cues"><svg class="ico"><use href="#i-cue"/></svg><span>CUES &amp; BALLS</span><em class="coin-count" id="menu-coins"></em><svg class="chev"><use href="#i-chev"/></svg></button>
-          <button class="menu-row" id="btn-achievements"><svg class="ico"><use href="#i-trophy"/></svg><span>ACHIEVEMENTS</span><svg class="chev"><use href="#i-chev"/></svg></button>
         </div>
         <div class="icon-row">
           <button class="sq-btn" id="btn-settings" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
@@ -138,6 +144,7 @@
         <p id="hole-detail" class="detail"></p>
         <div id="hole-coins" class="coins-earned"></div>
         <div id="hole-card" class="card-wrap"></div>
+        <button class="btn-watch" id="btn-watch"></button>
         <div class="row">
           <button class="btn" id="btn-replay">Replay hole</button>
           <button class="btn-gold" id="btn-next">NEXT HOLE<svg><use href="#i-chev"/></svg></button>

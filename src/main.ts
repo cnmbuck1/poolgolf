@@ -7,6 +7,8 @@ import { inZone, MAX_SHOT_SPEED, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
+import { bestScore, bestStars, CareerEvent, EVENTS, isUnlocked, recordEvent, STAR_COINS, starText, TIERS, totalStars } from './career';
+import { HoleRecorder, sampleShot, Shot } from './replay';
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
 
@@ -19,7 +21,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const canvas = $<HTMLCanvasElement>('game');
 const view3d = new Renderer3D(canvas);
 
-type Phase = 'title' | 'play' | 'paused' | 'holeDone';
+type Phase = 'title' | 'play' | 'paused' | 'holeDone' | 'replay';
 
 let phase: Phase = 'title';
 let holeIdx = 0;
@@ -37,6 +39,8 @@ let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash
 let time = 0;
 let lastFrameDt = 1 / 60;
 let sinkBanked = false; // the ball touched a wall or obstacle on the shot that sank it
+const recorder = new HoleRecorder(); // this hole's shots, for the replay
+let careerEvent: CareerEvent | null = null; // the Career event being played, if any
 
 /** Cue strike: the cue slides into the ball, the shot fires on contact, then it follows through and fades. */
 let strike: { t: number; from: number; dur: number; p: number; fired: boolean } | null = null;
@@ -198,6 +202,7 @@ function updateFinger() {
 function loadHole(i: number) {
   holeIdx = i;
   world = new World(LEVELS[i]);
+  recorder.reset();
   view3d.setLevel(world);
   view3d.setMode('play');
   view3d.intro(world);
@@ -219,14 +224,17 @@ function loadHole(i: number) {
   banner();
 }
 
-function startRound() {
+function startRound(ev: CareerEvent | null = null) {
   practice = false;
+  careerEvent = ev;
   scores = LEVELS.map(() => null);
   loadHole(0);
+  if (ev) toast(`${ev.name} · shoot ${ev.target} or better`, 'good', 2600);
 }
 
 function playSingle(i: number) {
   practice = true;
+  careerEvent = null;
   scores = LEVELS.map(() => null);
   loadHole(i);
 }
@@ -244,7 +252,7 @@ function finishHole(score: number, pickedUp = false) {
   h.className = pickedUp ? 'over' : scoreClass(score, par);
   $('hole-detail').textContent = `${score} stroke${score === 1 ? '' : 's'} on a par ${par}`;
   $('hole-card').innerHTML = scorecardHtml();
-  setLabel('btn-next', practice ? 'COURSES' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
+  setLabel('btn-next', practice ? 'COURSES' : last && careerEvent ? 'CAREER' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
   if (!pickedUp) sfx.result(score - par, score === 1);
   if (last && !practice) {
     localSet('rounds', String(stat('rounds') + 1));
@@ -267,6 +275,18 @@ function finishHole(score: number, pickedUp = false) {
     if (d < 0) unlocked.push(earn('underPar') ?? '');
     if (COURSE.id === 'space') unlocked.push(earn('lunar') ?? '');
   }
+  if (last && careerEvent) {
+    // Career: stars against the event's target, first-clear and new-star coins, and the next tour
+    const ev = careerEvent;
+    const total = scores.reduce<number>((a, b) => a + (b ?? 0), 0);
+    const r = recordEvent(ev, total);
+    lines.push(...r.coins);
+    if (r.opened) unlocked.push(r.opened.name);
+    $('hole-kicker').textContent = `${ev.tier.name} · ${ev.name}`.toUpperCase();
+    $('hole-detail').innerHTML = r.stars
+      ? `<span class="stars">${starText(r.stars)}</span> Target ${ev.target} · ${r.firstClear ? 'Event cleared!' : 'Cleared'}`
+      : `Target ${ev.target} · missed by ${total - ev.target}. Try again!`;
+  }
   const earned = lines.reduce((a, [, n]) => a + n, 0);
   addCoins(earned);
   sinkBanked = false;
@@ -274,6 +294,10 @@ function finishHole(score: number, pickedUp = false) {
     ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
       + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')}</span>` : '')
     : '';
+  // Replay: the whole hole, with a hole in one finishing in slow motion
+  const ace = recorder.shots.some((x) => x.ace);
+  $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
+  $('btn-watch').innerHTML = `<svg><use href="#i-play"/></svg>${ace ? 'WATCH YOUR HOLE IN ONE IN SLOW MOTION' : `WATCH REPLAY${recorder.shots.length > 1 ? ` · ${recorder.shots.length} SHOTS` : ''}`}`;
   updateHud();
   show('screen-hole');
 }
@@ -407,6 +431,7 @@ function fireShot(p: number) {
   lastRest = { x: world.ball.x, y: world.ball.y };
   const speed = MAX_SHOT_SPEED * p * p * 0.35 + MAX_SHOT_SPEED * p * 0.65; // finer control at low power
   world.shoot(cue.dx * speed, cue.dy * speed);
+  recorder.start(world, [cue.dx, cue.dy], p);
   strokes++;
   sfx.cue(p);
   buzz(p > 0.7 ? ImpactStyle.Heavy : ImpactStyle.Light);
@@ -442,7 +467,7 @@ function updateCue(dt: number) {
 
 // ---------- Buttons ----------
 const click = (id: string, fn: () => void) => { $(id).onclick = () => { unlockAudio(); sfx.ui(); fn(); }; };
-click('btn-play', startRound);
+click('btn-play', () => startRound());
 click('btn-pause', pause);
 click('btn-resume', () => { phase = 'play'; show(null); });
 function toggleView() {
@@ -583,6 +608,139 @@ function openGear() {
   });
 }
 
+// ---------- Career ----------
+function openCareer() {
+  const tiers = TIERS.map((t, ti) => {
+    const evs = EVENTS.filter((e) => e.tier === t);
+    const cards = evs.map((ev, i) => {
+      const open = isUnlocked(ev), best = bestScore(ev);
+      const course = COURSES.find((c) => c.id === ev.course)!.name;
+      const note = open ? `Shoot ${ev.target} or better${best != null ? ` · Best ${best}` : ''}` : i ? `Clear ${evs[i - 1].name} first` : 'Locked';
+      return `<button class="course event${open ? '' : ' locked'}" data-event="${ev.id}"${open ? '' : ' disabled'}><b>${course.toUpperCase()}</b><span>${ev.name}</span><small>${note}</small><em class="stars">${starText(bestStars(ev))}</em></button>`;
+    }).join('');
+    const sub = isUnlocked(evs[0])
+      ? `Target ${t.toPar > 0 ? `${t.toPar} over par` : t.toPar < 0 ? `${-t.toPar} under par` : 'par'} · ${t.reward} coins per event cleared`
+      : `Clear every ${TIERS[ti - 1].name} event to open`;
+    return `<div class="course-head"><div><h3>${t.name}</h3><small>${sub}</small></div></div><div class="courses">${cards}</div>`;
+  }).join('');
+  sheet('Career', `<div class="gear-top"><p>Win events to climb the tours. Beat the target by 2 for a second star and by 4 for a third; every new star pays ${STAR_COINS} coins.</p><b class="wallet"><span class="star">★</span>${totalStars()}/${EVENTS.length * 3}</b></div>${tiers}`);
+  $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-event]').forEach((b) => {
+    b.onclick = () => {
+      const ev = EVENTS.find((e) => e.id === b.dataset.event)!;
+      sfx.ui();
+      chooseCourse(ev.course);
+      startRound(ev);
+    };
+  });
+}
+
+// ---------- Replay ----------
+/** Playback of the hole's recorded shots. `pre` is the cue wind-up before each shot, `post` the pause after it. */
+let replay: { shots: Shot[]; i: number; clock: number; pre: number; post: number; slow: boolean; speed: number; idx: number; saved: { x: number; y: number; time: number; spin: number[]; sink?: { t: number } } } | null = null;
+const PRE = 0.55, SLOW = 0.28;
+
+function startReplay(slow = false) {
+  if (!recorder.shots.length) return;
+  replay = { shots: recorder.shots, i: 0, clock: 0, pre: 0, post: -1, slow, speed: 1, idx: 0, saved: { x: world.ball.x, y: world.ball.y, time: world.time, spin: world.spinners.map((s) => s.angle), sink: fx.sink } };
+  phase = 'replay';
+  fx.sink = fx.splash = undefined;
+  view3d.setMode('play');
+  show(null);
+  $('hud').classList.add('replaying');
+  $('replay-bar').classList.remove('hidden');
+  $('btn-slowmo').classList.toggle('on', slow);
+}
+
+function endReplay() {
+  if (!replay) return;
+  const sv = replay.saved;
+  replay = null;
+  world.ball.x = sv.x; world.ball.y = sv.y; world.ball.vx = world.ball.vy = 0;
+  world.time = sv.time;
+  world.spinners.forEach((s, i) => (s.angle = sv.spin[i]));
+  world.moving = false;
+  cue.visible = false;
+  fx.splash = undefined;
+  fx.sink = sv.sink; // back to how the hole ended (ball in the cup)
+  view3d.setMode(sv.sink ? 'sink' : 'play');
+  setRolling(0, false);
+  $('hud').classList.remove('replaying');
+  $('replay-bar').classList.add('hidden');
+  phase = 'holeDone';
+  show('screen-hole');
+}
+
+function stepReplay(dt: number) {
+  const r = replay!;
+  const shot = r.shots[r.i];
+  $('replay-label').textContent = r.shots.length > 1 ? `Shot ${r.i + 1} of ${r.shots.length}` : shot.ace ? 'Hole in one!' : 'Replay';
+  const f0 = shot.frames[0];
+  // Wind-up: the cue draws back and strikes, then the ball rolls
+  if (r.pre < PRE) {
+    r.pre += dt;
+    r.speed = 1;
+    world.moving = false;
+    world.ball.x = f0.x; world.ball.y = f0.y; world.ball.vx = world.ball.vy = 0;
+    world.time = f0.t;
+    world.spinners.forEach((s, i) => (s.angle = f0.spin[i]));
+    view3d.faceYaw(Math.atan2(shot.dir[1], shot.dir[0]));
+    const back = 10 + 60 * shot.power;
+    const k = Math.min(1, r.pre / (PRE - 0.12));
+    Object.assign(cue, { visible: true, alpha: 1, dx: shot.dir[0], dy: shot.dir[1], ox: f0.x, oy: f0.y, pull: r.pre < PRE - 0.12 ? back * Math.sin(k * Math.PI / 2) : back * (1 - (r.pre - (PRE - 0.12)) / 0.12) });
+    if (r.pre >= PRE) { cue.visible = false; sfx.cue(shot.power); }
+    return;
+  }
+  if (r.post >= 0) {
+    // After the shot: let the sink or splash play out, then move on
+    r.post += dt * r.speed;
+    if (fx.sink) fx.sink.t += (dt * r.speed) / 0.45;
+    if (fx.splash) fx.splash.t += dt * r.speed;
+    for (const rp of fx.ripples) rp.t += dt * 1.5;
+    if (r.post > (shot.end === 'sink' ? 1.6 : shot.end === 'water' ? 1.1 : 0.6)) {
+      r.i++;
+      r.pre = 0; r.clock = 0; r.idx = 0; r.post = -1;
+      fx.sink = fx.splash = undefined;
+      view3d.setMode('play');
+      if (r.i >= r.shots.length) endReplay();
+    }
+    return;
+  }
+  // Rolling: slow motion near the cup on a hole in one (or all the way when SLO-MO is on)
+  const [cx, cy] = world.level.cup;
+  const near = Math.hypot(world.ball.x - cx, world.ball.y - cy);
+  const goal = r.slow ? SLOW : shot.ace ? SLOW + (1 - SLOW) * Math.max(0, Math.min(1, (near - 80) / 170)) : 1;
+  r.speed += (goal - r.speed) * Math.min(1, dt * 4);
+  r.clock += dt * r.speed;
+  const p = sampleShot(shot, r.clock);
+  // Hits between the last frame and this one: sounds and bounces
+  for (let j = r.idx + 1; j <= p.i; j++) for (const ev of shot.frames[j].events) {
+    if (ev.type === 'wall' || ev.type === 'rail' || ev.type === 'bumper' || ev.type === 'spinner') {
+      sfx[ev.type](ev.speed);
+      view3d.bounceBall(ev.speed);
+    }
+  }
+  r.idx = p.i;
+  world.ball.x = p.x; world.ball.y = p.y; world.ball.vx = p.vx; world.ball.vy = p.vy;
+  world.time = p.t;
+  world.spinners.forEach((s, i) => (s.angle = p.spin[i]));
+  world.moving = !p.done;
+  setRolling(Math.hypot(p.vx, p.vy) * r.speed, (world.level.sand ?? []).some((z) => inZone(z, p.x, p.y)));
+  if (!p.done) return;
+  setRolling(0, false);
+  r.post = 0;
+  if (shot.end === 'sink') {
+    sfx.sink();
+    fx.sink = { t: 0 };
+    view3d.setMode('sink');
+    if (shot.ace) toast('HOLE IN ONE!', 'good', 1800);
+  } else if (shot.end === 'water') {
+    if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else sfx.water();
+    fx.splash = { x: p.x, y: p.y, t: 0 };
+    fx.ripples.push({ x: p.x, y: p.y, t: 0 }, { x: p.x, y: p.y, t: -0.25 });
+    view3d.splash(p.x, p.y);
+  }
+}
+
 function comingSoon(title: string, icon: string, what: string) {
   sheet(title, `<div class="soon"><svg><use href="#${icon}"/></svg><p>${what}</p><p><b>Not in this prototype yet.</b></p></div>`);
 }
@@ -591,7 +749,10 @@ click('btn-courses', openCourses);
 click('btn-settings', openSettings);
 click('btn-stats', openStats);
 click('btn-cues', openGear);
-click('btn-achievements', () => comingSoon('Achievements', 'i-trophy', 'Earn trophies for bank shots, aces and clean rounds.'));
+click('btn-career', openCareer);
+click('btn-watch', () => startReplay());
+click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slowmo').classList.toggle('on', replay.slow); } });
+click('btn-skip', () => endReplay());
 click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
@@ -600,6 +761,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
+  if (careerEvent && holeIdx === LEVELS.length - 1) { toTitle(); openCareer(); return; }
   if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
 });
 click('set-sound', toggleSound);
@@ -618,11 +780,13 @@ function frame(now: number) {
   time += dt;
 
   if (phase === 'play' || phase === 'title') tick(dt);
+  if (phase === 'replay' && replay) stepReplay(dt);
   if (phase === 'play') edgeTurn(dt);
   updateCue(phase === 'play' ? dt : 0);
   updateFinger();
   fadeScoreCard();
-  view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt);
+  // Slow motion slows the whole scene, not just the ball
+  view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt * (replay ? replay.speed : 1));
   requestAnimationFrame(frame);
 }
 
@@ -660,7 +824,9 @@ function tick(dt: number) {
   if (phase === 'title') { world.step(dt); return; }
 
   const b = world.ball;
-  for (const ev of world.step(dt)) {
+  const events = world.step(dt);
+  recorder.frame(world, events, strokes);
+  for (const ev of events) {
     switch (ev.type) {
       case 'rail':
         sfx.rail(ev.speed);
@@ -729,6 +895,7 @@ if (import.meta.env.DEV) {
       const a = (angleDeg * Math.PI) / 180;
       strokes++;
       world.shoot(Math.cos(a) * MAX_SHOT_SPEED * power, Math.sin(a) * MAX_SHOT_SPEED * power);
+      recorder.start(world, [Math.cos(a), Math.sin(a)], power);
     },
     stats: () => view3d.stats,
     view: () => view3d,

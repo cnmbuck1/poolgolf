@@ -293,7 +293,7 @@ svg { width: 22px; height: 22px; flex: none; }
   font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: 0.07em; text-align: left;
   transition: transform 0.08s, border-color 0.15s;
 }
-.menu-row span { flex: 1; }
+.menu-row span { flex: 1; white-space: nowrap; }
 .menu-row .ico { width: 22px; height: 22px; color: var(--ink); }
 .menu-row .chev { width: 16px; height: 16px; color: var(--ink); }
 .menu-row:active { transform: translateY(1px); border-color: rgba(246, 189, 71, 0.6); }
@@ -369,6 +369,32 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .stat { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--edge); background: rgba(255, 255, 255, 0.03); }
 .stat b { display: block; font-family: var(--display); font-size: 28px; font-weight: 800; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
 .stat span { font-size: 12px; color: var(--muted); }
+
+/* Career */
+.event { position: relative; }
+.event .stars { order: -1; font-style: normal; color: var(--gold-hi); font-size: 15px; letter-spacing: 2px; line-height: 1; }
+.event.locked { opacity: 0.5; }
+.stars { color: var(--gold-hi); letter-spacing: 2px; }
+.wallet .star { color: var(--gold-hi); }
+
+/* Replay */
+.btn-watch {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center;
+  padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(246, 189, 71, 0.5);
+  background: rgba(246, 189, 71, 0.12); color: var(--gold-hi);
+  font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: 0.08em;
+}
+.btn-watch svg { width: 15px; height: 15px; }
+#hud.replaying .hud-card, #hud.replaying .hud-actions, #hud.replaying .hint, #hud.replaying .power { display: none; }
+.replay-bar {
+  position: absolute; left: 50%; bottom: calc(10px + var(--sab)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 999px;
+  pointer-events: auto; white-space: nowrap;
+}
+.replay-bar b { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; }
+.replay-bar .rec { width: 10px; height: 10px; border-radius: 50%; background: #ff4a4a; animation: pulse 1.2s infinite; }
+.pill { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--edge); background: rgba(255, 255, 255, 0.06); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: 0.08em; }
+.pill.on { background: var(--gold); color: #2a1a04; border-color: var(--gold); }
 
 /* Cues & Balls */
 .gear-head { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--edge); font-family: var(--display); font-size: 14px; letter-spacing: 0.16em; color: var(--gold); }
@@ -473,6 +499,7 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 }
 @media (max-height: 360px) {
   .menu-rows { grid-template-columns: repeat(3, 1fr); width: 100%; }
+  .coin-count { display: none; }
   .menu-row { padding: 0 8px; gap: 6px; font-size: 12px; }
   .menu-row .chev { display: none; }
 }
