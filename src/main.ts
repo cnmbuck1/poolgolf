@@ -272,7 +272,7 @@ function finishHole(score: number, pickedUp = false) {
   sinkBanked = false;
   $('hole-coins').innerHTML = earned
     ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
-      + unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')
+      + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')}</span>` : '')
     : '';
   updateHud();
   show('screen-hole');

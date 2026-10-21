@@ -339,6 +339,9 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .row > * { flex: 1; }
 .row .btn-gold { font-size: 20px; padding: 10px 16px 12px; gap: 10px; }
 .result { min-width: 400px; }
+/* Never squash the results to fit: scroll instead, with the buttons pinned at the bottom */
+.result > * { flex-shrink: 0; }
+.result .row { position: sticky; bottom: -20px; margin: 0 -8px -6px; padding: 8px 8px 6px; background: linear-gradient(180deg, rgba(18, 27, 38, 0), #121b26 30%); }
 
 .sheet { width: min(560px, 100%); text-align: left; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -397,11 +400,12 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .coin { display: inline-block; width: 0.85em; height: 0.85em; border-radius: 50%; vertical-align: -0.1em;
   background: radial-gradient(circle at 35% 30%, #fff3b0, #f6bd47 45%, #b07a18); box-shadow: inset 0 0 0 1.5px rgba(120, 70, 0, 0.55); }
 .coin-count { margin-left: auto; margin-right: 6px; font-style: normal; font-family: var(--display); font-weight: 800; font-size: 14px; color: var(--gold-hi); display: inline-flex; align-items: center; gap: 5px; }
-.coins-earned { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; }
+.coins-earned { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; column-gap: 10px; row-gap: 4px; }
 .coins-earned:empty { display: none; }
 .coins-earned b { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 22px; font-weight: 800; color: var(--gold-hi); }
 .coins-earned small { color: var(--muted); font-size: 12px; }
-.coins-earned .unlock { margin-top: 2px; padding: 2px 10px; border-radius: 8px; background: rgba(246, 189, 71, 0.18); color: var(--gold-hi); font-weight: 700; font-size: 13px; }
+.coins-earned .unlocks { flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.coins-earned .unlock { padding: 2px 10px; border-radius: 8px; background: rgba(246, 189, 71, 0.18); color: var(--gold-hi); font-weight: 700; font-size: 13px; }
 @media (max-width: 600px) { .gear-balls { grid-template-columns: repeat(4, 1fr); } .gear-cues { grid-template-columns: 1fr; } }
 
 .soon { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; text-align: center; }
@@ -462,6 +466,7 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
   .hud-hole .num { font-size: 25px; }
   .hud-stat .num { font-size: 20px; }
   .panel { padding: 14px 20px; gap: 8px; }
+  .result .row { bottom: -14px; }
   h2 { font-size: 28px; }
   .btn { padding: 8px 16px; font-size: 16px; }
   .toggle { padding: 7px 12px; }
