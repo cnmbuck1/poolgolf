@@ -133,7 +133,8 @@ export function kerbMesh(L: LevelDef, outline: Pt[], toScene: ToScene, material?
     const q = pts[(i + n - 1) % n];
     let nx = p.nx + q.nx, ny = p.ny + q.ny;
     const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
-    const base = heightAt(L, p.x, p.y);
+    // (on a cake layer that runs to the edge, the kerb sits on top of it)
+    const base = L.tiers ? heightAt(L, p.x - nx * 14, p.y - ny * 14) : heightAt(L, p.x, p.y);
     prof.forEach(([u, v], j) => {
       const s = toScene(p.x + nx * u, p.y + ny * u);
       const k = (i * m + j) * 3;

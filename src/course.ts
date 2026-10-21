@@ -7,11 +7,12 @@ import { clonePiece, Models, PieceBatch, windmillRig } from './models';
 import { lawnMaterial } from './art';
 import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
 import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, setInkColor, toon, tumbleweed } from './jurassic';
+import { cakeTier, candyKerb, candyLandscape, chuteMesh, frostingMaterial, gingerbreadMan, gumdrop, ladderMesh, lollipop, sugarGroundMaterial } from './candy';
 import { arcticLandscape, iceKerb, iceMaterial, igloo, penguin, polarBear, seal, skiRamp, snowfieldMaterial, snowMaterial } from './arctic';
 import { desertMaterial, mummy, pillar, portal, quicksandPatch, sandstoneMaterial, stoneDoor, templeKerb, tombLandscape } from './tomb';
 import { cannon, circusLandscape, clown, elephant, feltMaterial, sawdustMaterial, stripedKerb, trampoline } from './circus';
 import { alien, asteroid, astronaut, fallingMeteor, landingRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
-import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, palmR, zoneCentre, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
+import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, groundAt, heightAt, inZone, onBridge, palmR, zoneCentre, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -55,18 +56,18 @@ export function buildCourse(world: World, models: Models | null): Course {
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 
   // ---- Fairway turf, shaped to the slopes, with arrows showing which way it falls ----
-  const jur = L.theme === 'jurassic', space = L.theme === 'space', circus = L.theme === 'circus', tomb = L.theme === 'tomb', arctic = L.theme === 'arctic';
+  const jur = L.theme === 'jurassic', space = L.theme === 'space', circus = L.theme === 'circus', tomb = L.theme === 'tomb', arctic = L.theme === 'arctic', candy = L.theme === 'candy';
   setInkColor(space ? SPACE_INK : 0x2a1408);
-  const rockSwap = jur ? basaltSwap() : space ? moonRockSwap() : arctic ? { Stone: toon(0xb8e2f8, { vertexColors: true }) } : undefined; // ice boulders in the Arctic
+  const rockSwap = jur ? basaltSwap() : space ? moonRockSwap() : arctic ? { Stone: toon(0xb8e2f8, { vertexColors: true }) } : candy ? { Stone: toon(0xc8a0ff, { vertexColors: true }) } : undefined; // ice boulders in the Arctic
   add(fairwayMesh(L, outline, L.theme));
   const lawnH = makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
   const centre3 = to3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
-  add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : space ? regolithMaterial() : circus ? sawdustMaterial() : tomb ? desertMaterial() : arctic ? snowfieldMaterial() : lawnMaterial(), centre3));
+  add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : space ? regolithMaterial() : circus ? sawdustMaterial() : tomb ? desertMaterial() : arctic ? snowfieldMaterial() : candy ? sugarGroundMaterial() : lawnMaterial(), centre3));
   const arrows = slopeArrows(world, outline);
   if (arrows) { add(arrows.group); anims.push(arrows); }
 
   // ---- Curved timber kerb swept along the outline (its centre line is the physics boundary) ----
-  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : space ? moonKerb() : circus ? stripedKerb() : tomb ? templeKerb() : arctic ? iceKerb() : undefined));
+  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : space ? moonKerb() : circus ? stripedKerb() : tomb ? templeKerb() : arctic ? iceKerb() : candy ? candyKerb() : undefined));
 
   // ---- Cup, flag and tee ----
   const cupPos = at(L.cup[0], L.cup[1]);
@@ -87,7 +88,7 @@ export function buildCourse(world: World, models: Models | null): Course {
 
   // ---- Bunkers: dished sand with rake lines, sitting just above the dipped turf ----
   const [sandMap, sandBump] = rakedSandTextures();
-  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: jur ? 0x8c8078 : space ? 0xe6e6f4 : circus ? 0xe8b878 : arctic ? 0xffffff : 0xf2e2b6 }); // ash-grey gravel in the canyon, fine moon dust in space
+  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: jur ? 0x8c8078 : space ? 0xe6e6f4 : circus ? 0xe8b878 : arctic ? 0xffffff : candy ? 0xffc8e4 : 0xf2e2b6 }); // ash-grey gravel in the canyon, fine moon dust in space
   sandMat.userData.shared = true;
   (L.sand ?? []).forEach((z, i) => {
     const m = add(new THREE.Mesh(zoneSurface(z, (x, y) => heightAt(L, x, y) + 0.35, 1 / 120, i * 0.9), sandMat));
@@ -118,12 +119,12 @@ export function buildCourse(world: World, models: Models | null): Course {
       if (!anims.some((x) => (x.group as THREE.Mesh).material === v.material)) anims.push({ group: v, update: (_a, t) => map.offset.set(t * 0.006, -t * 0.004) });
       continue;
     }
-    const mat = new THREE.MeshPhysicalMaterial({ color: circus || tomb ? 0x2a7ae0 : arctic ? 0x14405e : 0x2f6470, roughness: 0.04, metalness: 0.15, transparent: true, opacity: 0.78, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 1 });
+    const mat = new THREE.MeshPhysicalMaterial({ color: circus || tomb ? 0x2a7ae0 : arctic ? 0x14405e : candy ? 0x5a2a10 : 0x2f6470, roughness: candy ? 0.25 : 0.04, metalness: 0.15, transparent: true, opacity: candy ? 0.97 : 0.78, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 1 });
     waterMats.push(mat);
     const w = add(new THREE.Mesh(zoneSurface(z, () => y - WATER_LEVEL, 1 / 160), mat));
     w.receiveShadow = true;
     // (the circus dunk tank is just clear blue water)
-    if (!circus && !tomb && !arctic && !world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y))) add(pondLife(L, z, y - WATER_LEVEL));
+    if (!circus && !tomb && !arctic && !candy && !world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y))) add(pondLife(L, z, y - WATER_LEVEL));
   }
 
   // ---- Walls and bars (outline edging is drawn above, so skip the rail segments) ----
@@ -140,7 +141,7 @@ export function buildCourse(world: World, models: Models | null): Course {
       add(strip);
     });
     // In the big top the walls are painted show barriers: blue panels, gold trim, red caps; in the tomb, sandstone
-    add(batch.build(arctic ? { Brick: toon(0xbfe4f8), Stone: toon(0xbfe4f8), Mortar: toon(0xffffff), Oak: toon(0xffffff), Brass: toon(0xd8e4ee) } : tomb ? { Brick: toon(0xe0b070), Stone: toon(0xe0b070), Mortar: toon(0xb88850), Oak: toon(0xd8a060), Brass: toon(0xffc83a) } : circus ? { Brick: toon(0x2a6ad8), Stone: toon(0x2a6ad8), Mortar: toon(0xffc83a), Oak: toon(0xd8202e), Brass: toon(0xffe08a) } : undefined)); // walls stand on flat ground
+    add(batch.build(candy ? { Brick: toon(0xff9ec8), Stone: toon(0xff9ec8), Mortar: toon(0xffffff), Oak: toon(0xffffff), Brass: toon(0xffd84a) } : arctic ? { Brick: toon(0xbfe4f8), Stone: toon(0xbfe4f8), Mortar: toon(0xffffff), Oak: toon(0xffffff), Brass: toon(0xd8e4ee) } : tomb ? { Brick: toon(0xe0b070), Stone: toon(0xe0b070), Mortar: toon(0xb88850), Oak: toon(0xd8a060), Brass: toon(0xffc83a) } : circus ? { Brick: toon(0x2a6ad8), Stone: toon(0x2a6ad8), Mortar: toon(0xffc83a), Oak: toon(0xd8202e), Brass: toon(0xffe08a) } : undefined)); // walls stand on flat ground
   } else if (premium) {
     const rivets: THREE.Vector3[] = [];
     for (const s of segs) {
@@ -171,6 +172,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   }
 
   for (const bp of L.bumpers ?? []) {
+    if (candy) { add(gumdrop(bp, L, to3)); continue; }
     const m = add(bumperMesh(bp));
     m.position.y += heightAt(L, bp.x, bp.y);
     const ring = add(new THREE.Mesh(new THREE.TorusGeometry(bp.r * 0.8, 2, 8, 28).rotateX(Math.PI / 2), mats.brass));
@@ -240,6 +242,10 @@ export function buildCourse(world: World, models: Models | null): Course {
     }), iceMaterial()));
     m.receiveShadow = true;
   });
+  (L.tiers ?? []).forEach((_, i) => add(cakeTier(L, i, to3, HW, HH)));
+  for (const c of L.chutes ?? []) add(chuteMesh(L, c, to3));
+  for (const c of L.ladders ?? []) { const a = ladderMesh(L, c, to3); add(a.group); anims.push(a); }
+  for (const gm of L.gingerbread ?? []) { const a = gingerbreadMan(gm, world, L, to3); add(a.group); anims.push(a); }
   for (const sl of L.seals ?? []) { const a = seal(sl, world, L, to3); add(a.group); anims.push(a); }
   for (const rp of L.ramps ?? []) add(skiRamp(rp, L, to3));
   for (const ig of L.igloos ?? []) add(igloo(ig, L, to3));
@@ -274,7 +280,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   }
   for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
   for (const pm of L.palms ?? []) {
-    add(space ? moonTree(pm, L, to3) : coursePalm(pm, L, to3));
+    add(space ? moonTree(pm, L, to3) : candy ? lollipop(pm, L, to3) : coursePalm(pm, L, to3));
     const shadow = contactDisc(palmR(pm) + 16);
     shadow.position.copy(to3(pm.x, pm.y)).setY(heightAt(L, pm.x, pm.y) + 0.45);
     add(shadow);
@@ -284,11 +290,12 @@ export function buildCourse(world: World, models: Models | null): Course {
     if (circus) group.add(circusLandscape(L, outline, to3, lawnH, anims));
     else if (tomb) group.add(tombLandscape(L, outline, to3, lawnH, anims));
     else if (arctic) group.add(arcticLandscape(L, outline, to3, lawnH, anims));
+    else if (candy) group.add(candyLandscape(L, outline, to3, lawnH, anims));
     else {
       const dress = jur ? jurassicLandscape : space ? spaceLandscape : landscape;
       group.add(dress(L, outline, models, to3, lawnH, anims));
     }
-    if (!circus && !tomb && !arctic) group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y), rockSwap));
+    if (!circus && !tomb && !arctic && !candy) group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y), rockSwap));
   }
 
   return { group, spinnerAnims, legacySpinners, anims, waterMats, cupPos, cupPulse, bounds };
@@ -326,7 +333,7 @@ function fairwayMesh(L: LevelDef, outline: [number, number][], theme: Theme = 'g
   const col = new Float32Array(pos.length);
   for (let i = 0; i < pos.length / 3; i++) {
     const x = pos[i * 3] + HW, y = pos[i * 3 + 2] + HH;
-    const hgt = heightAt(L, x, y);
+    const hgt = groundAt(L, x, y); // tiers are built as separate cake layers on top
     const dip = waterDip(L, x, y);
     pos[i * 3 + 1] = hgt - dip;
     uv[i * 2] = x / TURF_TILE;
@@ -361,7 +368,7 @@ function fairwayMesh(L: LevelDef, outline: [number, number][], theme: Theme = 'g
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
   flat.dispose();
-  const m = new THREE.Mesh(g, jur ? dirtMaterial() : space ? moonDustMaterial() : circus ? feltMaterial() : tomb ? sandstoneMaterial() : arctic ? snowMaterial() : fairwayMaterial());
+  const m = new THREE.Mesh(g, jur ? dirtMaterial() : space ? moonDustMaterial() : circus ? feltMaterial() : tomb ? sandstoneMaterial() : arctic ? snowMaterial() : theme === 'candy' ? frostingMaterial() : fairwayMaterial());
   m.receiveShadow = true;
   return m;
 }
@@ -495,7 +502,8 @@ function bridgeMesh(L: LevelDef, br: Bridge, theme: Theme = 'garden') {
   const lib = theme === 'jurassic' ? { ...plainMaterials(), Plank: basaltPlain(), Oak: plainMaterials().DarkWood, Timber: plainMaterials().DarkWood }
     : theme === 'space' ? { ...plainMaterials(), ...spaceBridgeMaterials() }
     : theme === 'tomb' ? { ...plainMaterials(), Plank: toon(0xe0b070), Oak: toon(0xb88850), Timber: toon(0xb88850) }
-    : theme === 'arctic' ? { ...plainMaterials(), Plank: toon(0xd8f0ff), Oak: toon(0x8ab8d8), Timber: toon(0x8ab8d8) } : plainMaterials();
+    : theme === 'arctic' ? { ...plainMaterials(), Plank: toon(0xd8f0ff), Oak: toon(0x8ab8d8), Timber: toon(0x8ab8d8) }
+    : theme === 'candy' ? { ...plainMaterials(), Plank: toon(0xf0c27e), Oak: toon(0x7a3a1a), Timber: toon(0x7a3a1a), DarkWood: toon(0x7a3a1a) } : plainMaterials();
   const g = new THREE.Group();
   const a = (br.angle * Math.PI) / 180;
   const ux = Math.cos(a), uy = Math.sin(a);

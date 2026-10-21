@@ -298,6 +298,22 @@ export const sfx = {
     warble(95, 0.9, 'sawtooth', 0.28, { slideTo: 70, rate: 18, depth: 0.1, filter: 500, attack: 0.1 });
     noise(0.7, 0.2, 'lowpass', 350, { attack: 0.1 });
   },
+  /** Down a chute: a slide whistle swooping down, with a rush of air. */
+  slide: () => {
+    warble(1500, 1.1, 'sine', 0.16, { slideTo: 320, rate: 9, depth: 0.04, attack: 0.04 });
+    noise(1.0, 0.12, 'bandpass', 2400, { sweepTo: 700, q: 1.2, attack: 0.1 });
+  },
+  /** Up a ladder: a xylophone run climbing the rungs. */
+  ladder: () => {
+    [523, 587, 659, 784, 880, 1047].forEach((f, i) => { tone(f, 0.12, 'triangle', 0.16, { at: i * 0.11 }); tone(f * 4, 0.04, 'sine', 0.04, { at: i * 0.11 }); });
+  },
+  /** Off the edge of a cake layer: a little falling "whee". */
+  drop: () => warble(900, 0.3, 'sine', 0.12, { slideTo: 420, rate: 12, depth: 0.03, attack: 0.01 }),
+  /** A gingerbread man yelps when the ball bonks him. */
+  gingerbread: () => {
+    warble(820, 0.1, 'square', 0.08, { slideTo: 1200, rate: 30, depth: 0.05, filter: 3000 });
+    warble(1100, 0.14, 'square', 0.07, { at: 0.11, slideTo: 700, rate: 30, depth: 0.05, filter: 3000 });
+  },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];

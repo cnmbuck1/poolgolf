@@ -29,7 +29,7 @@ type Phase = 'title' | 'play' | 'paused' | 'holeDone' | 'replay';
 
 let phase: Phase = 'title';
 let holeIdx = 0;
-setCourse(localGet('course') ?? 'garden');
+setCourse(localGet('course') ?? 'candy');
 let world = new World(LEVELS[0]);
 let strokes = 0;
 let scores: (number | null)[] = LEVELS.map(() => null);
@@ -136,6 +136,7 @@ function creatureHit() {
   if ((L.elephants ?? []).some((e) => near(e.x, e.y, e.r ?? 38))) return say(L.theme === 'arctic' ? sfx.bear : sfx.elephant);
   if ((L.penguins ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.penguin);
   if ((L.seals ?? []).some((c) => near(c.x, c.y, 26))) return say(sfx.seal);
+  if ((L.gingerbread ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.gingerbread);
   if ((L.clowns ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.clown);
   if ((L.mummies ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.groanMummy);
   if ((L.astronauts ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.astronaut);
@@ -1240,6 +1241,9 @@ function stepReplay(dt: number) {
       view3d.bounceBall(ev.speed);
     } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing })[ev.by]();
     else if (ev.type === 'teleport') (ev.via === 'igloo' ? sfx.igloo : sfx.portal)();
+    else if (ev.type === 'chute') sfx.slide();
+    else if (ev.type === 'ladder') sfx.ladder();
+    else if (ev.type === 'drop') sfx.drop();
     else if (ev.type === 'land') sfx.land();
   }
   r.idx = p.i;
@@ -1292,6 +1296,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
   <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
   <p>In <b>Pharaoh's Tomb</b>, roll into a teal scarab portal to come out of its violet partner; stone doors rise and sink on a timer; and quicksand grips the ball and drags it in: stop in it and it's swallowed (+1 stroke).</p>
+  <p>In <b>Candy Land</b>, roll off the open edge of a cake layer to drop to the level below (edges with an icing rim are solid). Roll onto a <b>ladder</b>'s glowing foot to climb up a layer, and into a <b>chute</b>'s swirl to slide down one. Some chutes are shortcuts; some send you back to the start! Chocolate costs a stroke.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
@@ -1337,7 +1342,7 @@ function frame(now: number) {
   updateCue(phase === 'play' ? dt : 0);
   updateFinger();
   fadeScoreCard();
-  playMusic(phase === 'title' ? 'menu' : world.level.theme ?? 'garden');
+  playMusic(phase === 'title' ? 'menu' : world.level.theme ?? 'candy');
   // Slow motion slows the whole scene, not just the ball
   view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt * (replay ? replay.speed : 1));
   requestAnimationFrame(frame);
@@ -1450,7 +1455,7 @@ function tick(dt: number) {
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
         updateHud();
         break;
       case 'launch':
@@ -1466,6 +1471,24 @@ function tick(dt: number) {
       case 'teleport':
         if (ev.via === 'igloo') sfx.igloo(); else sfx.portal();
         buzz(ImpactStyle.Light);
+        break;
+      case 'chute': {
+        sfx.slide();
+        buzz(ImpactStyle.Light);
+        // A chute that ends further from the cup than it starts is a snake in the board game
+        const c = (world.level.chutes ?? []).find((k) => Math.hypot(b.x - k.path[0][0], b.y - k.path[0][1]) < 30);
+        const [cx, cy] = world.level.cup, end = c?.path[c.path.length - 1];
+        const back = !!end && Math.hypot(end[0] - cx, end[1] - cy) > Math.hypot(b.x - cx, b.y - cy) + 150;
+        toast(back ? 'Down the chute! Back you go' : 'Wheee!', back ? 'bad' : 'good', 1000);
+        break;
+      }
+      case 'ladder':
+        sfx.ladder();
+        buzz(ImpactStyle.Light);
+        toast('Up the ladder!', 'good', 900);
+        break;
+      case 'drop':
+        sfx.drop();
         break;
       case 'quicksand':
         // Came to rest in quicksand: swallowed, a stroke, back to where it was hit from

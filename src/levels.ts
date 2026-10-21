@@ -82,7 +82,18 @@ export interface Igloo { a: Pt; b: Pt }
 export interface Elephant { x: number; y: number; r?: number; angle?: number }
 /** An impact crater: a bowl `depth` deep inside radius r, ringed by a raised rim `rim` high. */
 export interface Crater { x: number; y: number; r: number; depth?: number; rim?: number }
-export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic';
+/**
+ * A raised layer (a slab of cake on the Candy course) standing `h` units above whatever is under it. Its
+ * edges are icing rims the ball bounces off, except the `open` ones (edge i runs from pts[i] to pts[i+1]):
+ * roll off those and the ball drops to the level below. From below, every edge is a solid wall.
+ */
+export interface Tier { pts: Pt[]; h: number; open?: number[] }
+/**
+ * A chute (slide) or ladder along `path`: a ball rolling onto path[0] is carried along it to the last point,
+ * sliding down a chute or climbing a ladder, and rolls off the end the way the path ends.
+ */
+export interface Chute { path: Pt[] }
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -135,6 +146,14 @@ export interface LevelDef {
   igloos?: Igloo[];
   /** Penguins waddling between two points (same motion as an astronaut). */
   penguins?: Astronaut[];
+  /** Raised layers. A tier may sit on top of one listed before it (their heights add up). */
+  tiers?: Tier[];
+  /** Slides that carry the ball down from one level to another. */
+  chutes?: Chute[];
+  /** Ladders that carry the ball up from one level to another. */
+  ladders?: Chute[];
+  /** Gingerbread men strolling between two points (same motion as an astronaut). */
+  gingerbread?: Astronaut[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -195,7 +214,8 @@ const BALL = {
 } as const;
 const ball = (n: keyof typeof BALL, x: number, y: number, r = 18): Bumper => ({ x, y, r, n, color: BALL[n] });
 
-const GARDEN: LevelDef[] = [
+/** The original Garden Club course (retired from the course list; its look still serves the trick shots). */
+export const GARDEN: LevelDef[] = [
   {
     // A dogleg garden fairway. The windmill guards the cup, so the straight line to the pin has to be
     // timed through its sweepers; the brick "leg" under it closes the low lane. The lane from the tee
@@ -756,8 +776,116 @@ const ARCTIC: LevelDef[] = [
 
 export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
 
+/** A regular polygon around (cx, cy): vertex k at angle `rot` + k·360/n degrees (edge k runs from vertex k to k+1). */
+const ngon = (cx: number, cy: number, r: number, n: number, rot = 0): Pt[] =>
+  Array.from({ length: n }, (_, k) => { const a = ((rot + (k * 360) / n) * Math.PI) / 180; return [Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r)] as Pt; });
+const gumdrop = (x: number, y: number, n: keyof typeof BALL = 3, r = 18) => ball(n, x, y, r);
+
+const CANDY: LevelDef[] = [
+  {
+    // Tee off the top of a cake layer: roll off its open front edge onto the mint fairway below, then
+    // round the chocolate pond and the gumdrops to the cup.
+    name: 'Sugar Rush',
+    par: 3,
+    tee: [130, 250],
+    cup: [870, 310],
+    outline: [[40, 110], [100, 50], [900, 50], [960, 110], [960, 390], [900, 450], [100, 450], [40, 390]],
+    tiers: [{ pts: [[40, 110], [100, 50], [290, 50], [290, 450], [100, 450], [40, 390]], h: 36, open: [2] }],
+    water: [blob(590, 250, 70, 95, 2, 0.16)],
+    bumpers: [gumdrop(770, 200, 3), gumdrop(790, 400, 6), gumdrop(450, 330, 1)],
+    palms: [{ x: 440, y: 130 }, { x: 700, y: 120 }],
+    slopes: [{ kind: 'hill', x: 870, y: 310, r: 60, h: -2.5 }],
+  },
+  {
+    // The cup sits up on a cake layer: roll onto the foot of the candy-cane ladder (mind the gingerbread
+    // man strolling past it) and it carries the ball up to the top.
+    name: 'Candy Cane Ladder',
+    par: 3,
+    tee: [110, 330],
+    cup: [850, 340],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [{ pts: [[640, 40], [900, 40], [960, 100], [960, 400], [900, 460], [640, 460]], h: 36 }],
+    ladders: [{ path: [[600, 130], [684, 130]] }],
+    gingerbread: [{ a: [530, 70], b: [530, 300], speed: 45 }],
+    bumpers: [gumdrop(330, 200, 2), gumdrop(420, 380, 5)],
+    sand: [blob(470, 150, 50, 30, 3, 0.2, 10)],
+    palms: [{ x: 250, y: 120 }],
+    slopes: [{ kind: 'hill', x: 850, y: 340, r: 60, h: -2.5 }],
+  },
+  {
+    // A chocolate river runs down the middle. Drop off the tee layer and cross on the wafer bridge, or
+    // find the mouth of the rainbow chute, which slides the ball over the river to the far bank.
+    name: 'Chocolate Falls',
+    par: 3,
+    tee: [110, 330],
+    cup: [860, 390],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [{ pts: [[40, 100], [100, 40], [300, 40], [300, 460], [100, 460], [40, 400]], h: 36, open: [2] }],
+    chutes: [{ path: [[200, 120], [300, 75], [440, 70], [600, 80], [700, 110], [760, 150]] }],
+    water: [creek([[525, 34], [505, 140], [545, 260], [515, 380], [530, 466]], 80, 4)],
+    bridges: [{ x: 528, y: 330, len: 180, width: 60, angle: 0 }],
+    bumpers: [gumdrop(720, 335, 4), gumdrop(780, 250, 1), gumdrop(900, 310, 5)],
+    palms: [{ x: 400, y: 200 }],
+    slopes: [{ kind: 'hill', x: 860, y: 390, r: 55, h: -2.5 }],
+  },
+  {
+    // A cake stands in the middle of the lane. Climb it by the ladder and roll off its open far side
+    // toward the cup, or go round it through the lanes where the gingerbread men stroll.
+    name: 'Gingerbread Lane',
+    par: 3,
+    tee: [100, 250],
+    cup: [870, 250],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [{ pts: [[380, 140], [620, 140], [620, 360], [380, 360]], h: 36, open: [1] }],
+    ladders: [{ path: [[340, 250], [424, 250]] }],
+    gingerbread: [{ a: [500, 52], b: [500, 128], speed: 30 }, { a: [520, 448], b: [520, 372], speed: 34, phase: 0.5 }],
+    spinners: [{ x: 760, y: 250, len: 50, speed: 0.7, style: 'turnstile', arms: 1 }],
+    bumpers: [gumdrop(240, 120, 2), gumdrop(240, 380, 5)],
+    sand: [blob(880, 130, 50, 30, 6, 0.2)],
+    slopes: [{ kind: 'hill', x: 870, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // The board game itself: climb two ladders up the cake steps to the top layer. Overshoot the cup and
+    // the chute behind it slides the ball all the way back down to the start.
+    name: 'Chutes & Ladders',
+    par: 4,
+    tee: [110, 250],
+    cup: [850, 320],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [
+      { pts: [[360, 40], [900, 40], [960, 100], [960, 400], [900, 460], [360, 460]], h: 36 },
+      { pts: [[680, 40], [900, 40], [960, 100], [960, 400], [900, 460], [680, 460]], h: 36 },
+    ],
+    ladders: [{ path: [[320, 380], [404, 380]] }, { path: [[640, 120], [724, 120]] }],
+    chutes: [{ path: [[900, 420], [990, 470], [960, 515], [600, 520], [300, 515], [180, 470], [170, 400]] }],
+    bumpers: [gumdrop(520, 250, 3), gumdrop(220, 150, 6)],
+    gingerbread: [{ a: [470, 70], b: [470, 200], speed: 40 }],
+    palms: [{ x: 250, y: 370 }],
+    slopes: [{ kind: 'hill', x: 850, y: 320, r: 55, h: -2 }],
+  },
+  {
+    // The finale: a two-layer cake with the cup on top. Ladders climb each layer, and the open
+    // east sides of both layers send an overhit ball tumbling back down to the ground.
+    name: 'Cake Walk',
+    par: 4,
+    tee: [110, 250],
+    cup: [700, 285],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [
+      { pts: ngon(650, 250, 175, 8, 22.5), h: 36, open: [7, 0] },
+      { pts: ngon(650, 250, 92, 8, 22.5), h: 36, open: [7, 0] },
+    ],
+    ladders: [{ path: [[438, 250], [522, 250]] }, { path: [[650, 118], [650, 202]] }],
+    water: [blob(320, 110, 60, 34, 5, 0.2), blob(330, 395, 55, 32, 6, 0.2)],
+    bumpers: [gumdrop(560, 120, 1), gumdrop(560, 380, 4), gumdrop(880, 250, 2)],
+    gingerbread: [{ a: [250, 200], b: [250, 300], speed: 40 }],
+    palms: [{ x: 200, y: 90 }, { x: 200, y: 410 }],
+    slopes: [{ kind: 'hill', x: 700, y: 285, r: 50, h: -2 }],
+  },
+];
+
 export const COURSES: CourseDef[] = [
-  { id: 'garden', name: 'Garden Club', theme: 'garden', holes: GARDEN },
+  { id: 'candy', name: 'Candy Land', theme: 'candy', holes: CANDY },
   { id: 'jurassic', name: 'Jurassic Canyon', theme: 'jurassic', holes: JURASSIC },
   { id: 'space', name: 'Lunar Links', theme: 'space', holes: SPACE },
   { id: 'circus', name: 'Big Top Circus', theme: 'circus', holes: CIRCUS },
@@ -767,7 +895,7 @@ export const COURSES: CourseDef[] = [
 for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
 
 /** The holes of the course being played. Reassigned by setCourse (importers see the live binding). */
-export let LEVELS: LevelDef[] = GARDEN;
+export let LEVELS: LevelDef[] = CANDY;
 export let COURSE: CourseDef = COURSES[0];
 export function setCourse(id: string) {
   COURSE = COURSES.find((c) => c.id === id) ?? COURSES[0];

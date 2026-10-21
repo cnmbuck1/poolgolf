@@ -18,6 +18,8 @@ export const ATMOSPHERE: Record<Theme, Atmosphere> = {
   tomb: { top: 0x4a3a8a, horizon: 0xffa860, ground: 0xb08050, sun: 0xffc070, fog: 0xd89870, sunLight: 0xffd8a0, sunIntensity: 2.7, hemiSky: 0xffd0b0, hemiGround: 0x8a5a30, hemiIntensity: 1.05, exposure: 1.0 },
   // Polar twilight: deep teal sky, a low pale sun skimming the snow
   arctic: { top: 0x1a3a6a, horizon: 0xa8d8f0, ground: 0xd8e8f4, sun: 0xfff0e0, fog: 0xc8e0f0, sunLight: 0xfff4ec, sunIntensity: 2.5, hemiSky: 0xd0e8ff, hemiGround: 0xa8b8d0, hemiIntensity: 1.2, exposure: 0.95 },
+  // Candy Land: a bright pastel day, candy-pink haze on the horizon
+  candy: { top: 0x5ab0f0, horizon: 0xffd0e8, ground: 0xd8c8ff, sun: 0xfff4d8, fog: 0xf0d8f4, sunLight: 0xfff4e8, sunIntensity: 2.5, hemiSky: 0xfff0f8, hemiGround: 0xd0c0f0, hemiIntensity: 1.15, exposure: 1.0 },
   // Inside the big top: warm spotlit air under the striped canvas
   circus: { top: 0x3a0a14, horizon: 0x8a3a2a, ground: 0x6a4a2a, sun: 0xfff0c8, fog: 0x2a1410, sunLight: 0xfff0d8, sunIntensity: 2.7, hemiSky: 0xffd8b0, hemiGround: 0x6a3a20, hemiIntensity: 1.05, exposure: 1.0 },
   space: { top: 0x070720, horizon: 0x4b3a8e, ground: 0x2e2c44, sun: 0xfff2dc, fog: 0x2a2650, sunLight: 0xf6f2ff, sunIntensity: 2.9, hemiSky: 0xb8c0ff, hemiGround: 0x403a5a, hemiIntensity: 1.0, exposure: 1.0 },

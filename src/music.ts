@@ -34,6 +34,7 @@ const STYLES: Record<string, Style> = {
   jurassic: { bpm: 100, steps: 16, root: 57, scale: MINOR_PENT, chords: [0, 4, 3, 4], lead: 'sine', leadVol: 0.16, pluck: 0.22, bass: 'triangle', drums: 'tribal', density: 0.55 },
   space: { bpm: 84, steps: 16, root: 62, scale: LYDIAN, chords: [0, 1, 0, 4], lead: 'sine', leadVol: 0.08, pluck: 0.9, bass: 'sine', pad: 'sawtooth', arp: true, drums: 'pulse', density: 0.25 },
   circus: { bpm: 168, steps: 12, root: 60, scale: MAJOR, chords: [0, 4, 4, 0, 3, 0, 4, 0], lead: 'square', leadVol: 0.06, pluck: 0.2, bass: 'sawtooth', drums: 'oompah', density: 0.75 },
+  candy: { bpm: 120, steps: 16, root: 72, scale: MAJOR, chords: [0, 3, 4, 0, 5, 3, 4, 4], lead: 'triangle', leadVol: 0.1, pluck: 0.25, bass: 'triangle', drums: 'soft', density: 0.6, swing: 0.18, shimmer: true },
   arctic: { bpm: 80, steps: 16, root: 67, scale: MAJOR_PENT, chords: [0, 3, 1, 4], lead: 'sine', leadVol: 0.12, pluck: 0.6, bass: 'sine', pad: 'triangle', arp: true, drums: 'soft', density: 0.4, shimmer: true },
   tomb: { bpm: 96, steps: 16, root: 62, scale: HIJAZ, chords: [0, 1, 0, 6], lead: 'sawtooth', leadVol: 0.06, pluck: 0.25, bass: 'triangle', drums: 'darbuka', density: 0.5 },
 };
