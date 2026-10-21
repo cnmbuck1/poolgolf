@@ -7,6 +7,7 @@ import { inZone, MAX_SHOT_SPEED, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
+import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
 
 const MAX_STROKES = 10;
@@ -35,6 +36,7 @@ let practice = false; // playing a single hole from the Courses menu
 let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash reset)
 let time = 0;
 let lastFrameDt = 1 / 60;
+let sinkBanked = false; // the ball touched a wall or obstacle on the shot that sank it
 
 /** Cue strike: the cue slides into the ball, the shot fires on contact, then it follows through and fades. */
 let strike: { t: number; from: number; dur: number; p: number; fired: boolean } | null = null;
@@ -255,6 +257,23 @@ function finishHole(score: number, pickedUp = false) {
     const best = Number(localGet(ck('best')) ?? Infinity);
     if (total < best) { localSet(ck('best'), String(total)); $('hole-detail').textContent += ' · New best round!'; }
   }
+  // Coins: per hole, a round bonus, and designs unlocked by achievements
+  const lines = pickedUp ? [] : holeReward(score, par, sinkBanked);
+  const unlocked: string[] = [];
+  if (!pickedUp && score === 1) unlocked.push(earn('ace') ?? '');
+  if (last && !practice) {
+    const d = roundToPar();
+    lines.push(...roundReward(d));
+    if (d < 0) unlocked.push(earn('underPar') ?? '');
+    if (COURSE.id === 'space') unlocked.push(earn('lunar') ?? '');
+  }
+  const earned = lines.reduce((a, [, n]) => a + n, 0);
+  addCoins(earned);
+  sinkBanked = false;
+  $('hole-coins').innerHTML = earned
+    ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
+      + unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')
+    : '';
   updateHud();
   show('screen-hole');
 }
@@ -276,6 +295,7 @@ function scorecardHtml() {
 }
 
 function refreshTitle() {
+  $('menu-coins').innerHTML = `<i class="coin"></i>${coins()}`;
   const best = localGet(ck('best'));
   $('best').textContent = best ? `${COURSE.name} best round: ${best}` : '';
   setLabel('btn-play', `PLAY ${COURSE.name.toUpperCase()}`);
@@ -457,7 +477,7 @@ function sheet(title: string, html: string) {
   $('sheet-body').innerHTML = html;
   show('screen-sheet');
 }
-click('btn-sheet-close', () => show('screen-title'));
+click('btn-sheet-close', () => { refreshTitle(); show('screen-title'); });
 
 function openCourses() {
   const sections = COURSES.map((c) => {
@@ -517,28 +537,48 @@ function openStats() {
 const previews = new Map<string, string>();
 const preview = (key: string, make: () => string) => previews.get(key) ?? (previews.set(key, make()), previews.get(key)!);
 
+/** Card for one design: equipped, owned, for sale (price), or earned through an achievement. */
+function gearCard(k: ItemKey, img: string, equipped: boolean) {
+  const { name, price, achievement } = itemInfo(k);
+  const state = isOwned(k) ? '' : achievement ? `<em class="lock">🔒 ${achievement}</em>` : `<em class="price"><i class="coin"></i>${price}</em>`;
+  return `<button class="gear ${k[0] === 'b' ? 'ball' : 'cue'}${equipped ? ' on' : ''}${isOwned(k) ? '' : ' locked'}" data-item="${k}"><img alt="" src="${img}"><span>${name}</span>${state}</button>`;
+}
+
 function openGear() {
   const ballId = localGet('ball') ?? 'cue', cueId = localGet('cue') ?? 'classic';
-  const balls = BALLS.map((b) => `<button class="gear ball${b.id === ballId ? ' on' : ''}" data-ball="${b.id}"><img alt="" src="${preview(`b:${b.id}`, () => ballPreview(b.id))}"><span>${b.name}</span></button>`).join('');
-  const cues = CUES.map((c) => `<button class="gear cue${c.id === cueId ? ' on' : ''}" data-cue="${c.id}"><img alt="" src="${preview(`c:${c.id}`, () => cuePreview(c.id))}"><span>${c.name}</span></button>`).join('');
-  sheet('Cues & Balls', `<p>Pick a ball and a cue. Your choice is saved on this device.</p>
+  const balls = BALLS.map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)).join('');
+  const cues = CUES.map((c) => gearCard(`c:${c.id}`, preview(`c:${c.id}`, () => cuePreview(c.id)), c.id === cueId)).join('');
+  sheet('Cues & Balls', `<div class="gear-top"><p id="gear-msg">Earn coins on every hole, then unlock new balls and cues. Some can only be won.</p><b class="wallet"><i class="coin"></i><span id="gear-coins">${coins()}</span></b></div>
     <h3 class="gear-head">BALLS</h3><div class="gear-balls">${balls}</div>
     <h3 class="gear-head">CUES</h3><div class="gear-cues">${cues}</div>`);
   const body = $('sheet-body');
-  body.querySelectorAll<HTMLButtonElement>('[data-ball]').forEach((b) => {
+  const msg = (t: string, bad = false) => { const m = $('gear-msg'); m.textContent = t; m.classList.toggle('bad', bad); };
+  body.querySelectorAll<HTMLButtonElement>('[data-item]').forEach((b) => {
     b.onclick = () => {
-      sfx.ui();
-      localSet('ball', b.dataset.ball!);
-      view3d.setBall(b.dataset.ball!);
-      body.querySelectorAll('[data-ball]').forEach((x) => x.classList.toggle('on', x === b));
-    };
-  });
-  body.querySelectorAll<HTMLButtonElement>('[data-cue]').forEach((b) => {
-    b.onclick = () => {
-      sfx.ui();
-      localSet('cue', b.dataset.cue!);
-      view3d.setCue(b.dataset.cue!);
-      body.querySelectorAll('[data-cue]').forEach((x) => x.classList.toggle('on', x === b));
+      const k = b.dataset.item as ItemKey;
+      const { name, price, achievement } = itemInfo(k);
+      if (!isOwned(k)) {
+        if (achievement) { sfx.ui(); msg(`${name}: ${achievement.toLowerCase()} to unlock it.`, true); return; }
+        // First tap asks, second tap buys
+        if (!b.classList.contains('confirm')) {
+          sfx.ui();
+          if (coins() < price) { msg(`${name} costs ${price} coins. You need ${price - coins()} more.`, true); return; }
+          body.querySelectorAll('.confirm').forEach((x) => x.classList.remove('confirm'));
+          b.classList.add('confirm');
+          msg(`Tap ${name} again to unlock it for ${price} coins.`);
+          return;
+        }
+        if (!buy(k)) return;
+        sfx.result(-1, false);
+        b.classList.remove('confirm', 'locked');
+        b.querySelector('em')?.remove();
+        $('gear-coins').textContent = String(coins());
+        msg(`Unlocked ${name}!`);
+      } else sfx.ui();
+      const kind = k[0] === 'b' ? 'ball' : 'cue', id = k.slice(2);
+      localSet(kind, id);
+      if (kind === 'ball') view3d.setBall(id); else view3d.setCue(id);
+      body.querySelectorAll(`[data-item^="${k[0]}:"]`).forEach((x) => x.classList.toggle('on', x === b));
     };
   });
 }
@@ -556,6 +596,7 @@ click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
+  <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
@@ -654,6 +695,7 @@ function tick(dt: number) {
         busyTimer = 1.3;
         view3d.setMode('sink');
         const banks = world.contacts;
+        sinkBanked = banks > 0;
         const name = resultName(strokes, world.level.par);
         const good = strokes <= world.level.par;
         toast(banks > 0 ? `Bank shot · ${name}` : name, good ? 'good' : '', 1200);
