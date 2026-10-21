@@ -547,8 +547,18 @@ function frame(now: number) {
   if (phase === 'play') edgeTurn(dt);
   updateCue(phase === 'play' ? dt : 0);
   updateFinger();
+  fadeScoreCard();
   view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt);
   requestAnimationFrame(frame);
+}
+
+/** Hide the score card while a shot is being lined up or played, so it never covers the view. */
+let cardFaded = false;
+function fadeScoreCard() {
+  const fade = phase === 'play' && (aim.active || world.moving || !!strike || busyTimer > 0);
+  if (fade === cardFaded) return;
+  cardFaded = fade;
+  document.querySelector('.hud-card')!.classList.toggle('faded', fade);
 }
 
 function tick(dt: number) {
