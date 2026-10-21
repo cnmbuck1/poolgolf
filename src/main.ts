@@ -1061,7 +1061,7 @@ function concludeMatch(win: boolean, detail: string, lines: [string, number][], 
   h.textContent = win ? 'You win the match!' : `${m.opp.name} wins`;
   h.className = win ? 'ace' : 'over';
   $('hole-detail').textContent = detail;
-  if (win) lines.push([firstWin ? 'Match won' : 'Rematch won', firstWin ? m.opp.reward : Math.round(m.opp.reward / 3)]);
+  if (win) lines.push([firstWin ? 'Match won' : 'Rematch won', firstWin ? m.opp.reward : Math.round(m.opp.reward / 5)]);
   const next = OPPONENTS[OPPONENTS.indexOf(m.opp) + 1];
   if (firstWin && next) unlocked.push(`${next.name} challenges you`);
 }

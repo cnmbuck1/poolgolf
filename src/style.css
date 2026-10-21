@@ -374,6 +374,10 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .result .row { position: sticky; bottom: -20px; margin: 0 -8px -6px; padding: 8px 8px 6px; background: linear-gradient(180deg, rgba(18, 27, 38, 0), #121b26 30%); }
 
 .sheet { width: min(560px, 100%); text-align: left; }
+/* Menu panels scroll with a finger even though the page itself never does (the game turns that off), and
+   on iPhone Safari their contents never get squashed to fit instead of scrolling */
+.panel { touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.panel > *, #sheet-body > * { flex-shrink: 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sheet h2 { font-size: 26px; }
 .sheet p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }

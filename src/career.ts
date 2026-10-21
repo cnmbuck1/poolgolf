@@ -6,9 +6,9 @@ export interface Tier { id: string; name: string; toPar: number; reward: number 
 export interface CareerEvent { id: string; tier: Tier; course: string; name: string; target: number; reward: number }
 
 export const TIERS: Tier[] = [
-  { id: 'amateur', name: 'Amateur Tour', toPar: 3, reward: 100 },
-  { id: 'pro', name: 'Pro Tour', toPar: 0, reward: 200 },
-  { id: 'champion', name: 'Champions Tour', toPar: -3, reward: 400 },
+  { id: 'amateur', name: 'Amateur Tour', toPar: 3, reward: 60 },
+  { id: 'pro', name: 'Pro Tour', toPar: 0, reward: 120 },
+  { id: 'champion', name: 'Champions Tour', toPar: -3, reward: 250 },
 ];
 
 const NAMES: Record<string, Record<string, string>> = {
@@ -20,7 +20,7 @@ const NAMES: Record<string, Record<string, string>> = {
 /** Beat the target by this many strokes for a second and third star. */
 const STAR_STEPS = [0, 2, 4];
 /** Coins for each star earned for the first time. */
-export const STAR_COINS = 25;
+export const STAR_COINS = 15;
 
 export const EVENTS: CareerEvent[] = TIERS.flatMap((tier) => COURSES.map((c) => {
   const par = c.holes.reduce((a, l) => a + l.par, 0);

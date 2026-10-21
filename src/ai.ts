@@ -23,11 +23,11 @@ export interface Opponent {
 }
 
 export const OPPONENTS: Opponent[] = [
-  { id: 'ricky', name: 'Rookie Ricky', emoji: '🧢', color: '#5ab0ff', blurb: 'Keen, wild, and a little too fond of full power.', aimErr: 5, powErr: 0.15, choice: 3, reads: 0.4, reward: 60 },
-  { id: 'carla', name: 'Cue-Ball Carla', emoji: '🎱', color: '#ff7a9a', blurb: 'Pool hall regular. Loves a bank shot.', aimErr: 5, powErr: 0.14, choice: 2, reads: 0.6, reward: 120 },
-  { id: 'bob', name: 'Bankshot Bob', emoji: '🎩', color: '#ffc04a', blurb: 'Smooth, steady, rarely three-putts.', aimErr: 4.4, powErr: 0.13, choice: 1, reads: 0.8, reward: 200 },
-  { id: 'prof', name: 'The Professor', emoji: '🧐', color: '#9a8aff', blurb: 'Has calculated every angle. Twice.', aimErr: 3.3, powErr: 0.1, choice: 1, reads: 1, reward: 350 },
-  { id: 'galaxy', name: 'Ace Galaxy', emoji: '👽', color: '#5ae08a', blurb: 'From a planet where everyone shoots aces.', aimErr: 2.8, powErr: 0.09, choice: 1, reads: 1, reward: 500 },
+  { id: 'ricky', name: 'Rookie Ricky', emoji: '🧢', color: '#5ab0ff', blurb: 'Keen, wild, and a little too fond of full power.', aimErr: 5, powErr: 0.15, choice: 3, reads: 0.4, reward: 30 },
+  { id: 'carla', name: 'Cue-Ball Carla', emoji: '🎱', color: '#ff7a9a', blurb: 'Pool hall regular. Loves a bank shot.', aimErr: 5, powErr: 0.14, choice: 2, reads: 0.6, reward: 60 },
+  { id: 'bob', name: 'Bankshot Bob', emoji: '🎩', color: '#ffc04a', blurb: 'Smooth, steady, rarely three-putts.', aimErr: 4.4, powErr: 0.13, choice: 1, reads: 0.8, reward: 100 },
+  { id: 'prof', name: 'The Professor', emoji: '🧐', color: '#9a8aff', blurb: 'Has calculated every angle. Twice.', aimErr: 3.3, powErr: 0.1, choice: 1, reads: 1, reward: 175 },
+  { id: 'galaxy', name: 'Ace Galaxy', emoji: '👽', color: '#5ae08a', blurb: 'From a planet where everyone shoots aces.', aimErr: 2.8, powErr: 0.09, choice: 1, reads: 1, reward: 250 },
 ];
 
 /** A planned shot; `delay` is how long after the planned moment to wait for moving obstacles. */

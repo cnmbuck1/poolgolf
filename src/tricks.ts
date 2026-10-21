@@ -15,7 +15,7 @@ const lv = (theme: Theme, name: string, l: Omit<LevelDef, 'name' | 'par' | 'them
 
 export const TRICKS: Trick[] = [
   {
-    id: 'firstbank', name: 'First Bank', reward: 50, rule: { banks: 1 },
+    id: 'firstbank', name: 'First Bank', reward: 25, rule: { banks: 1 },
     tip: 'The wall blocks the straight line. Go over the top off the far rail.',
     level: lv('garden', 'First Bank', {
       tee: [200, 320], cup: [800, 320], outline: arena(80, 90, 920, 410),
@@ -23,7 +23,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'swerve', name: 'Swerve', reward: 50, rule: { spin: 'side' },
+    id: 'swerve', name: 'Swerve', reward: 25, rule: { spin: 'side' },
     tip: 'Strike the cue ball left or right of centre on the spin pad to curve round the boulder.',
     level: lv('space', 'Swerve', {
       tee: [220, 250], cup: [780, 250], outline: arena(100, 110, 900, 390),
@@ -32,7 +32,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'drawback', name: 'Draw Back', reward: 75, rule: { banks: 1, spin: 'draw' },
+    id: 'drawback', name: 'Draw Back', reward: 40, rule: { banks: 1, spin: 'draw' },
     tip: 'The cup is behind you. Hit the wall with backspin and the ball comes back.',
     level: lv('jurassic', 'Draw Back', {
       tee: [420, 250], cup: [170, 250], outline: arena(80, 120, 920, 380),
@@ -41,7 +41,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'windmill', name: 'Windmill Run', reward: 75, rule: {},
+    id: 'windmill', name: 'Windmill Run', reward: 40, rule: {},
     tip: 'Time it so the ball slips between the sweeping arms.',
     level: lv('garden', 'Windmill Run', {
       tee: [160, 250], cup: [840, 250], outline: arena(80, 150, 920, 350),
@@ -49,7 +49,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'needle', name: 'Thread the Needle', reward: 75, rule: {},
+    id: 'needle', name: 'Thread the Needle', reward: 40, rule: {},
     tip: 'One small gap between the boulders. Line it up and hit it firm.',
     level: lv('jurassic', 'Thread the Needle', {
       tee: [150, 250], cup: [850, 250], outline: arena(80, 90, 920, 410),
@@ -58,7 +58,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'moonshot', name: 'Moonshot', reward: 100, rule: {},
+    id: 'moonshot', name: 'Moonshot', reward: 50, rule: {},
     tip: 'Two asteroids drift across the lane. Pick your moment.',
     level: lv('space', 'Moonshot', {
       tee: [130, 250], cup: [870, 250], outline: arena(60, 120, 940, 380),
@@ -66,7 +66,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'doublebank', name: 'Double Bank', reward: 100, rule: { banks: 2 },
+    id: 'doublebank', name: 'Double Bank', reward: 50, rule: { banks: 2 },
     tip: 'The cup hides behind a wall. Come at it from the far side.',
     level: lv('garden', 'Double Bank', {
       tee: [200, 250], cup: [800, 250], outline: arena(80, 90, 920, 410),
@@ -74,7 +74,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'lavabridge', name: 'Lava Bridge', reward: 100, rule: {},
+    id: 'lavabridge', name: 'Lava Bridge', reward: 50, rule: {},
     tip: 'Only the bridge crosses the lava. Get the angle right.',
     level: lv('jurassic', 'Lava Bridge', {
       tee: [180, 330], cup: [820, 170], outline: arena(80, 90, 920, 410),
@@ -84,7 +84,7 @@ export const TRICKS: Trick[] = [
     }),
   },
   {
-    id: 'threecushion', name: 'Three Cushions', reward: 150, rule: { banks: 3 },
+    id: 'threecushion', name: 'Three Cushions', reward: 75, rule: { banks: 3 },
     tip: 'Off three walls and in. Plan the route round the long wall.',
     level: lv('space', 'Three Cushions', {
       tee: [200, 160], cup: [800, 160], outline: arena(80, 90, 920, 410),

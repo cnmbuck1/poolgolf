@@ -96,7 +96,7 @@ export const BALLS: BallDesign[] = [
     },
   },
   {
-    id: 'eight', name: 'Eight Ball', price: 100, clearcoat: 1, roughness: 0.15,
+    id: 'eight', name: 'Eight Ball', price: 250, clearcoat: 1, roughness: 0.15,
     paint: (g, w, h) => {
       g.fillStyle = '#141414'; g.fillRect(0, 0, w, h);
       for (const cx of [0.25, 0.75]) {
@@ -109,7 +109,7 @@ export const BALLS: BallDesign[] = [
     },
   },
   {
-    id: 'tennis', name: 'Tennis', price: 300, roughness: 1, sheen: 0.35,
+    id: 'tennis', name: 'Tennis', price: 750, roughness: 1, sheen: 0.35,
     paint: S((x, y, z) => {
       // The classic seam: a curve that weaves round the ball like a baseball's
       const a = Math.atan2(z, x);
@@ -120,7 +120,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'soccer', name: 'Soccer', price: 400, roughness: 0.4, clearcoat: 0.4,
+    id: 'soccer', name: 'Soccer', price: 1000, roughness: 0.4, clearcoat: 0.4,
     paint: S((x, y, z) => {
       let best = -2, second = -2, pent = false;
       for (const [list, isPent] of [[ICO, true], [DODECA, false]] as const) {
@@ -134,7 +134,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'basketball', name: 'Basketball', price: 400, roughness: 0.75, bump: 'pebble',
+    id: 'basketball', name: 'Basketball', price: 1000, roughness: 0.75, bump: 'pebble',
     paint: S((x, y, z) => {
       // Two great circles and two curved "C" lines round the sides
       const ln = Math.max(line(z, 0.035), line(y, 0.035), line(Math.abs(x) - 0.72, 0.035));
@@ -142,7 +142,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'baseball', name: 'Baseball', price: 300, roughness: 0.6,
+    id: 'baseball', name: 'Baseball', price: 750, roughness: 0.6,
     paint: S((x, y, z) => {
       const a = Math.atan2(z, x);
       const seam = y - 0.62 * Math.sin(2 * a) * Math.sqrt(1 - y * y) ** 0.2;
@@ -154,7 +154,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'beach', name: 'Beach Ball', price: 150, roughness: 0.25, clearcoat: 1,
+    id: 'beach', name: 'Beach Ball', price: 400, roughness: 0.25, clearcoat: 1,
     paint: S((x, y, z) => {
       if (Math.abs(y) > 0.93) return hex(0xffffff);
       const a = (Math.atan2(z, x) / (Math.PI * 2) + 1) % 1;
@@ -162,7 +162,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'golf', name: 'Golf Ball', price: 200, roughness: 0.3, clearcoat: 0.6, bump: 'dimples',
+    id: 'golf', name: 'Golf Ball', price: 500, roughness: 0.3, clearcoat: 0.6, bump: 'dimples',
     paint: (g, w, h) => {
       g.fillStyle = '#fafafa'; g.fillRect(0, 0, w, h);
       g.fillStyle = '#d82a2a'; g.font = `bold ${h * 0.12}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -170,7 +170,7 @@ export const BALLS: BallDesign[] = [
     },
   },
   {
-    id: 'tiedye', name: 'Tie-Dye', price: 500, roughness: 0.5, clearcoat: 0.5,
+    id: 'tiedye', name: 'Tie-Dye', price: 1250, roughness: 0.5, clearcoat: 0.5,
     paint: S((x, y, z) => {
       // A rainbow spiral twisting out from one pole, with soft dye bleeds
       const r = Math.acos(z) / Math.PI;
@@ -191,7 +191,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'watermelon', name: 'Watermelon', price: 150, roughness: 0.35, clearcoat: 0.8,
+    id: 'watermelon', name: 'Watermelon', price: 400, roughness: 0.35, clearcoat: 0.8,
     paint: S((x, y, z) => {
       const a = Math.atan2(z, x);
       const stripe = Math.sin(a * 8 + 0.6 * Math.sin(y * 9)) > 0.25;
@@ -199,7 +199,7 @@ export const BALLS: BallDesign[] = [
     }),
   },
   {
-    id: 'smiley', name: 'Smiley', price: 150, roughness: 0.3, clearcoat: 1,
+    id: 'smiley', name: 'Smiley', price: 400, roughness: 0.3, clearcoat: 1,
     paint: S((x, y, z) => {
       // Face looks along -x (the side the camera mostly sees as it rolls away)
       const fx = -x, eye = Math.min(Math.hypot(z - 0.28, y - 0.3), Math.hypot(z + 0.28, y - 0.3));
@@ -210,9 +210,9 @@ export const BALLS: BallDesign[] = [
     }),
   },
   { id: 'gold', name: 'Gold', metalness: 1, roughness: 0.22, paint: (g, w, h) => { g.fillStyle = '#e8b84a'; g.fillRect(0, 0, w, h); } },
-  { id: 'chrome', name: 'Chrome', price: 800, metalness: 1, roughness: 0.08, paint: (g, w, h) => { g.fillStyle = '#e8eef4'; g.fillRect(0, 0, w, h); } },
+  { id: 'chrome', name: 'Chrome', price: 2000, metalness: 1, roughness: 0.08, paint: (g, w, h) => { g.fillStyle = '#e8eef4'; g.fillRect(0, 0, w, h); } },
   {
-    id: 'neon', name: 'Neon Glow', price: 1000, roughness: 0.3, emissive: 0.9,
+    id: 'neon', name: 'Neon Glow', price: 2500, roughness: 0.3, emissive: 0.9,
     paint: S((x, y, z) => mix(hex(0x2aff8a), hex(0x2ad8ff), clamp01(0.5 + 0.5 * Math.sin(y * 6 + Math.atan2(z, x) * 2)))),
   },
 ];
@@ -345,18 +345,18 @@ const flames = (base: string, cols: string[]): Paint => (g, w, h) => {
 export const CUES: CueDesign[] = [
   { id: 'classic', name: 'Classic Maple', shaft: wood('#e6b47a', '#8a5a2a'), butt: wood('#3a2416', '#120a04'), joint: 0xd8c08a },
   {
-    id: 'glory', name: 'Old Glory', price: 500, joint: 0xe8e8f0, tip: 0x2a4aa8,
+    id: 'glory', name: 'Old Glory', price: 1250, joint: 0xe8e8f0, tip: 0x2a4aa8,
     // Red and white stripes down the shaft; white stars on navy for the butt
     shaft: (g, w, h) => { g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, w, h); g.fillStyle = '#c8202a'; for (let i = 0; i < 7; i++) g.fillRect((i / 7) * w, 0, w / 14, h); },
     butt: (g, w, h) => { g.fillStyle = '#1e2e6a'; g.fillRect(0, 0, w, h); stars(g, w, 10, h - 10, '#ffffff', 24, 11); },
   },
   {
-    id: 'unclesam', name: 'Uncle Sam', price: 400, joint: 0xc8202a, tip: 0x1e2e6a,
+    id: 'unclesam', name: 'Uncle Sam', price: 1000, joint: 0xc8202a, tip: 0x1e2e6a,
     shaft: spiral('#f4f4f4', '#c8202a', 10, 0.45),
     butt: (g, w, h) => { rings('#1e2e6a', [[0.02, '#f4f4f4', 0.03], [0.92, '#f4f4f4', 0.03]])(g, w, h); stars(g, w, 30, h - 30, '#f4f4f4', 16, 13); },
   },
   {
-    id: 'fireworks', name: 'Fourth of July', price: 600, joint: 0xffd23a,
+    id: 'fireworks', name: 'Fourth of July', price: 1500, joint: 0xffd23a,
     shaft: rings('#f4f0e8', [[0.86, '#c8202a', 0.03], [0.92, '#1e2e6a', 0.03]]),
     butt: (g, w, h) => {
       g.fillStyle = '#0c1440'; g.fillRect(0, 0, w, h);
@@ -381,21 +381,21 @@ export const CUES: CueDesign[] = [
       g.fillStyle = '#ffc83a'; g.fillRect(0, h * 0.36, w, h * 0.04);
     },
   },
-  { id: 'candy', name: 'Candy Cane', price: 150, joint: 0xffffff, tip: 0xc8202a, shaft: spiral('#ffffff', '#e0202a', 14, 0.35), butt: spiral('#ffffff', '#e0202a', 6, 0.35) },
+  { id: 'candy', name: 'Candy Cane', price: 400, joint: 0xffffff, tip: 0xc8202a, shaft: spiral('#ffffff', '#e0202a', 14, 0.35), butt: spiral('#ffffff', '#e0202a', 6, 0.35) },
   {
-    id: 'saber', name: 'Light Saber', price: 1000, joint: 0x9aa0a8, tip: 0x9af8ff, ferrule: 0xd8f8ff, glow: 1.6, metalButt: true,
+    id: 'saber', name: 'Light Saber', price: 2500, joint: 0x9aa0a8, tip: 0x9af8ff, ferrule: 0xd8f8ff, glow: 1.6, metalButt: true,
     shaft: (g, w, h) => { const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#7af0ff'); gr.addColorStop(0.5, '#e8ffff'); gr.addColorStop(1, '#7af0ff'); g.fillStyle = gr; g.fillRect(0, 0, w, h); },
     butt: rings('#b8bec8', [[0.1, '#3a3e46', 0.06], [0.3, '#3a3e46', 0.04], [0.34, '#3a3e46', 0.04], [0.38, '#3a3e46', 0.04], [0.6, '#c8202a', 0.03], [0.85, '#3a3e46', 0.08]]),
   },
-  { id: 'flame', name: 'Hot Rod', price: 600, joint: 0xb8bec8, tip: 0x141414, shaft: wood('#2a2a2e', '#000000'), butt: flames('#141414', ['#ff4a1a', '#ff9a1a', '#ffe04a']) },
-  { id: 'royal', name: 'Royal Gold', price: 800, joint: 0x141414, tip: 0x5a2a8a, metalButt: true, shaft: wood('#2a1a14', '#000000'), butt: rings('#e8b84a', [[0.15, '#5a2a8a', 0.05], [0.8, '#5a2a8a', 0.05]]) },
+  { id: 'flame', name: 'Hot Rod', price: 1500, joint: 0xb8bec8, tip: 0x141414, shaft: wood('#2a2a2e', '#000000'), butt: flames('#141414', ['#ff4a1a', '#ff9a1a', '#ffe04a']) },
+  { id: 'royal', name: 'Royal Gold', price: 2000, joint: 0x141414, tip: 0x5a2a8a, metalButt: true, shaft: wood('#2a1a14', '#000000'), butt: rings('#e8b84a', [[0.15, '#5a2a8a', 0.05], [0.8, '#5a2a8a', 0.05]]) },
   {
-    id: 'camo', name: 'Camo', price: 300, joint: 0x3a3a2a,
+    id: 'camo', name: 'Camo', price: 750, joint: 0x3a3a2a,
     shaft: wood('#c8b48a', '#7a6a4a'),
     butt: (g, w, h) => { g.fillStyle = '#6a7a4a'; g.fillRect(0, 0, w, h); for (const c of ['#3a4a2a', '#8a7a4a', '#2a2a1e']) { g.fillStyle = c; for (let i = 0; i < 18; i++) { g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 10 + Math.random() * 14, 18 + Math.random() * 26, Math.random() * 3, 0, Math.PI * 2); g.fill(); } } },
   },
   {
-    id: 'rainbow', name: 'Tie-Dye', price: 500, joint: 0xffffff,
+    id: 'rainbow', name: 'Tie-Dye', price: 1250, joint: 0xffffff,
     shaft: (g, w, h) => { for (let y = 0; y < h; y++) { const c = hsl((y / h) * 2 % 1, 0.8, 0.6); g.fillStyle = `rgb(${c.join(',')})`; g.fillRect(0, y, w, 1); } },
     butt: (g, w, h) => {
       const img = g.createImageData(w, h);
@@ -407,13 +407,13 @@ export const CUES: CueDesign[] = [
     },
   },
   {
-    id: 'slugger', name: 'Slugger', price: 300, joint: 0x141414, tip: 0x141414,
+    id: 'slugger', name: 'Slugger', price: 750, joint: 0x141414, tip: 0x141414,
     // Ash bat wood, with black grip tape wound round the butt
     shaft: wood('#e8d0a0', '#a8885a'),
     butt: (g, w, h) => { wood('#e0c494', '#a8885a')(g, w, h); g.save(); g.beginPath(); g.rect(0, h * 0.45, w, h * 0.55); g.clip(); spiral('#1a1a1a', '#3a3a3a', 22, 0.2)(g, w, h); g.restore(); },
   },
   {
-    id: 'galaxy', name: 'Galaxy', price: 700, joint: 0xb8a8ff, tip: 0x6a2ac8,
+    id: 'galaxy', name: 'Galaxy', price: 1750, joint: 0xb8a8ff, tip: 0x6a2ac8,
     shaft: wood('#1a1640', '#3a2a8a'),
     butt: (g, w, h) => {
       g.fillStyle = '#0c0a2a'; g.fillRect(0, 0, w, h);

@@ -9,8 +9,8 @@ export type Daily =
   | { kind: 'trick'; day: number; trick: Trick };
 
 /** Coins for completing the day's challenge, plus a bonus per day of streak (capped). */
-export const DAILY_COINS = 40;
-const STREAK_COINS = 10, STREAK_CAP = 10;
+export const DAILY_COINS = 20;
+const STREAK_COINS = 5, STREAK_CAP = 10;
 
 /** Days since 1 Jan 1970 in the player's own time zone, so the challenge changes at local midnight. */
 export function today(now = new Date()) {

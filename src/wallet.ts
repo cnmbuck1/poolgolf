@@ -6,8 +6,8 @@ const key = (k: string) => `poolgolf.${k}`;
 function get(k: string) { try { return localStorage.getItem(key(k)); } catch { return null; } }
 function set(k: string, v: string) { try { localStorage.setItem(key(k), v); } catch { /* ignore */ } }
 
-/** Coins a new player starts with: enough for a first cheap design straight away. */
-const STARTING_COINS = 150;
+/** Coins a new player starts with: a head start toward a first design (the cheapest is 250). */
+const STARTING_COINS = 100;
 
 /** Item keys: `b:<ball id>` or `c:<cue id>`. */
 export type ItemKey = `b:${string}` | `c:${string}`;
@@ -60,18 +60,18 @@ export function earn(a: Achievement) {
 
 /** Coins for finishing a hole, itemised for the results screen. */
 export function holeReward(score: number, par: number, banked: boolean) {
-  const lines: [string, number][] = [['Hole', 5]];
-  if (score === 1) lines.push(['Hole in one', 100]);
-  else if (score <= par - 2) lines.push(['Eagle', 50]);
-  else if (score === par - 1) lines.push(['Birdie', 25]);
-  else if (score === par) lines.push(['Par', 10]);
-  if (banked) lines.push(['Bank shot', 10]);
+  const lines: [string, number][] = [['Hole', 2]];
+  if (score === 1) lines.push(['Hole in one', 75]);
+  else if (score <= par - 2) lines.push(['Eagle', 30]);
+  else if (score === par - 1) lines.push(['Birdie', 15]);
+  else if (score === par) lines.push(['Par', 5]);
+  if (banked) lines.push(['Bank shot', 5]);
   return lines;
 }
 
 /** Coins for finishing a round. */
 export function roundReward(toPar: number) {
-  const lines: [string, number][] = [['Round', 50]];
-  if (toPar < 0) lines.push(['Under par', 100]);
+  const lines: [string, number][] = [['Round', 25]];
+  if (toPar < 0) lines.push(['Under par', 50]);
   return lines;
 }
