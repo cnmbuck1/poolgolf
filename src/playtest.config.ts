@@ -2,7 +2,7 @@
 // docs/playtest-sheet.gs (see docs/PLAYTESTING.md for the five-minute setup). Leave it empty to keep
 // records on each device only. Note: this repository is public, so anyone could find this URL and post
 // to the sheet; fine for a playtest, but don't put anything secret in it.
-export const PLAYTEST_URL = '';
+export const PLAYTEST_URL = 'https://script.google.com/macros/s/AKfycbwUFtzczLRXzoLnxEKemdWyMraB4UM-iEdg0bQKmSWjwgNb9cYX03OjBxbf0O-Jz-SC/exec';
 
 /**
  * The tester code the web version asks for (on github.io and other hosts; never in the app, on claude.ai
