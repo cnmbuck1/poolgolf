@@ -212,6 +212,8 @@ function openTips() {
   const li = (items: string[]) => items.map((x) => `<li>${x.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!)}</li>`).join('');
   $('tips-do').innerHTML = li(t.do);
   $('tips-avoid').innerHTML = li(t.avoid);
+  $('tips-spin').innerHTML = t.spin ? `<b>🎱 Use spin:</b> ${li([t.spin]).replace(/<\/?li>/g, '')}` : '';
+  $('tips-foot').classList.toggle('hidden', !!t.spin); // the general how-to-spin line, on holes without their own spin tip
   $('screen-tips').classList.remove('hidden');
 }
 function closeTips() {
