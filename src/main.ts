@@ -9,6 +9,7 @@ import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
 import { bestScore, bestStars, CareerEvent, EVENTS, isUnlocked, recordEvent, STAR_COINS, starText, TIERS, totalStars } from './career';
 import { HoleRecorder, sampleShot, Shot } from './replay';
+import { bestToday, Daily, dailyCourse, dailyFor, dailyName, dateLabel, isDoneToday, recordDaily, streak, today, untilTomorrow } from './daily';
 import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
@@ -47,6 +48,7 @@ const recorder = new HoleRecorder(); // this hole's shots, for the replay
 let careerEvent: CareerEvent | null = null; // the Career event being played, if any
 let trick: Trick | null = null; // the trick shot being attempted, if any
 let attempts = 0; // tries at the current trick shot
+let daily: Daily | null = null; // today's daily challenge, while it's being played
 let trickMissed = false; // the ball dropped but broke the trick's rule
 let trickReset = 0; // seconds until the ball goes back to the start after a miss
 
@@ -180,7 +182,7 @@ function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
 }
 
 function banner() {
-  $('banner-hole').innerHTML = trick ? 'TRICK SHOT' : `HOLE <b>${holeIdx + 1}</b>`;
+  $('banner-hole').innerHTML = daily ? 'DAILY CHALLENGE' : trick ? 'TRICK SHOT' : `HOLE <b>${holeIdx + 1}</b>`;
   $('banner-name').textContent = world.level.name;
   $('banner-par').textContent = `Par ${world.level.par}`;
   fitTopSlot();
@@ -256,6 +258,7 @@ function enterLevel(L: LevelDef) {
 function startRound(ev: CareerEvent | null = null) {
   practice = false;
   careerEvent = ev;
+  daily = null;
   scores = LEVELS.map(() => null);
   loadHole(0);
   if (ev) toast(`${ev.name} · shoot ${ev.target} or better`, 'good', 2600);
@@ -264,6 +267,7 @@ function startRound(ev: CareerEvent | null = null) {
 function playSingle(i: number) {
   practice = true;
   careerEvent = null;
+  daily = null;
   scores = LEVELS.map(() => null);
   loadHole(i);
 }
@@ -281,8 +285,8 @@ function finishHole(score: number, pickedUp = false) {
   h.className = pickedUp ? 'over' : scoreClass(score, par);
   $('hole-detail').textContent = `${score} stroke${score === 1 ? '' : 's'} on a par ${par}`;
   $('hole-card').innerHTML = scorecardHtml();
-  setLabel('btn-next', practice ? 'COURSES' : last && careerEvent ? 'CAREER' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
-  $('btn-replay').textContent = 'Replay hole';
+  setLabel('btn-next', daily ? 'MENU' : practice ? 'COURSES' : last && careerEvent ? 'CAREER' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
+  $('btn-replay').textContent = daily ? 'Try again' : 'Replay hole';
   if (!pickedUp) sfx.result(score - par, score === 1);
   if (last && !practice) {
     localSet('rounds', String(stat('rounds') + 1));
@@ -304,6 +308,17 @@ function finishHole(score: number, pickedUp = false) {
     lines.push(...roundReward(d));
     if (d < 0) unlocked.push(earn('underPar') ?? '');
     if (COURSE.id === 'space') unlocked.push(earn('lunar') ?? '');
+  }
+  if (daily?.kind === 'hole') {
+    // Daily challenge: meet the day's goal for the daily coins and to keep the streak going
+    const d = daily;
+    const r = pickedUp ? null : recordDaily(d, score);
+    if (r) lines.push(...r.coins);
+    $('hole-kicker').textContent = `DAILY CHALLENGE · ${dateLabel(d.day)}`;
+    $('hole-card').innerHTML = ''; // a one-hole challenge: no course scorecard
+    $('hole-detail').innerHTML = r?.met
+      ? `${d.goalName} ✓ · <span class="streak">🔥 ${r.streak}-day streak</span>`
+      : `Goal: ${d.goalName.toLowerCase()} (${d.goal} or fewer). Try again!`;
   }
   if (last && careerEvent) {
     // Career: stars against the event's target, first-clear and new-star coins, and the next tour
@@ -349,6 +364,7 @@ function scorecardHtml() {
 }
 
 function refreshTitle() {
+  refreshDaily();
   $('menu-coins').innerHTML = `<i class="coin"></i>${coins()}`;
   const best = localGet(ck('best'));
   $('best').textContent = best ? `${COURSE.name} best round: ${best}` : '';
@@ -681,6 +697,34 @@ function setSpin(side: number, vert: number) {
   });
 }
 
+// ---------- Daily challenge ----------
+function startDaily(day = today()) {
+  const d = dailyFor(day);
+  if (d.kind === 'hole') {
+    chooseCourse(d.course);
+    playSingle(d.hole);
+    daily = d;
+    banner();
+    toast(`Daily challenge · ${d.goalName.toLowerCase()}`, 'good', 2600);
+  } else {
+    loadTrick(d.trick);
+    daily = d;
+    banner();
+  }
+}
+
+function refreshDaily() {
+  const d = dailyFor(today());
+  const done = isDoneToday(d), s = streak();
+  $('daily-kicker').textContent = `DAILY CHALLENGE · ${dateLabel(d.day)}`;
+  $('daily-name').textContent = dailyName(d);
+  const best = bestToday(d);
+  $('daily-info').textContent = `${dailyCourse(d)} · ${d.kind === 'hole' ? `${d.goalName}${best != null ? ` · best ${best}` : ''}` : `Trick shot · ${ruleText(d.trick).replace('Sink it in one shot', 'one shot')}`}`;
+  $('daily-streak').textContent = s ? `🔥 ${s}` : '';
+  $('daily-cta').textContent = done ? `✓ DONE · NEW IN ${untilTomorrow()}` : 'PLAY';
+  $('daily-card').classList.toggle('done', done);
+}
+
 // ---------- Trick shots ----------
 function resetTrickBall() {
   trickReset = 0;
@@ -700,18 +744,24 @@ function finishTrick() {
   phase = 'holeDone';
   setRolling(0, false);
   const first = markDone(t);
-  if (first) addCoins(t.reward);
-  $('hole-kicker').textContent = `TRICK SHOT · ${t.name.toUpperCase()}`;
+  const lines: [string, number][] = first ? [['Trick shot', t.reward]] : [];
+  const r = daily?.kind === 'trick' ? recordDaily(daily, attempts) : null;
+  if (r) lines.push(...r.coins);
+  const earned = lines.reduce((a, [, n]) => a + n, 0);
+  addCoins(earned);
+  $('hole-kicker').textContent = daily ? `DAILY CHALLENGE · ${dateLabel(daily.day)}` : `TRICK SHOT · ${t.name.toUpperCase()}`;
   const h = $('hole-result');
   h.textContent = 'Nailed it!';
   h.className = 'ace';
-  $('hole-detail').textContent = `${ruleText(t)} · ${attempts === 1 ? 'first try!' : `attempt ${attempts}`}`;
-  $('hole-coins').innerHTML = first ? `<b><i class="coin"></i>+${t.reward}</b><small>Trick shot +${t.reward}</small>` : '<small>Already completed · no coins this time</small>';
+  $('hole-detail').innerHTML = `${ruleText(t)} · ${attempts === 1 ? 'first try!' : `attempt ${attempts}`}${r ? ` · <span class="streak">🔥 ${r.streak}-day streak</span>` : ''}`;
+  $('hole-coins').innerHTML = earned
+    ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
+    : '<small>Already completed · no coins this time</small>';
   $('hole-card').innerHTML = '';
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
   $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH IT IN SLOW MOTION';
   $('btn-replay').textContent = 'Try again';
-  setLabel('btn-next', 'TRICK SHOTS');
+  setLabel('btn-next', daily ? 'MENU' : 'TRICK SHOTS');
   sfx.result(-2, true);
   updateHud();
   show('screen-hole');
@@ -729,7 +779,7 @@ function openCareer(tab: 'tours' | 'tricks' = 'tours') {
       <div class="gear-top"><p>One shot each. Banks, swerves, draws and timing: use the spin pad by the power bar to strike the ball off-centre.</p><b class="wallet">${done}/${TRICKS.length}</b></div>
       <div class="courses">${trickCards()}</div>`);
     $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-trick]').forEach((b) => {
-      b.onclick = () => { sfx.ui(); loadTrick(TRICKS.find((t) => t.id === b.dataset.trick)!); };
+      b.onclick = () => { sfx.ui(); daily = null; loadTrick(TRICKS.find((t) => t.id === b.dataset.trick)!); };
     });
     $('sheet-body').querySelector<HTMLButtonElement>('[data-tab="tours"]')!.onclick = () => { sfx.ui(); openCareer('tours'); };
     return;
@@ -876,6 +926,7 @@ click('btn-settings', openSettings);
 click('btn-stats', openStats);
 click('btn-cues', openGear);
 click('btn-career', () => openCareer());
+click('daily-card', () => startDaily());
 click('btn-watch', () => startReplay());
 click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slowmo').classList.toggle('on', replay.slow); } });
 click('btn-skip', () => endReplay());
@@ -884,10 +935,12 @@ click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
+  <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
+  if (daily) { daily = null; toTitle(); return; }
   if (trick) { toTitle(); openCareer('tricks'); return; }
   if (careerEvent && holeIdx === LEVELS.length - 1) { toTitle(); openCareer(); return; }
   if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
@@ -1043,6 +1096,7 @@ if (import.meta.env.DEV) {
       fireShot(p);
     },
     trick: (id: string) => loadTrick(TRICKS.find((t) => t.id === id)!),
+    daily: (offset = 0) => startDaily(today() + offset),
     stats: () => view3d.stats,
     view: () => view3d,
     course: (id: string) => chooseCourse(id),
