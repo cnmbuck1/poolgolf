@@ -2,16 +2,19 @@
 import * as THREE from 'three';
 import { lawnMaterial } from './art';
 import { LAWN_Y } from './course';
+import { Theme } from './levels';
 
 /** Direction toward the sun: low in the sky, behind and to the left of the default view. */
 export const SUN_DIR = new THREE.Vector3(-0.62, 0.42, -0.66).normalize();
 
 /** Sky and lighting for each course's theme. */
 export interface Atmosphere { top: number; horizon: number; ground: number; sun: number; fog: number; sunLight: number; sunIntensity: number; hemiSky: number; hemiGround: number; hemiIntensity: number; exposure: number }
-export const ATMOSPHERE: Record<'garden' | 'jurassic', Atmosphere> = {
+export const ATMOSPHERE: Record<Theme, Atmosphere> = {
   garden: { top: 0x3f6fae, horizon: 0xf4c08a, ground: 0x56603a, sun: 0xffd29a, fog: 0xd9b48c, sunLight: 0xffd6a0, sunIntensity: 2.6, hemiSky: 0xcfe0f5, hemiGround: 0x4e5a2c, hemiIntensity: 0.9, exposure: 1.0 },
   // Bright cartoon sunset: lilac sky fading to warm peach
   jurassic: { top: 0x7a74c8, horizon: 0xffb27a, ground: 0x8a5a3a, sun: 0xffd08a, fog: 0xe8a878, sunLight: 0xffe0b0, sunIntensity: 2.6, hemiSky: 0xffe0c8, hemiGround: 0x7a5030, hemiIntensity: 1.1, exposure: 1.0 },
+  // Deep indigo space with a violet glow on the horizon; bright, slightly cool sunlight on the moon
+  space: { top: 0x070720, horizon: 0x4b3a8e, ground: 0x2e2c44, sun: 0xfff2dc, fog: 0x2a2650, sunLight: 0xf6f2ff, sunIntensity: 2.9, hemiSky: 0xb8c0ff, hemiGround: 0x403a5a, hemiIntensity: 1.0, exposure: 1.0 },
 };
 const SKY = {
   top: new THREE.Color(0x3f6fae),

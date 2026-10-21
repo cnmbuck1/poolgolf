@@ -13,6 +13,7 @@ One TypeScript/HTML5-canvas codebase, packaged for **iOS (App Store)** and **And
   5. **Turnstiles**: three lanes joined by stone walls, with turnstiles sweeping two of the gaps
   6. **Eight Ball**: brick walls funnel toward a racked set of pool balls in front of a raised green, with bunkers on both sides
 - **Jurassic Canyon**, a second 6-hole course (par 19), picked from **Courses** on the main menu. Drawn in a cartoon style (flat toon shading and ink outlines) under a lilac-and-peach sunset: packed-dirt fairways with a rounded rock kerb; glowing lava rivers and pools (+1 stroke), volcanoes whose slopes push the ball away, tumbleweeds that roll across the line, and big-eyed dinosaurs you can roll the ball between the legs of: a brontosaurus that walks across the course, a T-rex that sweeps its tail behind it, and a plated stegosaurus. Dressed with chunky palms, round bushes, boulders, a ribcage, an egg nest and smoking volcanoes on the horizon.
+- **Lunar Links**, a third 6-hole course (par 19) on the moon, in the same cartoon style under a starry sky with the Earth, a ringed planet and a passing UFO: pale moon-dust fairways pocked with craters that curl the ball, cracks into open space (+1 stroke) crossed by metal bridges, moon rocks, asteroids drifting across the line, little aliens hopping in circles, and astronauts that wave or moonwalk on patrol. Dressed with glowing crystals, craters, a rocket and a flag.
   1. **Lava Run**: a lava river crossed by a wide bridge on the line to the cup
   2. **Tumbleweed Flats**: time the gaps between three rolling tumbleweeds
   3. **Bronto Crossing**: under the brontosaurus or round the lava pools
@@ -45,7 +46,7 @@ npm run assets                                             # build + quantize in
 
 ## Course shapes and slopes
 
-Jurassic holes also use `tumbleweeds`, `volcanoes` and `dinos` (their moving colliders live in `movers()` in `physics.ts`). Each hole can define an `outline` (the fairway edging, as a polygon), `slopes` (`hill` bumps or bowls, and `tilt` planes), `water` and `sand` (organic shapes from `blob()` and `creek()`), `bridges`, `rocks` and `spinners` (windmill or turnstile) in `src/levels.ts`. Bunkers are dished into the terrain; water is sunk below the turf with sloped banks. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
+Jurassic holes also use `tumbleweeds`, `volcanoes`, `palms` and `dinos`; Lunar holes use `asteroids`, `aliens`, `astronauts` and `craters` (moving colliders live in `movers()` in `physics.ts`). Each hole can define an `outline` (the fairway edging, as a polygon), `slopes` (`hill` bumps or bowls, and `tilt` planes), `water` and `sand` (organic shapes from `blob()` and `creek()`), `bridges`, `rocks` and `spinners` (windmill or turnstile) in `src/levels.ts`. Bunkers are dished into the terrain; water is sunk below the turf with sloped banks. `heightAt()` in `physics.ts` is shared by the physics (the ball rolls downhill) and the renderer (the turf is shaped to match). Holes without an outline keep the original rectangle.
 
 ## Project layout
 
@@ -56,7 +57,8 @@ src/render3d.ts  camera, ball, cue, aim guide, effects
 src/course.ts    builds each hole: sloped turf, timber edging, obstacles, garden dressing
 src/garden.ts    evening sky and sun
 src/landscape.ts curved kerb, rolling lawn, flower beds, grasses, topiary, river stones
-src/jurassic.ts  Jurassic course: dirt, lava, volcanoes, tumbleweeds, dinosaurs, prehistoric planting
+src/jurassic.ts  Jurassic course: dirt, lava, volcanoes, tumbleweeds, dinosaurs, prehistoric planting (and the shared toon helpers)
+src/space.ts     Lunar course: moon dust, the void, asteroids, aliens, astronauts, stars, planets, rocket
 src/main.ts      game flow, input, HUD, haptics
 src/audio.ts     WebAudio sound effects
 ios/  android/   generated native projects (Capacitor)

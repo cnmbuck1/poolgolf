@@ -627,14 +627,14 @@ function tick(dt: number) {
         break;
       }
       case 'water':
-        if (world.level.theme === 'jurassic') sfx.lava(); else sfx.water();
+        if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else sfx.water();
         buzz(ImpactStyle.Heavy);
         fx.splash = { x: b.x, y: b.y, t: 0 };
         fx.ripples.push({ x: b.x, y: b.y, t: 0 }, { x: b.x, y: b.y, t: -0.25 });
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast(world.level.theme === 'jurassic' ? 'Lava! +1 stroke' : 'Splash! +1 stroke', 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
         updateHud();
         break;
       case 'stop':

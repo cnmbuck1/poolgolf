@@ -33,7 +33,15 @@ export interface Volcano { x: number; y: number; r: number }
  *   stego   a solid, plated body
  */
 export interface Dino { kind: 'bronto' | 'trex' | 'stego'; x: number; y: number; angle: number; walk?: number; swing?: number; speed?: number }
-export type Theme = 'garden' | 'jurassic';
+/** A space rock drifting back and forth between a and b (same motion as a tumbleweed), spinning as it goes. */
+export interface Asteroid { a: Pt; b: Pt; speed: number; r?: number; phase?: number }
+/** A little alien hopping round a circle of radius `orbit` about (x, y); `speed` in rad/s (negative turns the other way). */
+export interface Alien { x: number; y: number; orbit: number; speed: number; phase?: number }
+/** An astronaut: moonwalks between a and b, or stands waving at a when there is no b. */
+export interface Astronaut { a: Pt; b?: Pt; speed?: number; phase?: number }
+/** An impact crater: a bowl `depth` deep inside radius r, ringed by a raised rim `rim` high. */
+export interface Crater { x: number; y: number; r: number; depth?: number; rim?: number }
+export type Theme = 'garden' | 'jurassic' | 'space';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -60,7 +68,11 @@ export interface LevelDef {
   tumbleweeds?: Tumbleweed[];
   volcanoes?: Volcano[];
   dinos?: Dino[];
-  /** Set from the course; decides the look (and calls water "lava" in the jurassic course). */
+  asteroids?: Asteroid[];
+  aliens?: Alien[];
+  astronauts?: Astronaut[];
+  craters?: Crater[];
+  /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
   sand?: Zone[];
@@ -328,11 +340,105 @@ const JURASSIC: LevelDef[] = [
   },
 ];
 
+const SPACE: LevelDef[] = [
+  {
+    // A gentle start on the moon: an astronaut waves from the middle of the fairway, and two
+    // craters either side will curl a lazy putt.
+    name: 'Moonwalk',
+    par: 3,
+    tee: [110, 250],
+    cup: [880, 250],
+    outline: [[40, 180], [170, 80], [820, 80], [960, 180], [960, 320], [820, 420], [170, 420], [40, 320]],
+    astronauts: [{ a: [500, 250] }],
+    craters: [{ x: 360, y: 150, r: 60 }, { x: 650, y: 350, r: 62 }],
+    rocks: [{ x: 270, y: 345, r: 20 }, { x: 730, y: 140, r: 22 }],
+    sand: [blob(800, 360, 50, 26, 2, 0.2, 10)],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // Asteroids drift up and down across the fairway. Time the gaps, or bank round them.
+    name: 'Asteroid Belt',
+    par: 3,
+    tee: [100, 250],
+    cup: [900, 250],
+    outline: [[40, 160], [200, 50], [800, 50], [960, 160], [960, 340], [800, 450], [200, 450], [40, 340]],
+    asteroids: [
+      { a: [320, 85], b: [320, 415], speed: 95, r: 22, phase: 0 },
+      { a: [510, 415], b: [510, 85], speed: 120, r: 24, phase: 0.35 },
+      { a: [700, 90], b: [700, 410], speed: 85, r: 20, phase: 0.7 },
+    ],
+    rocks: [{ x: 420, y: 140, r: 20 }, { x: 600, y: 360, r: 22 }],
+    craters: [{ x: 810, y: 150, r: 50 }],
+  },
+  {
+    // A dogleg round a giant crater; an alien hops round its rim, and the green sits beyond.
+    name: 'Crater Hop',
+    par: 3,
+    tee: [100, 400],
+    cup: [870, 130],
+    outline: [[40, 330], [130, 280], [500, 270], [580, 60], [960, 60], [960, 330], [880, 470], [40, 470]],
+    craters: [{ x: 700, y: 330, r: 95, depth: 10, rim: 5 }],
+    aliens: [{ x: 700, y: 330, orbit: 115, speed: 0.7 }],
+    rocks: [{ x: 380, y: 420, r: 22 }, { x: 640, y: 120, r: 20 }],
+    water: [blob(300, 330, 55, 22, 3, 0.25, 5)],
+    slopes: [{ kind: 'hill', x: 870, y: 130, r: 60, h: -2.5 }],
+  },
+  {
+    // A crack into space splits the fairway. Cross on the metal bridge, past a moonwalking
+    // astronaut, and an alien keeps watch by the cup.
+    name: 'Space Walk',
+    par: 3,
+    tee: [110, 250],
+    cup: [890, 250],
+    outline: [[40, 170], [160, 60], [840, 60], [960, 170], [960, 330], [840, 440], [160, 440], [40, 330]],
+    water: [creek([[470, 40], [440, 150], [500, 300], [460, 460]], 70, 4)],
+    bridges: [{ x: 478, y: 250, len: 170, width: 80, angle: 5 }],
+    astronauts: [{ a: [640, 110], b: [640, 390], speed: 45 }],
+    aliens: [{ x: 760, y: 250, orbit: 55, speed: -1.1 }],
+    rocks: [{ x: 260, y: 160, r: 20 }, { x: 290, y: 360, r: 22 }],
+  },
+  {
+    // Three aliens circle along the fairway, each in its own loop; void pockets wait at the sides.
+    name: 'Close Encounters',
+    par: 3,
+    tee: [100, 250],
+    cup: [900, 250],
+    outline: [[40, 160], [180, 40], [820, 40], [960, 160], [960, 340], [820, 460], [180, 460], [40, 340]],
+    aliens: [
+      { x: 320, y: 250, orbit: 70, speed: 1.1 },
+      { x: 540, y: 250, orbit: 95, speed: -0.8, phase: 0.25 },
+      { x: 760, y: 250, orbit: 60, speed: 1.4, phase: 0.5 },
+    ],
+    water: [blob(540, 85, 70, 24, 5, 0.25), blob(540, 415, 70, 24, 6, 0.25)],
+    craters: [{ x: 200, y: 380, r: 50 }],
+    rocks: [{ x: 430, y: 380, r: 18 }, { x: 650, y: 120, r: 18 }],
+    sand: [blob(830, 130, 48, 26, 7, 0.2, 20)],
+  },
+  {
+    // The finale: an asteroid stream, an astronaut on patrol, a crack into space with one bridge,
+    // and an alien hopping round the raised green.
+    name: 'Lunar Landing',
+    par: 4,
+    tee: [100, 250],
+    cup: [905, 250],
+    outline: [[40, 150], [160, 40], [840, 40], [960, 150], [960, 350], [840, 460], [160, 460], [40, 350]],
+    asteroids: [{ a: [290, 70], b: [290, 430], speed: 110, r: 22 }, { a: [390, 430], b: [390, 70], speed: 90, r: 18, phase: 0.5 }],
+    astronauts: [{ a: [530, 120], b: [530, 380], speed: 50, phase: 0.3 }],
+    water: [creek([[700, 40], [670, 160], [720, 300], [690, 460]], 64, 8)],
+    bridges: [{ x: 700, y: 250, len: 140, width: 60, angle: 5 }],
+    aliens: [{ x: 880, y: 250, orbit: 75, speed: 0.9 }],
+    craters: [{ x: 200, y: 140, r: 55 }],
+    rocks: [{ x: 600, y: 420, r: 20 }],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+  },
+];
+
 export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
 
 export const COURSES: CourseDef[] = [
   { id: 'garden', name: 'Garden Club', theme: 'garden', holes: GARDEN },
   { id: 'jurassic', name: 'Jurassic Canyon', theme: 'jurassic', holes: JURASSIC },
+  { id: 'space', name: 'Lunar Links', theme: 'space', holes: SPACE },
 ];
 for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
 

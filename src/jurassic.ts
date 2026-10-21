@@ -12,18 +12,18 @@ type ToScene = (x: number, y: number) => THREE.Vector3;
 
 // ---------- helpers ----------
 
-function rng(seed: number) {
+export function rng(seed: number) {
   let s = seed >>> 0 || 1;
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
 const cache = new Map<string, unknown>();
-function cached<T>(key: string, make: () => T): T {
+export function cached<T>(key: string, make: () => T): T {
   if (!cache.has(key)) cache.set(key, make());
   return cache.get(key) as T;
 }
 
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, color = true, repeat = 1) {
+export function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, color = true, repeat = 1) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   draw(c.getContext('2d')!);
@@ -35,14 +35,14 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   return t;
 }
 
-function shared<T extends THREE.Material>(m: T): T { m.userData.shared = true; return m; }
+export function shared<T extends THREE.Material>(m: T): T { m.userData.shared = true; return m; }
 
-const V = (x: number, y: number, z = 0) => new THREE.Vector3(x, y, z);
+export const V = (x: number, y: number, z = 0) => new THREE.Vector3(x, y, z);
 
 // ---------- toon shading and ink outlines ----------
 
 /** Three-band light ramp: shadow, mid, lit. Gives the flat cartoon look. */
-const toonRamp = () => cached('t:ramp', () => {
+export const toonRamp = () => cached('t:ramp', () => {
   const data = new Uint8Array([135, 135, 135, 255, 190, 190, 190, 255, 238, 238, 238, 255, 255, 255, 255, 255]);
   const t = new THREE.DataTexture(data, 4, 1, THREE.RGBAFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter;
@@ -56,16 +56,20 @@ export function toon(color: number, opts: Partial<THREE.MeshToonMaterialParamete
     shared(new THREE.MeshToonMaterial({ color, gradientMap: toonRamp(), ...opts })));
 }
 
+/** Outline colour for parts built from now on: warm brown in the canyon, deep navy in space. */
+let inkColor = 0x2a1408;
+export function setInkColor(c: number) { inkColor = c; }
+
 /** Ink outline: the back faces pushed out along the normals and drawn in a dark colour. */
-const inkMat = (w: number) => cached(`m:ink:${w}`, () => shared(new THREE.ShaderMaterial({
+const inkMat = (w: number) => cached(`m:ink:${w}:${inkColor}`, () => shared(new THREE.ShaderMaterial({
   side: THREE.BackSide,
-  uniforms: { w: { value: w }, color: { value: new THREE.Color(0x2a1408) } },
+  uniforms: { w: { value: w }, color: { value: new THREE.Color(inkColor) } },
   vertexShader: 'uniform float w; void main() { vec3 p = position + normal * w; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
   fragmentShader: 'uniform vec3 color; void main() { gl_FragColor = vec4(color, 1.0); \n#include <colorspace_fragment>\n }',
 })));
 
 /** A cartoon part: toon-shaded mesh with an ink outline `ink` units thick (0 for none). */
-function part(geo: THREE.BufferGeometry, mat: THREE.Material, ink = 1.3, cast = true) {
+export function part(geo: THREE.BufferGeometry, mat: THREE.Material, ink = 1.3, cast = true) {
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = cast;
   m.receiveShadow = true;
@@ -77,7 +81,7 @@ function part(geo: THREE.BufferGeometry, mat: THREE.Material, ink = 1.3, cast = 
   return m;
 }
 
-function place(parent: THREE.Object3D, m: THREE.Object3D, x: number, y: number, z: number) {
+export function place(parent: THREE.Object3D, m: THREE.Object3D, x: number, y: number, z: number) {
   m.position.set(x, y, z);
   parent.add(m);
   return m;
@@ -131,7 +135,7 @@ export function organic(points: THREE.Vector3[], radii: number[], radial = 14, s
 }
 
 /** A soft ellipsoid, lighter underneath (cartoon countershading). */
-function blob(rx: number, ry: number, rz: number, belly = 0.4, segs = 24) {
+export function blob(rx: number, ry: number, rz: number, belly = 0.4, segs = 24) {
   const g = new THREE.SphereGeometry(1, segs, Math.round(segs * 0.7));
   g.scale(rx, ry, rz);
   g.computeVertexNormals();
@@ -142,7 +146,7 @@ function blob(rx: number, ry: number, rz: number, belly = 0.4, segs = 24) {
   return g;
 }
 
-function mergeGeos(geos: THREE.BufferGeometry[]) {
+export function mergeGeos(geos: THREE.BufferGeometry[]) {
   const parts = geos.map((g) => { const n = g.index ? g.toNonIndexed() : g; if (!n.attributes.normal) n.computeVertexNormals(); return n; });
   const total = parts.reduce((a, g) => a + g.attributes.position.count, 0);
   const out = new THREE.BufferGeometry();
@@ -252,7 +256,7 @@ export function basaltPlain() { return toon(0x6e4a38); }
 // ---------- dinosaurs ----------
 
 /** Big cartoon eye: white, a large pupil looking forward, and a sparkle. */
-function eye(parent: THREE.Object3D, x: number, y: number, z: number, r: number, side: number) {
+export function eye(parent: THREE.Object3D, x: number, y: number, z: number, r: number, side: number) {
   const g = new THREE.Group();
   g.add(part(new THREE.SphereGeometry(r, 18, 12), toon(0xffffff), r * 0.12, false));
   place(g, part(new THREE.SphereGeometry(r * 0.55, 14, 10), toon(0x1a0e08), 0, false), r * 0.55, r * 0.05, side * r * 0.35);

@@ -8,6 +8,7 @@ import { Animated } from './art';
 import { buildCourse, Course, disposeGroup, HH, HW, to3, woodTexture } from './course';
 import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR } from './garden';
 import { getModels } from './models';
+import { Theme } from './levels';
 import { BALL_R, CUP_R, heightAt, routeTarget, World } from './physics';
 
 /** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
@@ -247,7 +248,7 @@ export class Renderer3D {
   }
 
   /** Switch sky, fog, light and reflections to a course's theme. */
-  private applyTheme(theme: 'garden' | 'jurassic') {
+  private applyTheme(theme: Theme) {
     if (theme === this.theme && this.envMaps[theme]) return;
     const a = ATMOSPHERE[theme];
     setSkyTheme(a);
@@ -259,9 +260,11 @@ export class Renderer3D {
     this.hemi.intensity = a.hemiIntensity;
     this.renderer.toneMappingExposure = a.exposure;
     // Splash drops: water spray in the garden, embers over lava
-    (this.drops.material as THREE.MeshStandardMaterial).color.setHex(theme === 'jurassic' ? 0xff8a30 : 0xbfe6f0);
-    (this.drops.material as THREE.MeshStandardMaterial).emissive.setHex(theme === 'jurassic' ? 0xff6a10 : 0x000000);
-    for (const r of this.rippleMeshes) (r.material as THREE.MeshBasicMaterial).color.setHex(theme === 'jurassic' ? 0xffb060 : 0xdcf0ff);
+    // (and violet sparkles where the ball drops into the void in space)
+    const fxc = { garden: [0xbfe6f0, 0x000000, 0xdcf0ff], jurassic: [0xff8a30, 0xff6a10, 0xffb060], space: [0xc8a8ff, 0x7a4aff, 0xc8a8ff] }[theme];
+    (this.drops.material as THREE.MeshStandardMaterial).color.setHex(fxc[0]);
+    (this.drops.material as THREE.MeshStandardMaterial).emissive.setHex(fxc[1]);
+    for (const r of this.rippleMeshes) (r.material as THREE.MeshBasicMaterial).color.setHex(fxc[2]);
     this.envMaps[theme] ??= skyEnvironment(this.renderer);
     this.scene.environment = this.envMaps[theme];
     this.theme = theme;

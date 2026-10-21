@@ -1,4 +1,4 @@
-import { Bridge, Dino, LevelDef, Pt, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Crater, Dino, LevelDef, Pt, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -527,6 +527,10 @@ export function heightAt(level: LevelDef, x: number, y: number) {
     // A hump: ramps up from each end, flat across the middle
     h += BRIDGE_H * smooth((br.len / 2 - Math.abs(u)) / BRIDGE_RAMP);
   }
+  for (const c of level.craters ?? []) {
+    const d = Math.hypot(x - c.x, y - c.y);
+    if (d < c.r * 1.6) h += craterHeight(c, d);
+  }
   for (const s of level.slopes ?? []) {
     if (s.kind === 'hill') {
       const sig = s.r / 2;
@@ -547,9 +551,16 @@ export function heightAt(level: LevelDef, x: number, y: number) {
   return h;
 }
 
+/** Crater profile at distance d from its centre: a smooth bowl and a rounded rim around it. */
+export function craterHeight(c: Crater, d: number) {
+  const depth = c.depth ?? 7, rim = c.rim ?? 4;
+  const u = Math.min(1, d / c.r);
+  return -depth * (1 - u * u) ** 2 + rim * Math.exp(-(((d - c.r) / (c.r * 0.2)) ** 2));
+}
+
 /** Terrain gradient (dh/dx, dh/dy). */
 export function slopeAt(level: LevelDef, x: number, y: number): [number, number] {
-  if (!level.slopes?.length && !level.bridges?.length && !level.sand?.length && !level.volcanoes?.length) return [0, 0];
+  if (!level.slopes?.length && !level.bridges?.length && !level.sand?.length && !level.volcanoes?.length && !level.craters?.length) return [0, 0];
   const e = 0.5;
   return [
     (heightAt(level, x + e, y) - heightAt(level, x - e, y)) / (2 * e),
@@ -602,6 +613,24 @@ export function dinoPose(d: Dino, t: number) {
   return { x, y, vx, vy, heading, tail, tailRate };
 }
 
+/** An alien's spot on its circle at time t, and its velocity. */
+export function alienAt(a: Alien, t: number) {
+  const th = t * a.speed + (a.phase ?? 0) * Math.PI * 2;
+  return { x: a.x + Math.cos(th) * a.orbit, y: a.y + Math.sin(th) * a.orbit, vx: -Math.sin(th) * a.orbit * a.speed, vy: Math.cos(th) * a.orbit * a.speed, r: ALIEN_R };
+}
+export const ALIEN_R = 15;
+
+/** An astronaut's position and velocity at time t (standing still when it has no b). */
+export function astronautAt(s: Astronaut, t: number) {
+  if (!s.b) return { x: s.a[0], y: s.a[1], vx: 0, vy: 0, r: ASTRONAUT_R };
+  const len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) || 1;
+  const sp = s.speed ?? 40;
+  const [u, du] = pingPong((t * sp) / len + (s.phase ?? 0) * 2);
+  const k = (du * sp) / len;
+  return { x: s.a[0] + (s.b[0] - s.a[0]) * u, y: s.a[1] + (s.b[1] - s.a[1]) * u, vx: (s.b[0] - s.a[0]) * k, vy: (s.b[1] - s.a[1]) * k, r: ASTRONAUT_R };
+}
+export const ASTRONAUT_R = 17;
+
 /** Leg positions (forward, sideways, radius) per species; the renderer builds legs at exactly these spots. */
 export const DINO_LEGS: Record<Dino['kind'], [number, number, number][]> = {
   bronto: [[40, 32, 9], [40, -32, 9], [-40, 32, 9], [-40, -32, 9]],
@@ -616,6 +645,9 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
     const p = tumbleweedAt(w, t);
     circles.push({ ...p, e: 0.45, kind: 'rail' });
   }
+  for (const w of level.asteroids ?? []) circles.push({ ...tumbleweedAt(w, t), r: w.r ?? 20, e: 0.6, kind: 'wall' });
+  for (const a of level.aliens ?? []) circles.push({ ...alienAt(a, t), e: 0.7, kind: 'rail' });
+  for (const s of level.astronauts ?? []) circles.push({ ...astronautAt(s, t), e: 0.5, kind: 'wall' });
   for (const d of level.dinos ?? []) {
     const p = dinoPose(d, t);
     const ux = Math.cos(p.heading), uy = Math.sin(p.heading);
