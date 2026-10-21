@@ -35,4 +35,9 @@ for d in os.listdir(res):
         continue
     w, h = Image.open(p).size
     fill(land if w >= h else port, w, h).save(p)
+# The web build's home-screen icons (installed to a phone's home screen from the browser)
+web = os.path.join(root, 'public/icons')
+os.makedirs(web, exist_ok=True)
+for name, s in [('icon-192.png', 192), ('icon-512.png', 512), ('apple-touch-icon.png', 180)]:
+    icon.resize((s, s), Image.LANCZOS).save(os.path.join(web, name), optimize=True)
 print('icons and splash screens updated')

@@ -254,6 +254,7 @@ function banner() {
 
 function show(id: string | null) {
   for (const s of ['screen-title', 'screen-pause', 'screen-hole', 'screen-sheet']) $(s).classList.toggle('hidden', s !== id);
+  $('fs-tip').classList.toggle('off', id !== 'screen-title'); // the full-screen tip only shows on the main menu
   $('hud').classList.toggle('hidden', phase === 'title');
 }
 
@@ -1357,6 +1358,33 @@ click('btn-fb-send', () => {
   toast('Thanks! Feedback sent', 'good', 1600);
 });
 void flush(); // anything that didn't get out last time (offline)
+
+// ---------- Full screen in the browser ----------
+/** Opened from the home screen (installed), so already full screen. */
+const installed = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+const inFrame = (() => { try { return window.top !== window.self; } catch { return true; } })();
+const touch = matchMedia('(pointer: coarse)').matches;
+if (!native && !installed && !inFrame && touch) {
+  // Android browsers can go full screen and hold landscape from the first tap; iPhone browsers can't
+  const goFull = () => {
+    const el = document.documentElement as HTMLElement & { requestFullscreen?: (o?: object) => Promise<void> };
+    if (!document.fullscreenElement && document.fullscreenEnabled && el.requestFullscreen) {
+      el.requestFullscreen({ navigationUI: 'hide' })
+        .then(() => (screen.orientation as unknown as { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
+        .catch(() => {});
+    }
+  };
+  addEventListener('pointerup', goFull, { once: true });
+  // One tip on how to get the full-screen, app-like version
+  if (!localGet('fstip')) {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    $('fs-tip-text').textContent = ios
+      ? 'Full screen: open in Safari › Share › Add to Home Screen'
+      : 'Full screen: browser menu ⋮ › Add to Home screen';
+    $('fs-tip').classList.remove('hidden');
+    click('btn-fs-tip', () => { $('fs-tip').classList.add('hidden'); localSet('fstip', '1'); });
+  }
+}
 
 // ---------- Tester code (web playtest builds) ----------
 /** The web version on a public host asks for the tester code once; the app, claude.ai and local runs don't. */

@@ -79,8 +79,10 @@ The in-game feedback button and the Google Sheet keep working in the app builds 
 ## Message to send testers
 
 > Hi! I'm making a mini-golf game played with a pool cue, called **Rack & Roll**, and I'd love your help
-> testing it. Open this link on your phone: https://cnmbuck1.github.io/poolgolf/ and turn your phone sideways.
-> (On iPhone, tap Share → Add to Home Screen to play full screen.)
+> testing it. Open this link on your phone: https://cnmbuck1.github.io/poolgolf/
+> For the full-screen version: on iPhone open the link in **Safari** (if it opened inside another app, tap
+> the compass or "Open in Safari"), tap **Share → Add to Home Screen**, then play from the new Rack & Roll
+> icon. On Android, tap the browser menu ⋮ → **Add to Home screen** / **Install app**.
 > It'll ask for a tester code: **[your code]**
 > Play a course or two. When something breaks, confuses you, or you love it, tap the speech bubble on the
 > main menu (or Pause → Report a bug) and tell me. Your scores are sent anonymously so I can see which holes

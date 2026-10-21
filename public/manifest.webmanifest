@@ -1,0 +1,16 @@
+{
+  "name": "Rack & Roll",
+  "short_name": "Rack & Roll",
+  "description": "Mini golf played with a pool cue.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#1a110b",
+  "theme_color": "#1a110b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
