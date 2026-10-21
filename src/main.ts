@@ -38,6 +38,8 @@ type Phase = 'title' | 'play' | 'paused' | 'holeDone' | 'replay';
 let phase: Phase = 'title';
 let holeIdx = 0;
 let holeStartedAt = 0; // for playtest records: how long each hole took
+/** The last hole the player finished, so feedback sent from the main menu afterwards is tied to it. */
+let lastPlayed: { course: string; hole: number; name: string; strokes: number } | null = null;
 setCourse(localGet('course') ?? 'candy');
 let world = new World(LEVELS[0]);
 let strokes = 0;
@@ -353,6 +355,7 @@ function holeOut(score: number, pickedUp = false) {
   if (at && !shootout && !(match && turn === 'ai')) {
     const mode = daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round';
     track({ type: 'hole', ...at, name: world.level.name, par: world.level.par, strokes: score, mode, seconds: Math.round((performance.now() - holeStartedAt) / 1000), pickedUp });
+    lastPlayed = { ...at, name: world.level.name, strokes: score };
   }
   if (shootout) shootoutShot(0);
   else if (match && turn === 'ai') finishAiHole(score);
@@ -707,11 +710,23 @@ function openSettings() {
   });
 }
 
+/**
+ * What feedback is about: the hole being played (from the pause menu), or from the main menu the last hole
+ * finished this visit; null before any hole is played.
+ */
+function feedbackAbout() {
+  if (phase !== 'title') { const at = whereIs(world.level); if (at) return { ...at, name: world.level.name, strokes, playing: true }; }
+  return lastPlayed ? { ...lastPlayed, playing: false } : null;
+}
+
 /** The feedback form, over the menu or the pause screen, noting where the player is. */
 function openFeedback() {
   sfx.ui();
-  const at = phase === 'title' ? null : whereIs(world.level);
-  $('fb-context').textContent = at ? `About hole ${at.hole} · ${world.level.name} (${COURSES.find((c) => c.id === at.course)!.name}), ${strokes} stroke${strokes === 1 ? '' : 's'} so far. Build ${BUILD}.` : `Tell us anything: bugs, ideas, what you love. Build ${BUILD}.`;
+  const fb = feedbackAbout();
+  const course = fb && COURSES.find((c) => c.id === fb.course)!.name;
+  $('fb-context').textContent = !fb ? `Tell us anything: bugs, ideas, what you love. Build ${BUILD}.`
+    : fb.playing ? `About hole ${fb.hole} · ${fb.name} (${course}), ${fb.strokes} stroke${fb.strokes === 1 ? '' : 's'} so far. Build ${BUILD}.`
+    : `About the last hole you played: hole ${fb.hole} · ${fb.name} (${course}), finished in ${fb.strokes}. Build ${BUILD}.`;
   ($('fb-name') as HTMLInputElement).value = testerName();
   $('screen-feedback').classList.remove('hidden');
 }
@@ -1351,8 +1366,8 @@ click('btn-fb-send', () => {
   const kind = (document.querySelector('.fb-kind[aria-pressed="true"]') as HTMLElement | null)?.dataset.kind as 'bug' | 'idea' | 'love' ?? 'bug';
   if (text.length < 3 && kind !== 'love') { ($('fb-text') as HTMLTextAreaElement).focus(); toast('Tell us a little more', 'bad'); return; }
   setTesterName(($('fb-name') as HTMLInputElement).value);
-  const at = phase === 'title' ? null : whereIs(world.level);
-  track({ type: 'feedback', kind, text, course: at?.course ?? 'menu', hole: at?.hole ?? 0, strokes: at ? strokes : 0 });
+  const fb = feedbackAbout();
+  track({ type: 'feedback', kind, text, course: fb?.course ?? 'menu', hole: fb?.hole ?? 0, strokes: fb?.strokes ?? 0 });
   ($('fb-text') as HTMLTextAreaElement).value = '';
   $('screen-feedback').classList.add('hidden');
   toast('Thanks! Feedback sent', 'good', 1600);
