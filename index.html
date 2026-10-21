@@ -116,6 +116,7 @@
           <span class="logo-main" aria-hidden="true">R<span class="logo-ball"><span>8</span></span>LL</span>
         </h1>
         <p class="tagline">AIM · BANK · AVOID · SINK</p>
+        <button class="demo-btn" id="btn-demo">▶ Watch how to play</button>
         <!-- How to play full screen, for testers in a browser (until dismissed) -->
         <div id="fs-tip" class="fs-tip hidden"><span id="fs-tip-text"></span><button id="btn-fs-tip" aria-label="Dismiss">✕</button></div>
         <button class="btn-gold" id="btn-play">PLAY 6 HOLES<svg><use href="#i-chev"/></svg></button>
@@ -182,6 +183,12 @@
           <button class="btn-gold" id="btn-next">NEXT HOLE<svg><use href="#i-chev"/></svg></button>
         </div>
       </div>
+    </div>
+
+    <!-- The how-to-play demo's captions -->
+    <div id="demo-ui" class="demo-ui hidden">
+      <p id="demo-caption" class="demo-caption glass"></p>
+      <button id="btn-demo-skip" class="pill demo-skip">SKIP ✕</button>
     </div>
 
     <!-- Tips for the hole being played (from the lightbulb in the scorecard) -->

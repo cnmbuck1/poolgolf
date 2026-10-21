@@ -118,6 +118,17 @@ svg { width: 22px; height: 22px; flex: none; }
 .hud-card.faded .hud-tips { pointer-events: none; }
 .hud-tips { flex: none; width: 32px; height: 32px; margin-left: -4px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--gold-edge); background: rgba(246, 189, 71, 0.16); color: var(--gold-hi); }
 .hud-tips svg { width: 18px; height: 18px; }
+.demo-btn { align-self: center; padding: 6px 16px; border-radius: 999px; border: 1px solid var(--gold-edge); background: rgba(246, 189, 71, 0.14); color: var(--gold-hi); font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+.demo-btn.pulse { animation: demoPulse 1.6s ease-in-out infinite; }
+@keyframes demoPulse { 50% { box-shadow: 0 0 0 6px rgba(246, 189, 71, 0.18); } }
+.demo-ui { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
+.demo-caption { position: absolute; left: 50%; top: calc(14px + var(--sat)); transform: translateX(-50%); width: min(540px, 68vw); margin: 0; padding: 10px 16px; border-radius: 14px; text-align: center; font-size: 16px; line-height: 1.4; font-weight: 600; }
+.demo-caption:empty { display: none; }
+.demo-skip { position: absolute; right: calc(14px + var(--sar)); top: calc(14px + var(--sat)); pointer-events: auto; background: rgba(14, 22, 31, 0.88); color: var(--ink); border: 1px solid var(--edge); padding: 8px 14px; border-radius: 999px; font-family: var(--display); font-weight: 800; letter-spacing: 0.08em; }
+#hud.demo .hud-actions, #hud.demo .hint, #hud.demo .hud-card, #hud.demo .banner { display: none; }
+.finger.manual { z-index: 20; }
+.finger.manual span { animation: none; }
+@media (max-height: 340px) { .title-col .tagline { display: none; } .demo-btn { padding: 4px 14px; font-size: 13px; } .demo-caption { font-size: 14px; padding: 7px 12px; } }
 .tips { gap: 8px; }
 .tips > * { flex-shrink: 0; }
 .tips h2 { font-size: 22px; }

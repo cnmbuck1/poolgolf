@@ -18,6 +18,7 @@ import { playMusic } from './music';
 import { PLAYTEST_URL, TESTER_CODE_HASH } from './playtest.config';
 import { sha256 } from './sha256';
 import { tipsFor } from './tips';
+import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import { BUILD, flush, loadRecords, PlaytestRecord, setTesterName, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -266,6 +267,7 @@ function fitTopSlot() {
 
 let toastTimer = 0;
 function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
+  if (demo) return; // the demo's captions say what's happening
   fitTopSlot();
   const t = $('toast');
   t.textContent = msg;
@@ -293,6 +295,7 @@ function show(id: string | null) {
 
 /** On the first hole of a player's first round, show a finger pulling back from the ball. */
 function updateFinger() {
+  if (demo) return; // the demo moves the finger itself
   const f = $('finger');
   const showIt = !settings.tutorialDone && phase === 'play' && strokes === 0 && !aim.active && !strike && busyTimer <= 0;
   f.classList.toggle('hidden', !showIt);
@@ -382,6 +385,7 @@ function whereIs(L: LevelDef) {
 }
 
 function holeOut(score: number, pickedUp = false) {
+  if (demo) { demo.sunkAt ??= demo.t; return; } // the demo's shot: no score, no stats
   const at = whereIs(world.level);
   if (at && !shootout && !(match && turn === 'ai')) {
     const mode = daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round';
@@ -512,7 +516,7 @@ function pause() {
 }
 
 // ---------- Input ----------
-const canAim = () => phase === 'play' && turn === 'player' && !world.moving && busyTimer <= 0 && trickReset <= 0 && !strike;
+const canAim = () => !demo && phase === 'play' && turn === 'player' && !world.moving && busyTimer <= 0 && trickReset <= 0 && !strike;
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
@@ -865,6 +869,7 @@ function setSpin(side: number, vert: number) {
   };
   pad.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
+    if (demo) return;
     unlockAudio();
     pad.setPointerCapture(e.pointerId);
     tap = { x: e.clientX, y: e.clientY, moved: false };
@@ -1387,6 +1392,9 @@ function comingSoon(title: string, icon: string, what: string) {
 click('btn-courses', openCourses);
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
+click('btn-demo', () => startDemo());
+if (!localGet('demoSeen')) $('btn-demo').classList.add('pulse'); // until it's been watched once
+click('btn-demo-skip', () => endDemo());
 click('btn-tips', openTips);
 click('btn-tips-close', closeTips);
 click('btn-tips-ok', closeTips);
@@ -1407,6 +1415,103 @@ click('btn-fb-send', () => {
   toast('Thanks! Feedback sent', 'good', 1600);
 });
 void flush(); // anything that didn't get out last time (offline)
+
+// ---------- How-to-play demo ----------
+/**
+ * A scripted hole on the main menu's "Watch how to play": a finger pulls back to aim (the guide runs into a
+ * gumdrop), cancels, drags the spin pad to the right, aims a little left and pulls back again (the guide now
+ * curves round it), and lets go; the ball curves round the gumdrop into the cup. The real game plays it.
+ */
+let demo: { t: number; shot: boolean; shotAt?: number; sunkAt?: number } | null = null;
+
+function startDemo() {
+  sfx.ui();
+  unlockAudio();
+  match = null; careerEvent = null; daily = null; trick = null; practice = true;
+  holeIdx = 0;
+  demo = { t: 0, shot: false };
+  enterLevel(DEMO_LEVEL);
+  $('hud').classList.add('demo');
+  $('demo-ui').classList.remove('hidden');
+  $('finger').classList.add('manual');
+  localSet('demoSeen', '1');
+  $('btn-demo').classList.remove('pulse');
+}
+
+function endDemo() {
+  if (!demo) return;
+  demo = null;
+  aim.active = false; aim.power = 0; cue.visible = false; strike = null;
+  setSpin(0, 0);
+  $('hud').classList.remove('demo');
+  $('demo-ui').classList.add('hidden');
+  $('demo-caption').textContent = '';
+  $('finger').classList.remove('manual');
+  $('finger').classList.add('hidden');
+  practice = false;
+  toTitle();
+}
+
+function updateDemo(dt: number) {
+  const d = demo!;
+  d.t += dt;
+  const t = d.t;
+  const W = innerWidth, H = innerHeight;
+  const S = { x: W * 0.62, y: H * 0.36 };
+  const pull = Math.min(H * 0.45, 260) * DEMO_SHOT.power;
+  const r = $('spin-ball').getBoundingClientRect();
+  const pad = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  const ease = (u: number) => { const k = Math.max(0, Math.min(1, u)); return k * k * (3 - 2 * k); };
+  const lerp = (a: { x: number; y: number }, b: { x: number; y: number }, u: number) => ({ x: a.x + (b.x - a.x) * ease(u), y: a.y + (b.y - a.y) * ease(u) });
+  const say = (s: string) => { const c = $('demo-caption'); if (c.textContent !== s) c.textContent = s; };
+  const f = $('finger');
+  const finger = (p: { x: number; y: number } | null) => {
+    f.classList.toggle('hidden', !p);
+    if (p) { f.style.left = `${p.x}px`; f.style.top = `${p.y}px`; }
+  };
+  const aimAt = (deg: number, power: number) => {
+    const a = (deg * Math.PI) / 180;
+    aim.active = true; aim.dx = Math.cos(a); aim.dy = Math.sin(a); aim.power = power;
+    updatePower();
+  };
+  const down = { x: S.x, y: S.y + pull }, downAim = { x: S.x + 40, y: S.y + pull };
+  // If the shot ever comes to rest short (it shouldn't), wrap up anyway
+  if (d.shot && d.sunkAt == null && !world.moving && !strike && t - d.shotAt! > 1.5) d.sunkAt = t;
+  if (d.sunkAt != null) {
+    say(fx.sink ? 'In the cup! Now it\'s your turn.' : 'Now it\'s your turn!');
+    finger(null);
+    if (t - d.sunkAt > 2.4) endDemo();
+    return;
+  }
+  if (t > 30) { endDemo(); return; } // safety net: never get stuck in the demo
+  if (t < 2.2) { say('Here\'s how to play: get the ball from the tee into the cup.'); finger(null); }
+  else if (t < 4.2) { say('Pull back anywhere on the screen, like drawing back a cue. Further back = harder shot.'); finger(lerp(S, down, (t - 2.2) / 1.6)); aimAt(0, DEMO_SHOT.power * ease((t - 2.2) / 1.6)); }
+  else if (t < 6.4) { say('The dotted guide shows where it will go… straight into that gumdrop!'); finger(down); aimAt(0, DEMO_SHOT.power); }
+  else if (t < 7.2) { say('Slide back up to cancel. Let\'s add some spin.'); finger(lerp(down, S, (t - 6.4) / 0.8)); aimAt(0, DEMO_SHOT.power * (1 - ease((t - 6.4) / 0.8))); }
+  else if (t < 8.0) { aim.active = false; aim.power = 0; updatePower(); finger(lerp(S, pad, (t - 7.2) / 0.8)); }
+  else if (t < 9.6) {
+    say('Drag the dot on the SPIN pad to the right: the ball will curve to the right.');
+    const u = ease((t - 8.0) / 1.0);
+    setSpin(DEMO_SHOT.side * u, 0);
+    finger({ x: pad.x + DEMO_SHOT.side * 22 * u, y: pad.y });
+  } else if (t < 10.4) { finger(lerp({ x: pad.x + DEMO_SHOT.side * 22, y: pad.y }, S, (t - 9.6) / 0.8)); }
+  else if (t < 12.4) {
+    say('Aim a little left and pull back again. Now the guide curves round the gumdrop.');
+    const u = (t - 10.4) / 1.6;
+    finger(lerp(S, downAim, u)); aimAt(DEMO_SHOT.deg * ease(u), DEMO_SHOT.power * ease(u));
+  } else if (t < 13.6) { finger(downAim); aimAt(DEMO_SHOT.deg, DEMO_SHOT.power); }
+  else if (!d.shot) {
+    // Let go: the same strike a real release starts
+    say('Let go to shoot!');
+    d.shot = true;
+    d.shotAt = t;
+    finger(null);
+    aimAt(DEMO_SHOT.deg, DEMO_SHOT.power);
+    aim.active = false;
+    strike = { t: 0, from: cue.pull, dur: 0.17 - 0.09 * DEMO_SHOT.power, p: DEMO_SHOT.power, fired: false };
+    cue.ox = world.ball.x; cue.oy = world.ball.y;
+  }
+}
 
 // ---------- Full screen in the browser ----------
 /** Opened from the home screen (installed), so already full screen. */
@@ -1509,6 +1614,7 @@ function frame(now: number) {
   lastFrameDt = dt;
   time += dt;
 
+  if (demo) updateDemo(dt);
   if (phase === 'play' || phase === 'title') tick(dt);
   if (phase === 'play' && match && turn === 'ai') {
     stepAi();
