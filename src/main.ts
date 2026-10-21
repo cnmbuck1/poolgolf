@@ -9,6 +9,7 @@ import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
 import { bestScore, bestStars, CareerEvent, EVENTS, isUnlocked, recordEvent, STAR_COINS, starText, TIERS, totalStars } from './career';
 import { HoleRecorder, sampleShot, Shot } from './replay';
+import { execute, hasMovers, Opponent, OPPONENTS, Planner } from './ai';
 import { bestToday, Daily, dailyCourse, dailyFor, dailyName, dateLabel, isDoneToday, recordDaily, streak, today, untilTomorrow } from './daily';
 import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
@@ -49,6 +50,15 @@ let careerEvent: CareerEvent | null = null; // the Career event being played, if
 let trick: Trick | null = null; // the trick shot being attempted, if any
 let attempts = 0; // tries at the current trick shot
 let daily: Daily | null = null; // today's daily challenge, while it's being played
+/** A match against a computer opponent: both players' scores per hole. */
+let match: { opp: Opponent; ai: (number | null)[] } | null = null;
+let turn: 'player' | 'ai' = 'player'; // whose turn it is on the hole, in a match
+let pendingBanked = false; // the player's sinking shot was a bank shot (paid when the hole result shows)
+/** The computer's current shot: planning, then lining up until `fireAt` (world time). */
+let aiShot: { planner: Planner; shot?: { deg: number; power: number }; fireAt?: number } | null = null;
+let fastAi = false;
+let aiBudgetMs = 10; // planning time per frame, so the game keeps animating while the computer thinks
+let aiLead = 1.4; // seconds ahead the computer plans for; grows if planning runs late on a slow device
 let trickMissed = false; // the ball dropped but broke the trick's rule
 let trickReset = 0; // seconds until the ball goes back to the start after a miss
 
@@ -146,6 +156,12 @@ function updateHud() {
   tp.textContent = toParLabel(d);
   tp.className = `num chip ${d < 0 ? 'under' : d > 0 ? 'over' : ''}`;
   if (trick) { tp.textContent = '–'; $('hud-pips').innerHTML = ''; updatePower(); return; }
+  if (match) {
+    const up = matchUp();
+    tp.textContent = up > 0 ? `${up} UP` : up < 0 ? `${-up} DN` : 'AS';
+    tp.className = `num chip ${up > 0 ? 'under' : up < 0 ? 'over' : ''}`;
+    if (turn === 'ai') $('hud-name').textContent = `${match.opp.emoji} ${match.opp.name}`;
+  }
   $('hud-pips').innerHTML = LEVELS.map((l, i) => {
     const s = scores[i];
     const c = i === holeIdx && phase === 'play' ? 'cur' : s == null ? '' : s < l.par ? 'under' : s === l.par ? 'par' : 'over';
@@ -213,6 +229,8 @@ function updateFinger() {
 function loadHole(i: number) {
   holeIdx = i;
   trick = null;
+  endAiTurnUi();
+  aiShot = null;
   enterLevel(LEVELS[i]);
   banner();
 }
@@ -220,6 +238,7 @@ function loadHole(i: number) {
 /** Start a trick shot in its own little arena. */
 function loadTrick(t: Trick) {
   trick = t;
+  match = null;
   practice = false;
   careerEvent = null;
   attempts = 0;
@@ -259,6 +278,7 @@ function startRound(ev: CareerEvent | null = null) {
   practice = false;
   careerEvent = ev;
   daily = null;
+  match = null;
   scores = LEVELS.map(() => null);
   loadHole(0);
   if (ev) toast(`${ev.name} · shoot ${ev.target} or better`, 'good', 2600);
@@ -268,8 +288,16 @@ function playSingle(i: number) {
   practice = true;
   careerEvent = null;
   daily = null;
+  match = null;
   scores = LEVELS.map(() => null);
   loadHole(i);
+}
+
+/** The ball is in (or the hole is given up): the player's hole, or the computer's in a match. */
+function holeOut(score: number, pickedUp = false) {
+  if (match && turn === 'ai') finishAiHole(score);
+  else if (match) { scores[holeIdx] = score; pendingBanked = sinkBanked; sinkBanked = false; startAiTurn(); }
+  else finishHole(score, pickedUp);
 }
 
 function finishHole(score: number, pickedUp = false) {
@@ -287,6 +315,7 @@ function finishHole(score: number, pickedUp = false) {
   $('hole-card').innerHTML = scorecardHtml();
   setLabel('btn-next', daily ? 'MENU' : practice ? 'COURSES' : last && careerEvent ? 'CAREER' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
   $('btn-replay').textContent = daily ? 'Try again' : 'Replay hole';
+  $('btn-replay').classList.remove('hidden');
   if (!pickedUp) sfx.result(score - par, score === 1);
   if (last && !practice) {
     localSet('rounds', String(stat('rounds') + 1));
@@ -389,7 +418,7 @@ function pause() {
 }
 
 // ---------- Input ----------
-const canAim = () => phase === 'play' && !world.moving && busyTimer <= 0 && trickReset <= 0 && !strike;
+const canAim = () => phase === 'play' && turn === 'player' && !world.moving && busyTimer <= 0 && trickReset <= 0 && !strike;
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
@@ -532,11 +561,12 @@ function toggleFollow() { settings.follow = !settings.follow; view3d.follow = se
 click('btn-view', toggleView);
 click('btn-restart', () => { if (phase === 'play') { if (trick) loadTrick(trick); else loadHole(holeIdx); } });
 click('btn-pause-restart', () => { if (trick) loadTrick(trick); else loadHole(holeIdx); });
-click('btn-replay', () => { if (trick) { loadTrick(trick); return; } scores[holeIdx] = null; loadHole(holeIdx); });
+click('btn-replay', () => { if (match) return; if (trick) { loadTrick(trick); return; } scores[holeIdx] = null; loadHole(holeIdx); });
 click('btn-quit', toTitle);
 
 function toTitle() {
   phase = 'title';
+  endAiTurnUi();
   practice = false;
   setRolling(0, false);
   if (world.level !== LEVELS[0]) { world = new World(LEVELS[0]); view3d.setLevel(world); }
@@ -697,6 +727,171 @@ function setSpin(side: number, vert: number) {
   });
 }
 
+// ---------- Against the computer ----------
+const vsGet = (k: string) => Number(localGet(`vs.${k}`) ?? 0);
+const vsUnlocked = (i: number) => i === 0 || vsGet(`${OPPONENTS[i - 1].id}.wins`) > 0;
+
+/** Holes won minus holes lost so far (the player's match standing). */
+function matchUp() {
+  if (!match) return 0;
+  return scores.reduce<number>((a, s, i) => {
+    const c = match!.ai[i];
+    return s == null || c == null ? a : a + (s < c ? 1 : s > c ? -1 : 0);
+  }, 0);
+}
+
+function openVersus() {
+  const courseId = localGet('vs.course') ?? COURSE.id;
+  const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-vcourse="${c.id}">${c.name.toUpperCase()}</button>`).join('');
+  const cards = OPPONENTS.map((o, i) => {
+    const open = vsUnlocked(i), w = vsGet(`${o.id}.wins`), l = vsGet(`${o.id}.losses`);
+    return `<button class="course opp${open ? '' : ' locked'}" data-opp="${o.id}"${open ? '' : ' disabled'}>
+      <span class="avatar" style="background:${o.color}">${o.emoji}</span>
+      <span>${o.name}</span><small>${open ? o.blurb : `Beat ${OPPONENTS[i - 1].name} to unlock`}</small>
+      <em class="stars">${w || l ? `W ${w} · L ${l}` : `<i class="coin"></i> ${o.reward}`}</em></button>`;
+  }).join('');
+  sheet('Vs Computer', `<p>Match play: you and your rival play each hole in turn, and the lower score wins the hole. Win the most holes to win the match.</p>
+    <div class="tabs">${chips}</div><div class="courses opps">${cards}</div>`);
+  const body = $('sheet-body');
+  body.querySelectorAll<HTMLButtonElement>('[data-vcourse]').forEach((b) => {
+    b.onclick = () => { sfx.ui(); localSet('vs.course', b.dataset.vcourse!); body.querySelectorAll('[data-vcourse]').forEach((x) => x.classList.toggle('on', x === b)); };
+  });
+  body.querySelectorAll<HTMLButtonElement>('[data-opp]').forEach((b) => {
+    b.onclick = () => { sfx.ui(); startMatch(OPPONENTS.find((o) => o.id === b.dataset.opp)!, localGet('vs.course') ?? COURSE.id); };
+  });
+}
+
+function startMatch(opp: Opponent, courseId: string) {
+  chooseCourse(courseId);
+  startRound();
+  match = { opp, ai: LEVELS.map(() => null) };
+  updateHud();
+  toast(`${opp.emoji} ${opp.name} · you're up first`, 'good', 2400);
+}
+
+/** The player has holed out: the computer plays the same hole from the tee. */
+function startAiTurn() {
+  turn = 'ai';
+  const shots = recorder.shots; // keep the player's shots for the replay
+  enterLevel(LEVELS[holeIdx]);
+  recorder.shots = shots;
+  turn = 'ai';
+  aiShot = null;
+  $('banner-hole').textContent = `${match!.opp.name.toUpperCase()}'S TURN`;
+  const b = $('banner');
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  $('hud').classList.add('ai-turn');
+  $('ai-bar').classList.remove('hidden');
+  $('ai-avatar').textContent = match!.opp.emoji;
+  $('ai-avatar').style.background = match!.opp.color;
+  updateHud();
+}
+
+function endAiTurnUi() {
+  turn = 'player';
+  $('hud').classList.remove('ai-turn');
+  $('ai-bar').classList.add('hidden');
+}
+
+/** Each frame of the computer's turn: plan (a slice at a time), line up the cue, then shoot. */
+function stepAi() {
+  const m = match!;
+  const thinking = !aiShot?.shot;
+  $('ai-label').textContent = world.moving || busyTimer > 0 ? m.opp.name : thinking ? `${m.opp.name} is lining up…` : `${m.opp.name} shoots`;
+  if (world.moving || busyTimer > 0 || strike) return;
+  if (!aiShot) aiShot = { planner: new Planner(world, m.opp, world.time + aiLead, Math.random) };
+  if (!aiShot.shot) {
+    const plan = aiShot.planner.step(aiBudgetMs);
+    if (!plan) return;
+    const ex = execute(plan, m.opp, Math.random);
+    aiShot.shot = ex;
+    if (!hasMovers(world.level)) aiShot.fireAt = world.time + 0.9; // nothing moves: shoot once lined up
+    else {
+      aiShot.fireAt = aiShot.planner.at + ex.delay;
+      // Planning ran past the moment it planned for (a slow device): plan again, further ahead
+      if (world.time > aiShot.fireAt) { aiShot = null; aiLead = Math.min(8, aiLead * 1.6); return; }
+    }
+  }
+  const { deg, power } = aiShot.shot!;
+  const a = (deg * Math.PI) / 180;
+  const left = aiShot.fireAt! - world.time;
+  // Line up: face the shot and draw the cue back over the last moment before striking
+  view3d.faceYaw(a);
+  spin.side = spin.vert = 0;
+  Object.assign(cue, { visible: true, alpha: 1, dx: Math.cos(a), dy: Math.sin(a), ox: undefined, oy: undefined, pull: 8 + 70 * power * Math.min(1, Math.max(0, 1 - left / 0.8)) });
+  if (left > 0) return;
+  cue.visible = false;
+  lastRest = { x: world.ball.x, y: world.ball.y };
+  const sp = shotSpeed(power);
+  world.shoot(Math.cos(a) * sp, Math.sin(a) * sp);
+  strokes++;
+  sfx.cue(power);
+  view3d.shake(power * 2);
+  aiShot = null;
+  updateHud();
+}
+
+/** The computer has holed out: show the hole result for both players. */
+function finishAiHole(aiScore: number) {
+  const m = match!;
+  m.ai[holeIdx] = aiScore;
+  turn = 'player';
+  aiShot = null;
+  cue.visible = false;
+  $('hud').classList.remove('ai-turn');
+  $('ai-bar').classList.add('hidden');
+  phase = 'holeDone';
+  setRolling(0, false);
+  const you = scores[holeIdx]!, par = world.level.par, last = holeIdx === LEVELS.length - 1;
+  recordHole(holeIdx, you);
+  const up = matchUp();
+  const standing = up > 0 ? `You're ${up} UP` : up < 0 ? `${m.opp.name} is ${-up} UP` : 'All square';
+  const h = $('hole-result');
+  h.textContent = you < aiScore ? 'You win the hole!' : you > aiScore ? `${m.opp.name} wins the hole` : 'Hole halved';
+  h.className = you < aiScore ? 'under' : you > aiScore ? 'over' : 'par';
+  $('hole-kicker').textContent = `HOLE ${holeIdx + 1} · VS ${m.opp.name.toUpperCase()}`;
+  $('hole-detail').textContent = `You ${you} · ${m.opp.name} ${aiScore} · ${standing}`;
+  const lines = holeReward(you, par, pendingBanked);
+  const unlocked: string[] = [];
+  if (you === 1) unlocked.push(earn('ace') ?? '');
+  if (last) {
+    // Match over: most holes won takes it
+    const won = scores.filter((s, i) => s! < m.ai[i]!).length, lost = scores.filter((s, i) => s! > m.ai[i]!).length;
+    const key = won > lost ? 'wins' : won < lost ? 'losses' : 'halves';
+    const firstWin = won > lost && vsGet(`${m.opp.id}.wins`) === 0;
+    localSet(`vs.${m.opp.id}.${key}`, String(vsGet(`${m.opp.id}.${key}`) + 1));
+    $('hole-kicker').textContent = `MATCH COMPLETE · VS ${m.opp.name.toUpperCase()}`;
+    h.textContent = won > lost ? 'You win the match!' : won < lost ? `${m.opp.name} wins` : 'Match halved';
+    h.className = won > lost ? 'ace' : won < lost ? 'over' : 'par';
+    $('hole-detail').textContent = `Holes won ${won}–${lost}${won === lost ? '' : ` · last hole: you ${you}, ${m.opp.name} ${aiScore}`}`;
+    if (won > lost) lines.push([firstWin ? 'Match won' : 'Rematch won', firstWin ? m.opp.reward : Math.round(m.opp.reward / 3)]);
+    else if (won === lost) lines.push(['Match halved', 20]);
+    const next = OPPONENTS[OPPONENTS.indexOf(m.opp) + 1];
+    if (firstWin && next) unlocked.push(`${next.name} challenges you`);
+  }
+  const earned = lines.reduce((a, [, n]) => a + n, 0);
+  addCoins(earned);
+  pendingBanked = false;
+  $('hole-coins').innerHTML = `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
+    + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">${n.includes('challenges') ? n : `Unlocked: ${n}`}!</span>`).join('')}</span>` : '');
+  // Scorecard: both players
+  const row = (label: string, arr: (number | null)[]) => `<tr><th>${label}</th>${LEVELS.map((l, i) => {
+    const sc = arr[i], other = arr === scores ? m.ai[i] : scores[i];
+    const cls = sc == null || other == null ? '' : sc < other ? 'under' : sc > other ? 'over' : '';
+    return `<td class="${cls}">${sc ?? '–'}</td>`;
+  }).join('')}<td class="total">${arr.reduce<number>((a, b) => a + (b ?? 0), 0)}</td></tr>`;
+  $('hole-card').innerHTML = `<table class="card"><tr><th>HOLE</th>${LEVELS.map((_, i) => `<td class="${i === holeIdx ? 'cur' : ''}">${i + 1}</td>`).join('')}<th>TOT</th></tr>
+    <tr><th>PAR</th>${LEVELS.map((l) => `<td>${l.par}</td>`).join('')}<td>${LEVELS.reduce((a, l) => a + l.par, 0)}</td></tr>
+    ${row('YOU', scores)}${row(m.opp.emoji, m.ai)}</table>`;
+  $('btn-replay').classList.add('hidden');
+  $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
+  $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH YOUR SHOTS';
+  setLabel('btn-next', last ? 'OPPONENTS' : 'NEXT HOLE');
+  sfx.result(you - aiScore, you === 1);
+  updateHud();
+  show('screen-hole');
+}
+
 // ---------- Daily challenge ----------
 function startDaily(day = today()) {
   const d = dailyFor(day);
@@ -761,6 +956,7 @@ function finishTrick() {
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
   $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH IT IN SLOW MOTION';
   $('btn-replay').textContent = 'Try again';
+  $('btn-replay').classList.remove('hidden');
   setLabel('btn-next', daily ? 'MENU' : 'TRICK SHOTS');
   sfx.result(-2, true);
   updateHud();
@@ -926,6 +1122,8 @@ click('btn-settings', openSettings);
 click('btn-stats', openStats);
 click('btn-cues', openGear);
 click('btn-career', () => openCareer());
+click('btn-versus', openVersus);
+click('btn-fast', () => { fastAi = !fastAi; $('btn-fast').classList.toggle('on', fastAi); });
 click('daily-card', () => startDaily());
 click('btn-watch', () => startReplay());
 click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slowmo').classList.toggle('on', replay.slow); } });
@@ -935,11 +1133,16 @@ click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
+  <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
+  if (match) {
+    if (holeIdx === LEVELS.length - 1) { match = null; toTitle(); openVersus(); } else loadHole(holeIdx + 1);
+    return;
+  }
   if (daily) { daily = null; toTitle(); return; }
   if (trick) { toTitle(); openCareer('tricks'); return; }
   if (careerEvent && holeIdx === LEVELS.length - 1) { toTitle(); openCareer(); return; }
@@ -961,6 +1164,11 @@ function frame(now: number) {
   time += dt;
 
   if (phase === 'play' || phase === 'title') tick(dt);
+  if (phase === 'play' && match && turn === 'ai') {
+    stepAi();
+    // FAST plays the computer's turn at triple speed
+    if (fastAi) for (let k = 0; k < 2 && phase === 'play' && turn === 'ai'; k++) { tick(dt); stepAi(); }
+  }
   if (phase === 'replay' && replay) stepReplay(dt);
   if (phase === 'play') edgeTurn(dt);
   updateCue(phase === 'play' ? dt : 0);
@@ -991,12 +1199,12 @@ function tick(dt: number) {
     if (fx.splash) fx.splash.t += dt;
     if (busyTimer <= 0) {
       if (fx.sink && trick) { if (trickMissed) resetTrickBall(); else finishTrick(); }
-      else if (fx.sink) finishHole(strokes);
+      else if (fx.sink) holeOut(strokes);
       else if (fx.splash) {
         fx.splash = undefined;
         world.ball.x = lastRest.x;
         world.ball.y = lastRest.y;
-        if (strokes >= MAX_STROKES) finishHole(MAX_STROKES, true);
+        if (strokes >= MAX_STROKES) holeOut(MAX_STROKES, true);
       }
     }
     world.step(dt); // spinners keep turning during sequences
@@ -1051,9 +1259,10 @@ function tick(dt: number) {
         busyTimer = 1.3;
         view3d.setMode('sink');
         const banks = world.contacts;
-        sinkBanked = banks > 0;
         const name = resultName(strokes, world.level.par);
         const good = strokes <= world.level.par;
+        if (turn === 'ai' && match) { toast(`${match.opp.emoji} ${name}`, good ? 'bad' : 'good', 1200); break; }
+        sinkBanked = banks > 0;
         toast(banks > 0 ? `Bank shot · ${name}` : name, good ? 'good' : '', 1200);
         break;
       }
@@ -1070,7 +1279,7 @@ function tick(dt: number) {
         break;
       case 'stop':
         if (trick) { toast('Missed! Try again', 'bad', 1100); trickReset = 0.9; break; }
-        if (strokes >= MAX_STROKES) finishHole(MAX_STROKES, true);
+        if (strokes >= MAX_STROKES) holeOut(MAX_STROKES, true);
         break;
     }
   }
@@ -1097,6 +1306,8 @@ if (import.meta.env.DEV) {
     },
     trick: (id: string) => loadTrick(TRICKS.find((t) => t.id === id)!),
     daily: (offset = 0) => startDaily(today() + offset),
+    aiBudget: (ms: number) => { aiBudgetMs = ms; },
+    versus: (id: string, course: string) => startMatch(OPPONENTS.find((o) => o.id === id)!, course),
     stats: () => view3d.stats,
     view: () => view3d,
     course: (id: string) => chooseCourse(id),

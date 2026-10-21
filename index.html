@@ -74,6 +74,10 @@
       <div id="toast" class="toast"></div>
       </div>
       <div id="finger" class="finger hidden"><span></span></div>
+      <div id="ai-bar" class="replay-bar glass hidden">
+        <span id="ai-avatar" class="avatar small"></span><b id="ai-label"></b>
+        <button id="btn-fast" class="pill">FAST</button>
+      </div>
       <div id="replay-bar" class="replay-bar glass hidden">
         <span class="rec"></span><b id="replay-label">Replay</b>
         <button id="btn-slowmo" class="pill">SLO-MO</button>
@@ -84,6 +88,10 @@
     <!-- Main menu -->
     <div id="screen-title" class="screen title">
       <div class="title-top">
+        <button class="round-btn" id="btn-settings" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
+        <button class="round-btn" id="btn-stats" aria-label="Stats"><svg><use href="#i-stats"/></svg></button>
+        <button class="round-btn" id="btn-friends" aria-label="Friends"><svg><use href="#i-friends"/></svg></button>
+        <button class="round-btn" id="btn-shop" aria-label="Shop"><svg><use href="#i-cart"/></svg></button>
         <button class="round-btn" id="btn-title-sound" aria-label="Sound on"><svg><use href="#i-sound"/></svg></button>
         <button class="round-btn" id="btn-more" aria-label="How to play"><svg><use href="#i-more"/></svg></button>
       </div>
@@ -96,14 +104,9 @@
         <button class="btn-gold" id="btn-play">PLAY 6 HOLES<svg><use href="#i-chev"/></svg></button>
         <div class="menu-rows">
           <button class="menu-row" id="btn-career"><svg class="ico"><use href="#i-trophy"/></svg><span>CAREER</span><svg class="chev"><use href="#i-chev"/></svg></button>
+          <button class="menu-row" id="btn-versus"><svg class="ico"><use href="#i-friends"/></svg><span>VS COMPUTER</span><svg class="chev"><use href="#i-chev"/></svg></button>
           <button class="menu-row" id="btn-courses"><svg class="ico"><use href="#i-flag"/></svg><span>COURSES</span><svg class="chev"><use href="#i-chev"/></svg></button>
           <button class="menu-row" id="btn-cues"><svg class="ico"><use href="#i-cue"/></svg><span>CUES &amp; BALLS</span><em class="coin-count" id="menu-coins"></em><svg class="chev"><use href="#i-chev"/></svg></button>
-        </div>
-        <div class="icon-row">
-          <button class="sq-btn" id="btn-settings" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
-          <button class="sq-btn" id="btn-stats" aria-label="Stats"><svg><use href="#i-stats"/></svg></button>
-          <button class="sq-btn" id="btn-friends" aria-label="Friends"><svg><use href="#i-friends"/></svg></button>
-          <button class="sq-btn" id="btn-shop" aria-label="Shop"><svg><use href="#i-cart"/></svg></button>
         </div>
         <p class="best" id="best"></p>
         <div id="loading" class="loading hidden">Loading course<i><b></b></i></div>

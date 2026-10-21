@@ -552,6 +552,22 @@ function routeField(world: World) {
   return f;
 }
 
+/**
+ * Walking distance from a point to the cup round walls, water and obstacles (on the routing grid; the
+ * nearest open cell if the point itself sits against an obstacle). Infinity if there's no way through.
+ */
+export function routeDistance(world: World, x: number, y: number) {
+  const f = routeField(world);
+  const cx = Math.floor((x + f.O) / f.G), cy = Math.floor((y + f.O) / f.G);
+  let best = Infinity;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const nx = cx + dx, ny = cy + dy;
+    if (nx < 0 || ny < 0 || nx >= f.W || ny >= f.H) continue;
+    best = Math.min(best, f.d[nx + ny * f.W] + (dx || dy ? f.G : 0));
+  }
+  return best;
+}
+
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
 /** Terrain height at a point (0 = flat). Shared by physics and the renderer so what you see is what rolls. */

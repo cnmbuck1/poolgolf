@@ -428,6 +428,16 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .tab.on { background: rgba(246, 189, 71, 0.16); border-color: var(--gold); color: var(--gold-hi); }
 .event .stars .coin { font-size: 13px; }
 
+/* Vs computer */
+.opps { grid-template-columns: repeat(3, 1fr); }
+.opp { align-items: center; text-align: center; }
+.opp .stars { order: 0; font-size: 12px; letter-spacing: 0; }
+.avatar { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font-size: 26px; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px rgba(255, 255, 255, 0.5); }
+.avatar.small { width: 28px; height: 28px; font-size: 16px; }
+.opp.locked { opacity: 0.45; }
+.opp.locked .avatar { filter: grayscale(1); }
+#hud.ai-turn .spin, #hud.ai-turn .hint, #hud.ai-turn .power { display: none; }
+
 /* Replay */
 .btn-watch {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center;
@@ -549,7 +559,7 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
   .toggle { padding: 7px 12px; }
 }
 @media (max-height: 360px) {
-  .menu-rows { grid-template-columns: repeat(3, 1fr); width: 100%; }
+  .menu-rows { grid-template-columns: repeat(2, 1fr); width: 100%; }
   .coin-count { display: none; }
   .menu-row { padding: 0 8px; gap: 6px; font-size: 12px; }
   .menu-row .chev { display: none; }
