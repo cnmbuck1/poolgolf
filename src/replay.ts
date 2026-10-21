@@ -1,13 +1,13 @@
 // Shot replays. While a shot rolls, every physics frame is recorded: the ball, the world clock (which
 // poses the moving obstacles) and the spinner angles, plus the hits. Playback feeds those back into the
 // world, so the replay shows exactly what happened, at any speed.
-import { Event, World } from './physics';
+import { Event, Spin, World } from './physics';
 
-export interface ShotFrame { t: number; x: number; y: number; vx: number; vy: number; spin: number[]; events: Event[] }
-export interface Shot { frames: ShotFrame[]; dir: [number, number]; power: number; end: 'sink' | 'water' | 'stop'; ace: boolean }
+export interface ShotFrame { t: number; x: number; y: number; vx: number; vy: number; arms: number[]; events: Event[] }
+export interface Shot { frames: ShotFrame[]; dir: [number, number]; power: number; spin: Spin; end: 'sink' | 'water' | 'stop'; ace: boolean }
 
 const snap = (w: World, events: Event[]): ShotFrame =>
-  ({ t: w.time, x: w.ball.x, y: w.ball.y, vx: w.ball.vx, vy: w.ball.vy, spin: w.spinners.map((s) => s.angle), events });
+  ({ t: w.time, x: w.ball.x, y: w.ball.y, vx: w.ball.vx, vy: w.ball.vy, arms: w.spinners.map((s) => s.angle), events });
 
 /** Records the shots of the current hole. */
 export class HoleRecorder {
@@ -18,7 +18,7 @@ export class HoleRecorder {
 
   /** Call right after the ball is struck. */
   start(w: World, dir: [number, number], power: number) {
-    this.cur = { frames: [snap(w, [])], dir, power, end: 'stop', ace: false };
+    this.cur = { frames: [snap(w, [])], dir, power, spin: { ...w.spin }, end: 'stop', ace: false };
   }
 
   /** Call after each physics step with its events; closes the shot when the ball comes to rest. */
@@ -44,7 +44,7 @@ export function sampleShot(s: Shot, t: number) {
   const lerp = (p: number, q: number) => p + (q - p) * k;
   return {
     i, t: lerp(a.t, b.t), x: lerp(a.x, b.x), y: lerp(a.y, b.y), vx: lerp(a.vx, b.vx), vy: lerp(a.vy, b.vy),
-    spin: a.spin.map((v, j) => lerp(v, b.spin[j])), done: at >= f[f.length - 1].t,
+    arms: a.arms.map((v, j) => lerp(v, b.arms[j])), done: at >= f[f.length - 1].t,
   };
 }
 

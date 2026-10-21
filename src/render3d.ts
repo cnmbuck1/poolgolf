@@ -10,7 +10,7 @@ import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR }
 import { ballMaterial, cueMaterials } from './gear';
 import { getModels } from './models';
 import { Theme } from './levels';
-import { BALL_R, CUP_R, heightAt, routeTarget, World } from './physics';
+import { BALL_R, CUP_R, heightAt, routeTarget, spinPath, World } from './physics';
 
 /** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
 const GradeShader = {
@@ -32,9 +32,9 @@ const C = {
 };
 
 export type GuideMode = 'full' | 'short';
-export interface AimState { active: boolean; dx: number; dy: number; power: number; guide: GuideMode }
+export interface AimState { active: boolean; dx: number; dy: number; power: number; guide: GuideMode; spin?: { side: number; vert: number } }
 /** Where the cue is drawn, independent of aiming so it can animate the strike. */
-export interface CueState { visible: boolean; dx: number; dy: number; pull: number; alpha: number; ox?: number; oy?: number }
+export interface CueState { visible: boolean; dx: number; dy: number; pull: number; alpha: number; ox?: number; oy?: number; spin?: { side: number; vert: number } }
 
 export interface FX {
   sink?: { t: number };
@@ -600,7 +600,9 @@ export class Renderer3D {
     if (!on) { this.dots.count = 0; return; }
 
     // The full guide reaches further with more power and always shows two banks.
-    const path = aim.guide === 'full' ? world.aimPath(aim.dx, aim.dy, 320 + aim.power * 700, 2) : world.aimPath(aim.dx, aim.dy, 150, 0);
+    const maxLen = aim.guide === 'full' ? 320 + aim.power * 700 : 150, banks = aim.guide === 'full' ? 2 : 0;
+    if (aim.spin && (aim.spin.side || aim.spin.vert)) { this.drawSpinGuide(world, aim, maxLen, banks); return; }
+    const path = world.aimPath(aim.dx, aim.dy, maxLen, banks);
     const m = new THREE.Matrix4();
     const col = new THREE.Color();
     const base = new THREE.Color(C.aim);
@@ -635,6 +637,44 @@ export class Renderer3D {
     if (this.dots.instanceColor) this.dots.instanceColor.needsUpdate = true;
   }
 
+  /** With spin on, the guide plays the shot out (on flat ground) so it bends with the swerve. */
+  private drawSpinGuide(world: World, aim: AimState, maxLen: number, banks: number) {
+    const b = world.ball;
+    const { pts, seg, hits } = spinPath(world.level, b.x, b.y, aim.dx, aim.dy, aim.power, aim.spin!, banks, maxLen);
+    const m = new THREE.Matrix4();
+    const col = new THREE.Color();
+    const base = new THREE.Color(C.aim);
+    let n = 0, carry = 0;
+    for (let s = 0; s < pts.length - 1 && n < MAX_DOTS; s++) {
+      const a = pts[s], c = pts[s + 1];
+      const len = Math.hypot(c.x - a.x, c.y - a.y);
+      const k = Math.min(2, seg[s + 1]);
+      const fade = [1, 0.7, 0.45][k];
+      let d = carry;
+      for (; d < len && n < MAX_DOTS; d += 20) {
+        const t = d / len;
+        const x = a.x + (c.x - a.x) * t, y = a.y + (c.y - a.y) * t;
+        const p = to3(x, y);
+        const sc = 1 - 0.2 * k;
+        m.makeScale(sc, 1, sc).setPosition(p.x, this.h(x, y) + 1.2, p.z);
+        this.dots.setMatrixAt(n, m);
+        col.copy(base).multiplyScalar(fade);
+        this.dots.setColorAt(n, col);
+        n++;
+      }
+      carry = d - len; // spacing carries on into the next piece of the path
+    }
+    hits.slice(0, this.ghosts.length).forEach((h, i) => {
+      const g = this.ghosts[i];
+      g.visible = true;
+      g.position.copy(to3(h.x, h.y)).setY(this.h(h.x, h.y) + 1.3);
+      (g.material as THREE.MeshBasicMaterial).opacity = 0.9 * [1, 0.7, 0.45][Math.min(2, i)];
+    });
+    this.dots.count = n;
+    this.dots.instanceMatrix.needsUpdate = true;
+    if (this.dots.instanceColor) this.dots.instanceColor.needsUpdate = true;
+  }
+
   private updateCue(world: World, cue: CueState) {
     this.cue.visible = cue.visible && cue.alpha > 0.01;
     if (!this.cue.visible) return;
@@ -643,6 +683,9 @@ export class Renderer3D {
     this.cue.position.copy(to3(x, y)).setY(this.h(x, y) + BALL_R + 2);
     this.cue.rotation.y = -Math.atan2(cue.dy, cue.dx);
     this.cuePitch.position.x = -(BALL_R + cue.pull);
+    // Strike off-centre for spin: right english moves the tip right, top/back spin up/down
+    this.cuePitch.position.z = (cue.spin?.side ?? 0) * BALL_R * 0.55;
+    this.cuePitch.position.y = (cue.spin?.vert ?? 0) * BALL_R * 0.5;
     for (const m of this.cueMats) m.opacity = cue.alpha;
   }
 }

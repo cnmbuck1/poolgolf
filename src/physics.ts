@@ -21,6 +21,17 @@ const BUMPER_E = 0.95;
 const ROCK_E = 0.55;
 /** Palm trunks are springier than rock. */
 const PALM_E = 0.65;
+/**
+ * Spin, set where the cue strikes the ball (each axis -1..1).
+ *   side  right (+) or left (-) english: the ball swerves that way as it rolls, and kicks that way off walls
+ *   vert  top (+) or back (-) spin: follow rolls further and pushes on through a hit; draw grips sooner and
+ *         pulls the ball back after it hits something
+ */
+export interface Spin { side: number; vert: number }
+/** Sideways pull (units/s²) from full side spin while the ball is rolling quickly. */
+const SWERVE = 420;
+/** How fast spin wears off while rolling (1/s). */
+const SPIN_DECAY = 0.7;
 export const palmR = (p: { r?: number }) => p.r ?? 13;
 /** Bridge deck: height of the hump, length of the ramp at each end, and the handrail radius. */
 export const BRIDGE_H = 6;
@@ -65,6 +76,8 @@ export class World {
   time = 0;
   /** Cushion / wall / bumper contacts since the last shot (for "bank shot" calls). */
   contacts = 0;
+  /** Spin left on the ball from the last shot. */
+  spin: Spin = { side: 0, vert: 0 };
   private inCup = false;
 
   constructor(public level: LevelDef) {
@@ -108,8 +121,9 @@ export class World {
   /** Seconds the ball has spent crawling along almost stopped (see the rest check in step). */
   private crawl = 0;
 
-  shoot(vx: number, vy: number) {
+  shoot(vx: number, vy: number, spin: Spin = { side: 0, vert: 0 }) {
     this.crawl = 0;
+    this.spin = { ...spin };
     this.ball.vx = vx;
     this.ball.vy = vy;
     this.moving = true;
@@ -146,8 +160,21 @@ export class World {
       // Friction
       const sp = Math.hypot(b.vx, b.vy);
       const sandy = (this.level.sand ?? []).some((z) => inZone(z, b.x, b.y));
+      const sn = this.spin;
+      if (sp > 40 && Math.abs(sn.side) > 0.01) {
+        // Side spin swerves the ball: a sideways pull, strongest while it's rolling quickly
+        const k = (sn.side * SWERVE * Math.min(1, sp / 400) * h) / sp;
+        const vx0 = b.vx;
+        b.vx += -b.vy * k;
+        b.vy += vx0 * k;
+      }
+      const spinFade = Math.exp(-SPIN_DECAY * h);
+      sn.side *= spinFade;
+      sn.vert *= spinFade;
       if (sp > 0) {
-        const decel = (ROLL_DECEL + LIN_DAMP * sp) * (sandy ? SAND_FACTOR : 1) * h;
+        // Topspin keeps it rolling; backspin bites
+        const vertGrip = sn.vert > 0 ? 1 - 0.3 * sn.vert : 1 - 0.2 * sn.vert;
+        const decel = (ROLL_DECEL + LIN_DAMP * sp) * (sandy ? SAND_FACTOR : 1) * vertGrip * h;
         const ns = Math.max(0, sp - decel);
         b.vx *= ns / sp;
         b.vy *= ns / sp;
@@ -233,6 +260,16 @@ export class World {
     const ty = rvy - vn * ny;
     b.vx = svx + tx * (1 - grip) - e * vn * nx;
     b.vy = svy + ty * (1 - grip) - e * vn * ny;
+    const sn = this.spin;
+    if (-vn > 30 && (Math.abs(sn.side) > 0.01 || Math.abs(sn.vert) > 0.01)) {
+      // Spin takes effect on contact: follow/draw push along/against the incoming line, english
+      // kicks sideways relative to it. Each hit uses up some of the spin.
+      const sp = Math.hypot(rvx, rvy), dx = rvx / sp, dy = rvy / sp;
+      b.vx += dx * sn.vert * sp * 0.55 - dy * sn.side * sp * 0.3;
+      b.vy += dy * sn.vert * sp * 0.55 + dx * sn.side * sp * 0.3;
+      sn.vert *= 0.25;
+      sn.side *= 0.5;
+    }
     return -vn;
   }
 
@@ -558,6 +595,48 @@ export function heightAt(level: LevelDef, x: number, y: number) {
     }
   }
   return h;
+}
+
+/** Shot speed for a power setting 0..1 (squared at the low end, for finer control on short putts). */
+export const shotSpeed = (p: number) => MAX_SHOT_SPEED * (p * p * 0.35 + p * 0.65);
+
+const flatWorlds = new WeakMap<LevelDef, World>();
+/**
+ * Aim guide for a spun shot: plays the shot out on a flat, still copy of the hole (no slopes or sand,
+ * no moving obstacles, volcano cores as plain boulders), so the dots show the swerve and how spin
+ * changes the bounces. Returns the path, which bank each point comes after, and the contact points.
+ */
+export function spinPath(level: LevelDef, x: number, y: number, dx: number, dy: number, power: number, spin: Spin, maxBanks: number, maxLen: number) {
+  let w = flatWorlds.get(level);
+  if (!w) {
+    const flat: LevelDef = {
+      ...level, slopes: [], craters: [], sand: [], volcanoes: [], spinners: [], tumbleweeds: [], dinos: [],
+      asteroids: [], aliens: [], astronauts: [], rockets: [], meteors: [],
+      rocks: [...(level.rocks ?? []), ...(level.volcanoes ?? []).map((v) => ({ x: v.x, y: v.y, r: volcanoCore(v.r) }))],
+    };
+    w = new World(flat);
+    flatWorlds.set(level, w);
+  }
+  w.ball.x = x; w.ball.y = y;
+  const sp = shotSpeed(power);
+  w.shoot(dx * sp, dy * sp, spin);
+  const pts = [{ x, y }], seg = [0], hits: { x: number; y: number }[] = [];
+  let len = 0, lx = x, ly = y;
+  for (let k = 0; k < 240 && w.moving; k++) {
+    const before = w.contacts;
+    const ev = w.step(1 / 60);
+    const b = w.ball;
+    len += Math.hypot(b.x - lx, b.y - ly);
+    lx = b.x; ly = b.y;
+    if (w.contacts > before) {
+      hits.push({ x: b.x, y: b.y });
+      if (w.contacts > maxBanks) { pts.push({ x: b.x, y: b.y }); seg.push(before); break; }
+    }
+    pts.push({ x: b.x, y: b.y });
+    seg.push(w.contacts);
+    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'sink')) break;
+  }
+  return { pts, seg, hits };
 }
 
 /** Crater profile at distance d from its centre: a smooth bowl and a rounded rim around it. */

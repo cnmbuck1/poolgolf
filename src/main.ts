@@ -2,13 +2,14 @@ import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
-import { COURSE, COURSES, LEVELS, setCourse } from './levels';
-import { inZone, MAX_SHOT_SPEED, World } from './physics';
+import { COURSE, COURSES, LevelDef, LEVELS, setCourse } from './levels';
+import { inZone, MAX_SHOT_SPEED, shotSpeed, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
 import { bestScore, bestStars, CareerEvent, EVENTS, isUnlocked, recordEvent, STAR_COINS, starText, TIERS, totalStars } from './career';
 import { HoleRecorder, sampleShot, Shot } from './replay';
+import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
 import { addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
 import { setRolling, setSound, sfx, unlockAudio } from './audio';
 
@@ -30,8 +31,11 @@ let world = new World(LEVELS[0]);
 let strokes = 0;
 let scores: (number | null)[] = LEVELS.map(() => null);
 let lastRest = { x: 0, y: 0 };
-const aim: AimState = { active: false, dx: 1, dy: 0, power: 0, guide: 'full' };
-const cue: CueState = { visible: false, dx: 1, dy: 0, pull: 0, alpha: 0 };
+
+/** Where the cue will strike the ball (set on the spin pad; resets after each shot). */
+const spin = { side: 0, vert: 0 };
+const cue: CueState = { visible: false, dx: 1, dy: 0, pull: 0, alpha: 0, spin };
+const aim: AimState = { active: false, dx: 1, dy: 0, power: 0, guide: 'full', spin };
 const fx: FX = { ripples: [] };
 let drag: { id: number; sx: number; sy: number; x: number; y: number; spin: number; basis: ReturnType<Renderer3D['aimBasis']> } | null = null;
 let practice = false; // playing a single hole from the Courses menu
@@ -41,6 +45,10 @@ let lastFrameDt = 1 / 60;
 let sinkBanked = false; // the ball touched a wall or obstacle on the shot that sank it
 const recorder = new HoleRecorder(); // this hole's shots, for the replay
 let careerEvent: CareerEvent | null = null; // the Career event being played, if any
+let trick: Trick | null = null; // the trick shot being attempted, if any
+let attempts = 0; // tries at the current trick shot
+let trickMissed = false; // the ball dropped but broke the trick's rule
+let trickReset = 0; // seconds until the ball goes back to the start after a miss
 
 /** Cue strike: the cue slides into the ball, the shot fires on contact, then it follows through and fades. */
 let strike: { t: number; from: number; dur: number; p: number; fired: boolean } | null = null;
@@ -127,14 +135,15 @@ const scoreClass = (s: number, par: number) => (s === 1 ? 'ace' : s < par ? 'und
 
 // ---------- HUD ----------
 function updateHud() {
-  $('hud-hole').textContent = String(holeIdx + 1);
+  $('hud-hole').textContent = trick ? '★' : String(holeIdx + 1);
   $('hud-par').textContent = String(world.level.par);
-  $('hud-strokes').textContent = String(strokes);
+  $('hud-strokes').textContent = String(trick ? attempts : strokes);
   $('hud-name').textContent = world.level.name;
   const d = roundToPar();
   const tp = $('hud-topar');
   tp.textContent = toParLabel(d);
   tp.className = `num chip ${d < 0 ? 'under' : d > 0 ? 'over' : ''}`;
+  if (trick) { tp.textContent = '–'; $('hud-pips').innerHTML = ''; updatePower(); return; }
   $('hud-pips').innerHTML = LEVELS.map((l, i) => {
     const s = scores[i];
     const c = i === holeIdx && phase === 'play' ? 'cur' : s == null ? '' : s < l.par ? 'under' : s === l.par ? 'par' : 'over';
@@ -171,7 +180,7 @@ function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
 }
 
 function banner() {
-  $('banner-num').textContent = String(holeIdx + 1);
+  $('banner-hole').innerHTML = trick ? 'TRICK SHOT' : `HOLE <b>${holeIdx + 1}</b>`;
   $('banner-name').textContent = world.level.name;
   $('banner-par').textContent = `Par ${world.level.par}`;
   fitTopSlot();
@@ -201,8 +210,27 @@ function updateFinger() {
 // ---------- Flow ----------
 function loadHole(i: number) {
   holeIdx = i;
-  world = new World(LEVELS[i]);
+  trick = null;
+  enterLevel(LEVELS[i]);
+  banner();
+}
+
+/** Start a trick shot in its own little arena. */
+function loadTrick(t: Trick) {
+  trick = t;
+  practice = false;
+  careerEvent = null;
+  attempts = 0;
+  enterLevel(t.level);
+  banner();
+  toast(ruleText(t), 'good', 3000);
+}
+
+/** Put the ball on the tee of a level and reset the shot state. */
+function enterLevel(L: LevelDef) {
+  world = new World(L);
   recorder.reset();
+  setSpin(0, 0);
   view3d.setLevel(world);
   view3d.setMode('play');
   view3d.intro(world);
@@ -218,10 +246,11 @@ function loadHole(i: number) {
   drag = null;
   busyTimer = 0;
   phase = 'play';
+  trickMissed = false;
+  trickReset = 0;
   show(null);
   resize();
   updateHud();
-  banner();
 }
 
 function startRound(ev: CareerEvent | null = null) {
@@ -253,6 +282,7 @@ function finishHole(score: number, pickedUp = false) {
   $('hole-detail').textContent = `${score} stroke${score === 1 ? '' : 's'} on a par ${par}`;
   $('hole-card').innerHTML = scorecardHtml();
   setLabel('btn-next', practice ? 'COURSES' : last && careerEvent ? 'CAREER' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
+  $('btn-replay').textContent = 'Replay hole';
   if (!pickedUp) sfx.result(score - par, score === 1);
   if (last && !practice) {
     localSet('rounds', String(stat('rounds') + 1));
@@ -343,7 +373,7 @@ function pause() {
 }
 
 // ---------- Input ----------
-const canAim = () => phase === 'play' && !world.moving && busyTimer <= 0 && !strike;
+const canAim = () => phase === 'play' && !world.moving && busyTimer <= 0 && trickReset <= 0 && !strike;
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
@@ -429,9 +459,12 @@ canvas.addEventListener('pointercancel', (e) => endDrag(e, true));
 
 function fireShot(p: number) {
   lastRest = { x: world.ball.x, y: world.ball.y };
-  const speed = MAX_SHOT_SPEED * p * p * 0.35 + MAX_SHOT_SPEED * p * 0.65; // finer control at low power
-  world.shoot(cue.dx * speed, cue.dy * speed);
+  if (trick) { attempts++; strokes = 0; recorder.reset(); }
+  const speed = shotSpeed(p);
+  world.shoot(cue.dx * speed, cue.dy * speed, spin);
   recorder.start(world, [cue.dx, cue.dy], p);
+  lastSpin = { ...spin };
+  setSpin(0, 0);
   strokes++;
   sfx.cue(p);
   buzz(p > 0.7 ? ImpactStyle.Heavy : ImpactStyle.Light);
@@ -481,9 +514,9 @@ function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.
 function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
 click('btn-view', toggleView);
-click('btn-restart', () => { if (phase === 'play') loadHole(holeIdx); });
-click('btn-pause-restart', () => loadHole(holeIdx));
-click('btn-replay', () => { scores[holeIdx] = null; loadHole(holeIdx); });
+click('btn-restart', () => { if (phase === 'play') { if (trick) loadTrick(trick); else loadHole(holeIdx); } });
+click('btn-pause-restart', () => { if (trick) loadTrick(trick); else loadHole(holeIdx); });
+click('btn-replay', () => { if (trick) { loadTrick(trick); return; } scores[holeIdx] = null; loadHole(holeIdx); });
 click('btn-quit', toTitle);
 
 function toTitle() {
@@ -608,8 +641,99 @@ function openGear() {
   });
 }
 
+// ---------- Spin pad ----------
+let lastSpin = { side: 0, vert: 0 }; // spin on the most recent shot (trick shots check it)
+function setSpin(side: number, vert: number) {
+  const r = Math.hypot(side, vert);
+  if (r > 1) { side /= r; vert /= r; }
+  spin.side = Math.abs(side) < 0.08 ? 0 : side;
+  spin.vert = Math.abs(vert) < 0.08 ? 0 : vert;
+  const dot = $('spin-dot');
+  dot.style.transform = `translate(${spin.side * 22}px, ${-spin.vert * 22}px)`;
+  const on = spin.side !== 0 || spin.vert !== 0;
+  $('spin').classList.toggle('on', on);
+  $('spin-label').textContent = !on ? 'SPIN' : Math.abs(spin.vert) > Math.abs(spin.side) ? (spin.vert > 0 ? 'TOPSPIN' : 'BACKSPIN') : spin.side > 0 ? 'RIGHT' : 'LEFT';
+}
+{
+  const pad = $('spin-ball');
+  let tap: { x: number; y: number; moved: boolean } | null = null;
+  const fromEvent = (e: PointerEvent) => {
+    const r = pad.getBoundingClientRect();
+    setSpin(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1));
+  };
+  pad.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    unlockAudio();
+    pad.setPointerCapture(e.pointerId);
+    tap = { x: e.clientX, y: e.clientY, moved: false };
+    fromEvent(e);
+  });
+  pad.addEventListener('pointermove', (e) => {
+    if (!tap) return;
+    if (Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 4) tap.moved = true;
+    fromEvent(e);
+  });
+  pad.addEventListener('pointerup', () => {
+    // A tap near the middle clears the spin
+    if (tap && !tap.moved && Math.hypot(spin.side, spin.vert) < 0.35) setSpin(0, 0);
+    tap = null;
+    sfx.ui();
+  });
+}
+
+// ---------- Trick shots ----------
+function resetTrickBall() {
+  trickReset = 0;
+  trickMissed = false;
+  fx.sink = fx.splash = undefined;
+  busyTimer = 0;
+  world.ball.x = world.level.tee[0]; world.ball.y = world.level.tee[1];
+  world.ball.vx = world.ball.vy = 0;
+  world.moving = false;
+  view3d.setMode('play');
+  recorder.reset();
+  updateHud();
+}
+
+function finishTrick() {
+  const t = trick!;
+  phase = 'holeDone';
+  setRolling(0, false);
+  const first = markDone(t);
+  if (first) addCoins(t.reward);
+  $('hole-kicker').textContent = `TRICK SHOT · ${t.name.toUpperCase()}`;
+  const h = $('hole-result');
+  h.textContent = 'Nailed it!';
+  h.className = 'ace';
+  $('hole-detail').textContent = `${ruleText(t)} · ${attempts === 1 ? 'first try!' : `attempt ${attempts}`}`;
+  $('hole-coins').innerHTML = first ? `<b><i class="coin"></i>+${t.reward}</b><small>Trick shot +${t.reward}</small>` : '<small>Already completed · no coins this time</small>';
+  $('hole-card').innerHTML = '';
+  $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
+  $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH IT IN SLOW MOTION';
+  $('btn-replay').textContent = 'Try again';
+  setLabel('btn-next', 'TRICK SHOTS');
+  sfx.result(-2, true);
+  updateHud();
+  show('screen-hole');
+}
+
 // ---------- Career ----------
-function openCareer() {
+function trickCards() {
+  return TRICKS.map((t) => `<button class="course event" data-trick="${t.id}"><em class="stars">${isDone(t) ? '✓ DONE' : `<i class="coin"></i> ${t.reward}`}</em><b>${courseName(t).toUpperCase()}</b><span>${t.name}</span><small>${ruleText(t)}</small></button>`).join('');
+}
+
+function openCareer(tab: 'tours' | 'tricks' = 'tours') {
+  if (tab === 'tricks') {
+    const done = TRICKS.filter(isDone).length;
+    sheet('Career', `<div class="tabs"><button class="tab" data-tab="tours">TOURS</button><button class="tab on">TRICK SHOTS</button></div>
+      <div class="gear-top"><p>One shot each. Banks, swerves, draws and timing: use the spin pad by the power bar to strike the ball off-centre.</p><b class="wallet">${done}/${TRICKS.length}</b></div>
+      <div class="courses">${trickCards()}</div>`);
+    $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-trick]').forEach((b) => {
+      b.onclick = () => { sfx.ui(); loadTrick(TRICKS.find((t) => t.id === b.dataset.trick)!); };
+    });
+    $('sheet-body').querySelector<HTMLButtonElement>('[data-tab="tours"]')!.onclick = () => { sfx.ui(); openCareer('tours'); };
+    return;
+  }
   const tiers = TIERS.map((t, ti) => {
     const evs = EVENTS.filter((e) => e.tier === t);
     const cards = evs.map((ev, i) => {
@@ -623,7 +747,7 @@ function openCareer() {
       : `Clear every ${TIERS[ti - 1].name} event to open`;
     return `<div class="course-head"><div><h3>${t.name}</h3><small>${sub}</small></div></div><div class="courses">${cards}</div>`;
   }).join('');
-  sheet('Career', `<div class="gear-top"><p>Win events to climb the tours. Beat the target by 2 for a second star and by 4 for a third; every new star pays ${STAR_COINS} coins.</p><b class="wallet"><span class="star">★</span>${totalStars()}/${EVENTS.length * 3}</b></div>${tiers}`);
+  sheet('Career', `<div class="tabs"><button class="tab on">TOURS</button><button class="tab" data-tab="tricks">TRICK SHOTS</button></div><div class="gear-top"><p>Win events to climb the tours. Beat the target by 2 for a second star and by 4 for a third; every new star pays ${STAR_COINS} coins.</p><b class="wallet"><span class="star">★</span>${totalStars()}/${EVENTS.length * 3}</b></div>${tiers}`);
   $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-event]').forEach((b) => {
     b.onclick = () => {
       const ev = EVENTS.find((e) => e.id === b.dataset.event)!;
@@ -632,6 +756,7 @@ function openCareer() {
       startRound(ev);
     };
   });
+  $('sheet-body').querySelector<HTMLButtonElement>('[data-tab="tricks"]')!.onclick = () => { sfx.ui(); openCareer('tricks'); };
 }
 
 // ---------- Replay ----------
@@ -673,7 +798,7 @@ function endReplay() {
 function stepReplay(dt: number) {
   const r = replay!;
   const shot = r.shots[r.i];
-  $('replay-label').textContent = r.shots.length > 1 ? `Shot ${r.i + 1} of ${r.shots.length}` : shot.ace ? 'Hole in one!' : 'Replay';
+  $('replay-label').textContent = r.shots.length > 1 ? `Shot ${r.i + 1} of ${r.shots.length}` : trick ? trick.name : shot.ace ? 'Hole in one!' : 'Replay';
   const f0 = shot.frames[0];
   // Wind-up: the cue draws back and strikes, then the ball rolls
   if (r.pre < PRE) {
@@ -682,12 +807,13 @@ function stepReplay(dt: number) {
     world.moving = false;
     world.ball.x = f0.x; world.ball.y = f0.y; world.ball.vx = world.ball.vy = 0;
     world.time = f0.t;
-    world.spinners.forEach((s, i) => (s.angle = f0.spin[i]));
+    world.spinners.forEach((s, i) => (s.angle = f0.arms[i]));
     view3d.faceYaw(Math.atan2(shot.dir[1], shot.dir[0]));
     const back = 10 + 60 * shot.power;
     const k = Math.min(1, r.pre / (PRE - 0.12));
+    Object.assign(spin, shot.spin);
     Object.assign(cue, { visible: true, alpha: 1, dx: shot.dir[0], dy: shot.dir[1], ox: f0.x, oy: f0.y, pull: r.pre < PRE - 0.12 ? back * Math.sin(k * Math.PI / 2) : back * (1 - (r.pre - (PRE - 0.12)) / 0.12) });
-    if (r.pre >= PRE) { cue.visible = false; sfx.cue(shot.power); }
+    if (r.pre >= PRE) { cue.visible = false; sfx.cue(shot.power); spin.side = spin.vert = 0; }
     return;
   }
   if (r.post >= 0) {
@@ -722,7 +848,7 @@ function stepReplay(dt: number) {
   r.idx = p.i;
   world.ball.x = p.x; world.ball.y = p.y; world.ball.vx = p.vx; world.ball.vy = p.vy;
   world.time = p.t;
-  world.spinners.forEach((s, i) => (s.angle = p.spin[i]));
+  world.spinners.forEach((s, i) => (s.angle = p.arms[i]));
   world.moving = !p.done;
   setRolling(Math.hypot(p.vx, p.vy) * r.speed, (world.level.sand ?? []).some((z) => inZone(z, p.x, p.y)));
   if (!p.done) return;
@@ -732,7 +858,7 @@ function stepReplay(dt: number) {
     sfx.sink();
     fx.sink = { t: 0 };
     view3d.setMode('sink');
-    if (shot.ace) toast('HOLE IN ONE!', 'good', 1800);
+    if (shot.ace) toast(trick ? 'TRICK SHOT!' : 'HOLE IN ONE!', 'good', 1800);
   } else if (shot.end === 'water') {
     if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else sfx.water();
     fx.splash = { x: p.x, y: p.y, t: 0 };
@@ -749,7 +875,7 @@ click('btn-courses', openCourses);
 click('btn-settings', openSettings);
 click('btn-stats', openStats);
 click('btn-cues', openGear);
-click('btn-career', openCareer);
+click('btn-career', () => openCareer());
 click('btn-watch', () => startReplay());
 click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slowmo').classList.toggle('on', replay.slow); } });
 click('btn-skip', () => endReplay());
@@ -757,10 +883,12 @@ click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
+  <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', () => toggleSound());
 click('btn-next', () => {
+  if (trick) { toTitle(); openCareer('tricks'); return; }
   if (careerEvent && holeIdx === LEVELS.length - 1) { toTitle(); openCareer(); return; }
   if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
 });
@@ -794,6 +922,7 @@ function frame(now: number) {
 let cardFaded = false;
 function fadeScoreCard() {
   const fade = phase === 'play' && (aim.active || world.moving || !!strike || busyTimer > 0);
+  $('spin').classList.toggle('busy', phase === 'play' && (world.moving || !!strike || busyTimer > 0));
   if (fade === cardFaded) return;
   cardFaded = fade;
   document.querySelector('.hud-card')!.classList.toggle('faded', fade);
@@ -808,7 +937,8 @@ function tick(dt: number) {
     if (fx.sink) fx.sink.t += dt / 0.45;
     if (fx.splash) fx.splash.t += dt;
     if (busyTimer <= 0) {
-      if (fx.sink) finishHole(strokes);
+      if (fx.sink && trick) { if (trickMissed) resetTrickBall(); else finishTrick(); }
+      else if (fx.sink) finishHole(strokes);
       else if (fx.splash) {
         fx.splash = undefined;
         world.ball.x = lastRest.x;
@@ -822,6 +952,7 @@ function tick(dt: number) {
   }
 
   if (phase === 'title') { world.step(dt); return; }
+  if (trickReset > 0) { trickReset -= dt; if (trickReset <= 0) resetTrickBall(); }
 
   const b = world.ball;
   const events = world.step(dt);
@@ -855,6 +986,12 @@ function tick(dt: number) {
         buzz(ImpactStyle.Light);
         break;
       case 'sink': {
+        if (trick) {
+          // It dropped, but did it follow the trick's rule?
+          const why = checkRule(trick, world.contacts, lastSpin);
+          trickMissed = !!why;
+          if (why) { sfx.lip(); fx.sink = { t: 0 }; busyTimer = 1.3; toast(why, 'bad', 2600); break; }
+        }
         sfx.sink();
         if (native) void Haptics.notification({ type: NotificationType.Success }).catch(() => {});
         fx.sink = { t: 0 };
@@ -879,6 +1016,7 @@ function tick(dt: number) {
         updateHud();
         break;
       case 'stop':
+        if (trick) { toast('Missed! Try again', 'bad', 1100); trickReset = 0.9; break; }
         if (strokes >= MAX_STROKES) finishHole(MAX_STROKES, true);
         break;
     }
@@ -897,6 +1035,14 @@ if (import.meta.env.DEV) {
       world.shoot(Math.cos(a) * MAX_SHOT_SPEED * power, Math.sin(a) * MAX_SHOT_SPEED * power);
       recorder.start(world, [Math.cos(a), Math.sin(a)], power);
     },
+    /** Fire through the real shot path (aim angle in degrees, power 0..1, spin). */
+    fire: (deg: number, p: number, side = 0, vert = 0) => {
+      const a = (deg * Math.PI) / 180;
+      cue.dx = Math.cos(a); cue.dy = Math.sin(a);
+      setSpin(side, vert);
+      fireShot(p);
+    },
+    trick: (id: string) => loadTrick(TRICKS.find((t) => t.id === id)!),
     stats: () => view3d.stats,
     view: () => view3d,
     course: (id: string) => chooseCourse(id),
