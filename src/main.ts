@@ -17,6 +17,7 @@ import { setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
 import { playMusic } from './music';
 import { PLAYTEST_URL, TESTER_CODE_HASH } from './playtest.config';
 import { sha256 } from './sha256';
+import { tipsFor } from './tips';
 import { BUILD, flush, loadRecords, PlaytestRecord, setTesterName, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -192,7 +193,35 @@ function resultName(s: number, par: number) {
 const scoreClass = (s: number, par: number) => (s === 1 ? 'ace' : s < par ? 'under' : s === par ? 'par' : 'over');
 
 // ---------- HUD ----------
+/** Tips for the hole on screen (none for trick shots and the shootout). */
+function currentTips() {
+  if (trick || shootout) return null;
+  const at = whereIs(world.level);
+  return at ? tipsFor(at.course, world.level.name) : null;
+}
+
+/** The tips panel for this hole: pauses play while it's open. */
+let tipsResume = false;
+function openTips() {
+  const t = currentTips();
+  if (!t) return;
+  sfx.ui();
+  tipsResume = phase === 'play';
+  if (tipsResume) { phase = 'paused'; setRolling(0, false); }
+  $('tips-title').textContent = `Tips · Hole ${holeIdx + 1} · ${world.level.name}`;
+  const li = (items: string[]) => items.map((x) => `<li>${x.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!)}</li>`).join('');
+  $('tips-do').innerHTML = li(t.do);
+  $('tips-avoid').innerHTML = li(t.avoid);
+  $('screen-tips').classList.remove('hidden');
+}
+function closeTips() {
+  $('screen-tips').classList.add('hidden');
+  if (tipsResume && phase === 'paused') phase = 'play';
+  tipsResume = false;
+}
+
 function updateHud() {
+  $('btn-tips').classList.toggle('hidden', !currentTips());
   $('hud-hole').textContent = trick ? '★' : String(holeIdx + 1);
   $('hud-par').textContent = String(world.level.par);
   $('hud-strokes').textContent = String(trick ? attempts : strokes);
@@ -1356,6 +1385,9 @@ function comingSoon(title: string, icon: string, what: string) {
 click('btn-courses', openCourses);
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
+click('btn-tips', openTips);
+click('btn-tips-close', closeTips);
+click('btn-tips-ok', closeTips);
 click('btn-pause-feedback', () => openFeedback());
 click('btn-fb-close', () => $('screen-feedback').classList.add('hidden'));
 document.querySelectorAll<HTMLButtonElement>('.fb-kind').forEach((b) => {
@@ -1444,6 +1476,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
+  <p>Stuck on a hole? Tap the <b>💡</b> in the scorecard for tips on what works best there and what to avoid. It pauses the game while you read.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', toggleMute);
 click('btn-next', () => {

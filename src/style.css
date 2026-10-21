@@ -115,6 +115,16 @@ svg { width: 22px; height: 22px; flex: none; }
   transition: opacity 0.35s ease 0.25s; /* comes back a beat after the ball stops */
 }
 .hud-card.faded { opacity: 0; transition-delay: 0s; }
+.hud-card.faded .hud-tips { pointer-events: none; }
+.hud-tips { flex: none; width: 32px; height: 32px; margin-left: -4px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--gold-edge); background: rgba(246, 189, 71, 0.16); color: var(--gold-hi); }
+.hud-tips svg { width: 18px; height: 18px; }
+.tips { gap: 10px; }
+.tips-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; text-align: left; }
+.tips-cols h3 { margin: 0 0 6px; font-family: var(--display); font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase; }
+.tips-do { color: var(--under); }
+.tips-avoid { color: var(--over); }
+.tips-cols ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; line-height: 1.4; color: var(--ink); }
+@media (max-width: 600px) { .tips-cols { grid-template-columns: 1fr; } }
 .hud-hole { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .hud-hole .label { font-size: 9px; color: var(--gold); }
 .hud-hole .num { font-size: 28px; font-weight: 800; color: var(--gold-hi); }
