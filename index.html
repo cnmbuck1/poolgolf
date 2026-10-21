@@ -28,6 +28,7 @@
       <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7z" fill="currentColor"/></symbol>
       <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4.2" height="16" rx="1.4" fill="currentColor"/><rect x="13.8" y="4" width="4.2" height="16" rx="1.4" fill="currentColor"/></symbol>
       <symbol id="i-restart" viewBox="0 0 24 24"><path d="M18.5 12a6.5 6.5 0 1 1-2.1-4.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M19 3v5.5h-5.5z" fill="currentColor"/></symbol>
+      <symbol id="i-turn" viewBox="0 0 24 24"><path d="M7 20V10a5 5 0 0 1 10 0v4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M12.6 13.5h8.8L17 19.5z" fill="currentColor"/></symbol>
       <symbol id="i-camera" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
@@ -47,6 +48,7 @@
         <div class="hud-stat"><span class="label">ROUND</span><b id="hud-topar" class="num chip">E</b></div>
       </div>
       <div class="hud-actions">
+        <button id="btn-turn" class="round-btn" aria-label="Turn around"><svg><use href="#i-turn"/></svg></button>
         <button id="btn-view" class="round-btn" aria-label="Switch camera view"><svg><use href="#i-camera"/></svg><span id="view-label">TABLE</span></button>
         <button id="btn-restart" class="round-btn" aria-label="Restart hole"><svg><use href="#i-restart"/></svg></button>
         <button id="btn-pause" class="round-btn" aria-label="Pause"><svg><use href="#i-pause"/></svg></button>

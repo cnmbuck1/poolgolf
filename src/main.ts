@@ -40,7 +40,7 @@ const spin = { side: 0, vert: 0 };
 const cue: CueState = { visible: false, dx: 1, dy: 0, pull: 0, alpha: 0, spin };
 const aim: AimState = { active: false, dx: 1, dy: 0, power: 0, guide: 'full', spin };
 const fx: FX = { ripples: [] };
-let drag: { id: number; sx: number; sy: number; x: number; y: number; spin: number; basis: ReturnType<Renderer3D['aimBasis']> } | null = null;
+let drag: { id: number; sx: number; sy: number; x: number; y: number; yaw: number; pulled: boolean; basis: ReturnType<Renderer3D['aimBasis']> } | null = null;
 let practice = false; // playing a single hole from the Courses menu
 let busyTimer = 0; // seconds remaining in a scripted sequence (sinking / splash reset)
 let time = 0;
@@ -100,6 +100,7 @@ function syncSettingsUi() {
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
   $('set-arrows').setAttribute('aria-pressed', String(settings.arrows));
   $('view-label').textContent = view3d.isOverview ? 'BALL' : 'TABLE';
+  $('btn-turn').style.display = view3d.isOverview ? 'none' : '';
   const t = $('btn-title-sound');
   t.querySelector('use')!.setAttribute('href', settings.sound ? '#i-sound' : '#i-mute');
   t.setAttribute('aria-label', settings.sound ? 'Sound on' : 'Sound off');
@@ -458,16 +459,23 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!canAim() || drag) return;
   // Freeze the view's basis for this drag, so the camera can turn with the aim without
   // feeding back into it.
-  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, spin: 0, basis: view3d.aimBasis() };
+  const basis = view3d.aimBasis();
+  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, yaw: Math.atan2(basis.fwd.y, basis.fwd.x), pulled: false, basis };
   canvas.setPointerCapture(e.pointerId);
   aim.active = true;
   aim.power = 0;
+  applyDrag();
   $('banner').classList.remove('show'); // get the hole banner out of the way of the shot
   updateHud();
 });
 
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
+  // Before pulling back, a sideways swipe spins the view quickly (a screen's width ≈ one full turn,
+  // so you can face any way, even straight behind you); once pulling, sideways fine-tunes the aim.
+  if (!drag.pulled && e.clientY - drag.sy > PULL_START) drag.pulled = true;
+  const turn = drag.pulled ? AIM_TURN : (Math.PI * 2) / (window.innerWidth * 0.9);
+  drag.yaw -= (e.clientX - drag.x) * turn;
   drag.x = e.clientX;
   drag.y = e.clientY;
   applyDrag();
@@ -476,6 +484,8 @@ canvas.addEventListener('pointermove', (e) => {
 /** Width of the screen-edge strips that keep the aim turning while the finger rests in them. */
 const EDGE_ZONE = 0.12;
 const EDGE_TURN = 1.4; // rad/s
+/** How far down the finger moves before a drag counts as pulling the cue back. */
+const PULL_START = 14;
 
 /** Turn the current drag into aim direction and power (called on move and every frame). */
 function applyDrag() {
@@ -486,11 +496,10 @@ function applyDrag() {
   const maxDrag = Math.min(window.innerHeight * 0.45, 260);
   const { fwd, right } = drag.basis;
   if (!view3d.isOverview) {
-    // Shot camera: down sets power, sideways turns the aim gently (about 23° per 100 px),
-    // and holding near a screen edge keeps turning, so the aim can come all the way round
-    const yaw = Math.atan2(fwd.y, fwd.x) - mx * AIM_TURN - drag.spin;
-    aim.dx = Math.cos(yaw);
-    aim.dy = Math.sin(yaw);
+    // Shot camera: down sets power, sideways turns the aim (see pointermove), and holding near
+    // a screen edge keeps turning
+    aim.dx = Math.cos(drag.yaw);
+    aim.dy = Math.sin(drag.yaw);
     aim.power = Math.min(1, Math.max(0, my) / maxDrag);
   } else {
     // Whole-hole view: the shot goes straight opposite the drag
@@ -511,7 +520,7 @@ function edgeTurn(dt: number) {
   const w = window.innerWidth;
   const side = drag.x < w * EDGE_ZONE ? -1 : drag.x > w * (1 - EDGE_ZONE) ? 1 : 0;
   if (!side) return;
-  drag.spin += side * EDGE_TURN * dt;
+  drag.yaw -= side * EDGE_TURN * dt;
   applyDrag();
 }
 
@@ -528,7 +537,7 @@ function endDrag(e: PointerEvent, cancel: boolean) {
     cue.oy = world.ball.y;
   } else {
     cue.visible = false;
-    view3d.holdAim(); // let go without shooting: keep looking where you turned
+    if (!view3d.isOverview) view3d.faceYaw(Math.atan2(aim.dy, aim.dx)); // let go without shooting: keep looking where you turned
   }
   updateHud();
 }
@@ -594,6 +603,7 @@ function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.
 function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
 click('btn-view', toggleView);
+click('btn-turn', () => { if (canAim() && !view3d.isOverview) view3d.turnAround(); });
 click('btn-restart', () => { if (phase === 'play') { if (trick) loadTrick(trick); else loadHole(holeIdx); } });
 click('btn-pause-restart', () => { if (trick) loadTrick(trick); else loadHole(holeIdx); });
 click('btn-replay', () => { if (match) return; if (trick) { loadTrick(trick); return; } scores[holeIdx] = null; loadHole(holeIdx); });
@@ -1277,7 +1287,7 @@ click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slo
 click('btn-skip', () => endReplay());
 click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
 click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
-click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
+click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to fine-tune your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. To face another way, <b>swipe sideways</b> before pulling down: one swipe across the screen turns you all the way round. The <b>↻</b> button turns you to face straight behind.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
   <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>

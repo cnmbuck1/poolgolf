@@ -318,6 +318,8 @@ export class Renderer3D {
   holdAim() { this.restYaw = this.shotYaw; }
   /** Point the shot camera along a direction (replays line up each shot like the player did). */
   faceYaw(yaw: number) { this.restYaw = yaw; }
+  /** Swing the shot camera round to face straight behind. */
+  turnAround() { this.restYaw = (this.restYaw ?? this.shotYaw) + Math.PI; }
   shake(amount: number) { this.shakeAmt = Math.min(10, this.shakeAmt + amount); }
 
   /** Dev only: frame a table point up close. */
@@ -462,7 +464,7 @@ export class Renderer3D {
     const ball = to3(b.x, b.y).setY(this.h(b.x, b.y) + BALL_R);
     const speed = Math.hypot(b.vx, b.vy);
     let yawGoal = this.shotYaw, yawRate = 0;
-    if (aim.active && aim.power > 0.02) { yawGoal = Math.atan2(aim.dy, aim.dx); yawRate = 7; }
+    if (aim.active) { yawGoal = Math.atan2(aim.dy, aim.dx); yawRate = aim.power > 0.02 ? 7 : 12; }
     else if (world.moving && speed > 150) { yawGoal = Math.atan2(b.vy, b.vx); yawRate = 1.2; }
     else if (!world.moving && !aim.active) {
       // At rest, face the cup (or hold the direction you last turned to without shooting)
