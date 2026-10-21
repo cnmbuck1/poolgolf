@@ -3,9 +3,9 @@
 // Purely visual; positions of moving things come from physics.ts so what you see is what you hit.
 import * as THREE from 'three';
 import { Animated } from './art';
-import { Dino, LevelDef, Pt, Tumbleweed, Volcano } from './levels';
+import { Dino, LevelDef, Palm, Pt, Tumbleweed, Volcano } from './levels';
 import { Models, PieceBatch } from './models';
-import { DINO_LEGS, dinoPose, heightAt, tumbleweedAt, VOLCANO_SLOPE, volcanoCore, World } from './physics';
+import { DINO_LEGS, dinoPose, heightAt, palmR, tumbleweedAt, VOLCANO_SLOPE, volcanoCore, World } from './physics';
 import { outlineDistance, resample } from './landscape';
 
 type ToScene = (x: number, y: number) => THREE.Vector3;
@@ -528,20 +528,34 @@ export function courseVolcano(v: Volcano, L: LevelDef, toScene: ToScene): Animat
   return { group: root, update: (_a, t) => anim(t) };
 }
 
+/** A palm standing on the fairway as an obstacle; its trunk base matches the physics post. */
+export function coursePalm(pm: Palm, L: LevelDef, toScene: ToScene) {
+  const g = palm(Math.round(pm.x * 3 + pm.y), pm.height ?? 120, palmR(pm));
+  g.rotation.y = (pm.x + pm.y) * 0.37;
+  // A little mound of dirt and roots so the trunk sits in the ground
+  const mound = part(new THREE.SphereGeometry(palmR(pm) * 1.45, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon(0x8a5a36), 1.15);
+  mound.scale.y = 0.35;
+  g.add(mound);
+  g.position.copy(toScene(pm.x, pm.y)).setY(heightAt(L, pm.x, pm.y));
+  return g;
+}
+
 // ---------- prehistoric landscape ----------
 
 /** Chunky cartoon palm: a leaning ringed trunk and a crown of broad, drooping fronds. */
-function palm(seed: number, height: number) {
+function palm(seed: number, height: number, baseR?: number) {
   const r = rng(seed);
   const g = new THREE.Group();
-  const lean = (r() - 0.5) * 0.6;
+  const lean = (r() - 0.5) * (baseR ? 0.35 : 0.6);
+  // Fairway palms set the trunk base to match their collider
+  const thick = baseR ? baseR / (height * 0.075 * 1.12) : 1;
   const segs = 6;
   const trunk = toon(0x9a6a3e), ring = toon(0x7a4e2a);
   let top = V(0, 0);
   for (let i = 0; i < segs; i++) {
     const t = (i + 0.5) / segs;
     const p = V(lean * height * t * t, height * t, 0);
-    const rad = height * (0.075 - 0.025 * t);
+    const rad = height * (0.075 - 0.025 * t) * thick;
     const seg = part(new THREE.CylinderGeometry(rad * 0.92, rad * 1.12, height / segs * 1.02, 12), i % 2 ? ring : trunk, 1.2);
     seg.position.copy(p);
     seg.rotation.z = -lean * t * 1.4;

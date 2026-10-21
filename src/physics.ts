@@ -19,6 +19,9 @@ const RAIL_E = 0.78;
 const WALL_E = 0.7;
 const BUMPER_E = 0.95;
 const ROCK_E = 0.55;
+/** Palm trunks are springier than rock. */
+const PALM_E = 0.65;
+export const palmR = (p: { r?: number }) => p.r ?? 13;
 /** Bridge deck: height of the hump, length of the ramp at each end, and the handrail radius. */
 export const BRIDGE_H = 6;
 export const BRIDGE_RAMP = 55;
@@ -183,6 +186,7 @@ export class World {
       }
       for (const bp of this.level.bumpers ?? []) this.collideCircle(bp.x, bp.y, bp.r, BUMPER_E, events);
       for (const rk of this.level.rocks ?? []) this.collideCircle(rk.x, rk.y, rk.r, ROCK_E, events, 'wall');
+      for (const pm of this.level.palms ?? []) this.collideCircle(pm.x, pm.y, palmR(pm), PALM_E, events, 'wall');
       for (const v of this.level.volcanoes ?? []) this.collideCircle(v.x, v.y, volcanoCore(v.r), ROCK_E, events, 'wall');
       this.collideMovers(events);
       this.collideSpinners(events, h);
@@ -313,6 +317,10 @@ export class World {
     for (const bp of this.level.bumpers ?? []) {
       const d = Math.hypot(x - bp.x, y - bp.y);
       if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
+    }
+    for (const pm of this.level.palms ?? []) {
+      const d = Math.hypot(x - pm.x, y - pm.y);
+      if (d < BALL_R + palmR(pm)) return { x: (x - pm.x) / d, y: (y - pm.y) / d, e: PALM_E };
     }
     for (const rk of [...(this.level.rocks ?? []), ...(this.level.volcanoes ?? []).map((v) => ({ x: v.x, y: v.y, r: volcanoCore(v.r) }))]) {
       const d = Math.hypot(x - rk.x, y - rk.y);
@@ -475,6 +483,7 @@ function routeField(world: World) {
     segs.some((s) => { if (x < Math.min(s.ax, s.bx) - 30 || x > Math.max(s.ax, s.bx) + 30 || y < Math.min(s.ay, s.by) - 30 || y > Math.max(s.ay, s.by) + 30) return false; const p = closestOnSeg(s, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + s.r; })
     || (L.bumpers ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.rocks ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
+    || (L.palms ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + palmR(b))
     || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
     || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
     || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));

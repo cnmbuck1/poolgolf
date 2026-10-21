@@ -20,6 +20,8 @@ export interface Spinner { x: number; y: number; len: number; speed: number; sty
 export interface Bridge { x: number; y: number; len: number; width: number; angle: number }
 /** A boulder: solid, and duller to bounce off than a wall. */
 export interface Rock { x: number; y: number; r: number }
+/** A palm tree on the fairway: its trunk is a solid post of radius r (default 13). */
+export interface Palm { x: number; y: number; r?: number; height?: number }
 /** Rolls back and forth between a and b at `speed` units/s; `phase` (0..1) staggers start positions. */
 export interface Tumbleweed { a: Pt; b: Pt; speed: number; r?: number; phase?: number }
 /** A volcano cone: a solid crater core and slopes that roll the ball away. `r` is the base radius. */
@@ -54,6 +56,7 @@ export interface LevelDef {
   spinners?: Spinner[];
   bridges?: Bridge[];
   rocks?: Rock[];
+  palms?: Palm[];
   tumbleweeds?: Tumbleweed[];
   volcanoes?: Volcano[];
   dinos?: Dino[];
@@ -243,6 +246,8 @@ const JURASSIC: LevelDef[] = [
     water: [creek([[452, 482], [478, 380], [510, 255], [536, 150], [548, 82]], 70, 3)],
     bridges: [{ x: 508, y: 255, len: 190, width: 84, angle: -17 }],
     rocks: [{ x: 300, y: 425, r: 24 }, { x: 760, y: 330, r: 30 }, { x: 700, y: 95, r: 20 }],
+    // A palm stands between the bridge and the cup, so the straight line off the bridge needs a bank
+    palms: [{ x: 730, y: 190 }],
     slopes: [{ kind: 'hill', x: 880, y: 140, r: 60, h: -2.5 }],
   },
   {
@@ -258,6 +263,7 @@ const JURASSIC: LevelDef[] = [
       { a: [710, 80], b: [710, 420], speed: 95, phase: 0.7 },
     ],
     rocks: [{ x: 430, y: 150, r: 22 }, { x: 610, y: 360, r: 26 }, { x: 610, y: 250, r: 24 }],
+    palms: [{ x: 790, y: 185 }, { x: 420, y: 330, height: 140 }],
     sand: [blob(800, 340, 60, 30, 3, 0.2, -10)],
   },
   {
@@ -271,6 +277,7 @@ const JURASSIC: LevelDef[] = [
     dinos: [{ kind: 'bronto', x: 500, y: 250, angle: 90, walk: 120, speed: 0.35 }],
     water: [blob(500, 95, 80, 26, 4, 0.2), blob(500, 405, 80, 26, 6, 0.2)],
     rocks: [{ x: 300, y: 170, r: 20 }, { x: 700, y: 330, r: 22 }],
+    palms: [{ x: 250, y: 320 }, { x: 770, y: 180, height: 140 }],
   },
   {
     // A dogleg up to a T-rex guarding the green: its tail sweeps across the approach.
@@ -283,6 +290,7 @@ const JURASSIC: LevelDef[] = [
     volcanoes: [{ x: 330, y: 438, r: 70 }],
     water: [blob(700, 410, 70, 30, 2, 0.2, 15)],
     rocks: [{ x: 640, y: 180, r: 22 }],
+    palms: [{ x: 470, y: 395, height: 140 }, { x: 720, y: 110 }],
     slopes: [{ kind: 'hill', x: 880, y: 130, r: 60, h: -2.5 }],
   },
   {
@@ -297,6 +305,7 @@ const JURASSIC: LevelDef[] = [
     water: [creek([[250, 40], [330, 60], [440, 50], [520, 40]], 50, 5)],
     sand: [blob(810, 140, 55, 30, 7, 0.2, 20)],
     rocks: [{ x: 520, y: 250, r: 18 }],
+    palms: [{ x: 250, y: 330 }, { x: 790, y: 360, height: 140 }],
   },
   {
     // The finale: a stegosaurus blocks the middle, tumbleweeds patrol the lane past it, and
@@ -314,6 +323,7 @@ const JURASSIC: LevelDef[] = [
     water: [creek([[700, 40], [670, 160], [720, 300], [690, 460]], 64, 8)],
     bridges: [{ x: 700, y: 250, len: 140, width: 56, angle: 5 }],
     volcanoes: [{ x: 230, y: 440, r: 60 }],
+    palms: [{ x: 230, y: 140, height: 140 }, { x: 830, y: 340 }],
     slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
   },
 ];

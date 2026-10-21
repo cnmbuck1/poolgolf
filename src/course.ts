@@ -6,8 +6,8 @@ import { Bridge, Bumper, LevelDef, WORLD_H, WORLD_W, Zone } from './levels';
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
 import { lawnMaterial } from './art';
 import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
-import { ashMaterial, basaltPlain, basaltSwap, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, tumbleweed } from './jurassic';
-import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
+import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, tumbleweed } from './jurassic';
+import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, palmR, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
 export const HW = WORLD_W / 2;
@@ -214,6 +214,12 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const w of L.tumbleweeds ?? []) { const a = tumbleweed(w, world, L, to3); add(a.group); anims.push(a); }
   for (const d of L.dinos ?? []) { const a = dinosaur(d, world, L, to3); add(a.group); anims.push(a); }
   for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
+  for (const pm of L.palms ?? []) {
+    add(coursePalm(pm, L, to3));
+    const shadow = contactDisc(palmR(pm) + 16);
+    shadow.position.copy(to3(pm.x, pm.y)).setY(heightAt(L, pm.x, pm.y) + 0.45);
+    add(shadow);
+  }
 
   if (models) {
     group.add(jur ? jurassicLandscape(L, outline, models, to3, lawnH, anims) : landscape(L, outline, models, to3, lawnH, anims));
