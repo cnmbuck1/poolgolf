@@ -46,9 +46,21 @@ export interface Astronaut { a: Pt; b?: Pt; speed?: number; phase?: number }
 export interface Rocket { x: number; y: number; period?: number; phase?: number }
 /** An asteroid that falls out of the sky onto (x, y) after a warning ring, sits there (solid), then crumbles. */
 export interface Meteor { x: number; y: number; r?: number; period?: number; phase?: number }
+/**
+ * A trampoline: a ball rolling onto it is bounced high into the air along its line, further the faster
+ * it was going, and flies over anything in the way. Landing outside the course is out of bounds.
+ */
+export interface Trampoline { x: number; y: number; r?: number }
+/**
+ * A circus cannon: a ball rolling into its mouth is fired `dist` units through the air the way the
+ * barrel points. `sweep` (degrees either side) and `speed` (rad/s) swing the barrel back and forth.
+ */
+export interface Cannon { x: number; y: number; angle: number; dist: number; sweep?: number; speed?: number }
+/** An elephant standing on a drum: a big solid obstacle. */
+export interface Elephant { x: number; y: number; r?: number; angle?: number }
 /** An impact crater: a bowl `depth` deep inside radius r, ringed by a raised rim `rim` high. */
 export interface Crater { x: number; y: number; r: number; depth?: number; rim?: number }
-export type Theme = 'garden' | 'jurassic' | 'space';
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -81,6 +93,11 @@ export interface LevelDef {
   craters?: Crater[];
   rockets?: Rocket[];
   meteors?: Meteor[];
+  trampolines?: Trampoline[];
+  cannons?: Cannon[];
+  /** Clowns on unicycles, pedalling between two points (same motion as a moonwalking astronaut). */
+  clowns?: Astronaut[];
+  elephants?: Elephant[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -448,12 +465,91 @@ const SPACE: LevelDef[] = [
   },
 ];
 
+const CIRCUS: LevelDef[] = [
+  {
+    // Under the big top: a wall splits the ring. Bounce over it off the trampoline, or squeeze round the ends.
+    name: 'Center Ring',
+    par: 3,
+    tee: [110, 250],
+    cup: [860, 330],
+    outline: [[40, 170], [180, 70], [820, 70], [960, 170], [960, 330], [820, 430], [180, 430], [40, 330]],
+    bars: [{ x: 520, y: 250, len: 250, angle: 90 }],
+    trampolines: [{ x: 380, y: 250 }],
+    bumpers: [{ x: 760, y: 250, r: 18, color: '#ff4a5a', n: 3 }, { x: 790, y: 150, r: 18, color: '#3a8aff', n: 2 }],
+    slopes: [{ kind: 'hill', x: 860, y: 330, r: 60, h: -2.5 }],
+  },
+  {
+    // Two clowns pedal across the lane, and an elephant holds the middle. Time it and pick a side.
+    name: 'Clown Alley',
+    par: 3,
+    tee: [100, 250],
+    cup: [900, 250],
+    outline: [[40, 160], [160, 80], [840, 80], [960, 160], [960, 340], [840, 420], [160, 420], [40, 340]],
+    clowns: [{ a: [330, 120], b: [330, 380], speed: 60 }, { a: [690, 380], b: [690, 120], speed: 75, phase: 0.4 }],
+    elephants: [{ x: 510, y: 250, r: 40, angle: 180 }],
+    sand: [blob(830, 360, 50, 24, 4, 0.2, -10)],
+  },
+  {
+    // The human cannonball: roll into the cannon and it fires you across the tent. It swings, so time it:
+    // too early or too late and you're out of the ring. The long way round is safe but slow.
+    name: 'Human Cannonball',
+    par: 4,
+    tee: [100, 400],
+    cup: [880, 140],
+    outline: [[40, 330], [140, 290], [560, 290], [620, 60], [960, 60], [960, 330], [880, 470], [40, 470]],
+    cannons: [{ x: 430, y: 380, angle: -20, sweep: 25, speed: 0.9, dist: 470 }],
+    elephants: [{ x: 680, y: 390, r: 36, angle: 160 }],
+    clowns: [{ a: [780, 90], b: [780, 300], speed: 55 }],
+    slopes: [{ kind: 'hill', x: 880, y: 140, r: 60, h: -2.5 }],
+  },
+  {
+    // A zig-zag of walls with trampolines to hop them, but bounce too hard near the edge and you're out.
+    name: 'Bounce House',
+    par: 4,
+    tee: [120, 400],
+    cup: [860, 120],
+    outline: [[40, 300], [120, 60], [960, 60], [960, 200], [880, 460], [40, 460]],
+    bars: [{ x: 360, y: 335, len: 270, angle: 90 }, { x: 640, y: 185, len: 250, angle: 90 }],
+    trampolines: [{ x: 270, y: 300 }, { x: 520, y: 380 }, { x: 760, y: 340 }],
+    bumpers: [{ x: 470, y: 150, r: 18, color: '#ffd23a', n: 1 }],
+    sand: [blob(800, 210, 45, 26, 6, 0.2, 30)],
+  },
+  {
+    // A carousel turns in the middle of the ring between two elephants. Find the gap.
+    name: 'Carousel',
+    par: 3,
+    tee: [120, 250],
+    cup: [880, 250],
+    outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
+    spinners: [{ x: 500, y: 250, len: 85, speed: 0.9, style: 'turnstile' }],
+    elephants: [{ x: 500, y: 95, r: 36, angle: 90 }, { x: 500, y: 405, r: 36, angle: 270 }],
+    water: [blob(740, 250, 40, 60, 3, 0.2)],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // The finale: a swinging cannon to the raised green, trampolines on the flanks, a clown on patrol
+    // and a dunk tank in the middle for anyone rolling the long way.
+    name: 'Grand Finale',
+    par: 4,
+    tee: [100, 250],
+    cup: [905, 250],
+    outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
+    cannons: [{ x: 320, y: 250, angle: 0, sweep: 35, speed: 1.1, dist: 470 }],
+    trampolines: [{ x: 560, y: 110 }, { x: 560, y: 390 }],
+    clowns: [{ a: [700, 90], b: [700, 410], speed: 70 }],
+    water: [blob(540, 250, 50, 70, 5, 0.2)],
+    elephants: [{ x: 190, y: 120, r: 34, angle: 30 }],
+    slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
+  },
+];
+
 export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
 
 export const COURSES: CourseDef[] = [
   { id: 'garden', name: 'Garden Club', theme: 'garden', holes: GARDEN },
   { id: 'jurassic', name: 'Jurassic Canyon', theme: 'jurassic', holes: JURASSIC },
   { id: 'space', name: 'Lunar Links', theme: 'space', holes: SPACE },
+  { id: 'circus', name: 'Big Top Circus', theme: 'circus', holes: CIRCUS },
 ];
 for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
 

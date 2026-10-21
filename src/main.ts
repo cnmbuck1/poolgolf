@@ -1068,7 +1068,7 @@ function stepReplay(dt: number) {
     if (fx.sink) fx.sink.t += (dt * r.speed) / 0.45;
     if (fx.splash) fx.splash.t += dt * r.speed;
     for (const rp of fx.ripples) rp.t += dt * 1.5;
-    if (r.post > (shot.end === 'sink' ? 1.6 : shot.end === 'water' ? 1.1 : 0.6)) {
+    if (r.post > (shot.end === 'sink' ? 1.6 : shot.end === 'water' || shot.end === 'oob' ? 1.1 : 0.6)) {
       r.i++;
       r.pre = 0; r.clock = 0; r.idx = 0; r.post = -1;
       fx.sink = fx.splash = undefined;
@@ -1089,10 +1089,11 @@ function stepReplay(dt: number) {
     if (ev.type === 'wall' || ev.type === 'rail' || ev.type === 'bumper' || ev.type === 'spinner') {
       sfx[ev.type](ev.speed);
       view3d.bounceBall(ev.speed);
-    }
+    } else if (ev.type === 'launch') (ev.by === 'cannon' ? sfx.cannon : sfx.boing)();
+    else if (ev.type === 'land') sfx.land();
   }
   r.idx = p.i;
-  world.ball.x = p.x; world.ball.y = p.y; world.ball.vx = p.vx; world.ball.vy = p.vy;
+  world.ball.x = p.x; world.ball.y = p.y; world.ball.vx = p.vx; world.ball.vy = p.vy; world.ball.z = p.z;
   world.time = p.t;
   world.spinners.forEach((s, i) => (s.angle = p.arms[i]));
   world.moving = !p.done;
@@ -1105,6 +1106,9 @@ function stepReplay(dt: number) {
     fx.sink = { t: 0 };
     view3d.setMode('sink');
     if (shot.ace) toast(trick ? 'TRICK SHOT!' : 'HOLE IN ONE!', 'good', 1800);
+  } else if (shot.end === 'oob') {
+    sfx.whistle();
+    fx.splash = { x: p.x, y: p.y, t: 0 };
   } else if (shot.end === 'water') {
     if (world.level.theme === 'jurassic') sfx.lava(); else if (world.level.theme === 'space') sfx.warp(); else sfx.water();
     fx.splash = { x: p.x, y: p.y, t: 0 };
@@ -1133,6 +1137,7 @@ click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to turn your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. Let go without pulling down to just turn the view.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
+  <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
@@ -1274,7 +1279,25 @@ function tick(dt: number) {
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        updateHud();
+        break;
+      case 'launch':
+        if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast('BOOM!', 'good', 700); }
+        else { sfx.boing(); buzz(ImpactStyle.Medium); toast('Boing!', 'good', 600); }
+        break;
+      case 'land':
+        sfx.land();
+        view3d.bounceBall(700);
+        break;
+      case 'oob':
+        // Bounced right out of the ring: a stroke, and back to where it was hit from
+        sfx.whistle();
+        buzz(ImpactStyle.Heavy);
+        fx.splash = { x: b.x, y: b.y, t: 0 };
+        strokes++;
+        busyTimer = 1.0;
+        toast('Out of bounds! +1 stroke', 'bad');
         updateHud();
         break;
       case 'stop':

@@ -153,6 +153,26 @@ export const sfx = {
     tone(1350, 0.6, 'triangle', 0.08, { slideTo: 200, at: 0.05 });
     [0.1, 0.22, 0.34, 0.46].forEach((at, i) => tone(2400 + i * 300, 0.06, 'sine', 0.08, { at }));
   },
+  /** Trampoline: a springy boing. */
+  boing: () => {
+    tone(220, 0.35, 'sine', 0.4, { slideTo: 660 });
+    tone(330, 0.25, 'triangle', 0.12, { slideTo: 990, at: 0.02 });
+  },
+  /** Cannon: a deep boom with a puff of noise. */
+  cannon: () => {
+    tone(70, 0.5, 'sine', 0.6, { slideTo: 40 });
+    noise(0.45, 0.55, 'lowpass', 900, { sweepTo: 150 });
+  },
+  /** Landing back on the felt. */
+  land: () => {
+    tone(160, 0.12, 'sine', 0.35, { slideTo: 90 });
+    noise(0.06, 0.25, 'lowpass', 700);
+  },
+  /** Out of bounds: a referee's whistle. */
+  whistle: () => {
+    tone(2600, 0.18, 'square', 0.08, { slideTo: 2500 });
+    tone(2600, 0.32, 'square', 0.08, { at: 0.22, slideTo: 2450 });
+  },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];

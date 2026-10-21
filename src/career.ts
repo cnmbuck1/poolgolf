@@ -12,9 +12,9 @@ export const TIERS: Tier[] = [
 ];
 
 const NAMES: Record<string, Record<string, string>> = {
-  amateur: { garden: 'Garden Club Classic', jurassic: 'Canyon Open', space: 'Lunar Invitational' },
-  pro: { garden: 'Garden Masters', jurassic: 'Jurassic Championship', space: 'Moon Cup' },
-  champion: { garden: 'Royal Garden Trophy', jurassic: 'Extinction Event', space: 'Galactic Grand Slam' },
+  amateur: { garden: 'Garden Club Classic', jurassic: 'Canyon Open', space: 'Lunar Invitational', circus: 'Big Top Open' },
+  pro: { garden: 'Garden Masters', jurassic: 'Jurassic Championship', space: 'Moon Cup', circus: 'Ringmaster Classic' },
+  champion: { garden: 'Royal Garden Trophy', jurassic: 'Extinction Event', space: 'Galactic Grand Slam', circus: 'Greatest Show Trophy' },
 };
 
 /** Beat the target by this many strokes for a second and third star. */

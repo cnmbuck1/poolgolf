@@ -270,7 +270,7 @@ export class Renderer3D {
     this.renderer.toneMappingExposure = a.exposure;
     // Splash drops: water spray in the garden, embers over lava
     // (and violet sparkles where the ball drops into the void in space)
-    const fxc = { garden: [0xbfe6f0, 0x000000, 0xdcf0ff], jurassic: [0xff8a30, 0xff6a10, 0xffb060], space: [0xc8a8ff, 0x7a4aff, 0xc8a8ff] }[theme];
+    const fxc = { garden: [0xbfe6f0, 0x000000, 0xdcf0ff], jurassic: [0xff8a30, 0xff6a10, 0xffb060], space: [0xc8a8ff, 0x7a4aff, 0xc8a8ff], circus: [0xffd8a0, 0x000000, 0xffe0b0] }[theme];
     (this.drops.material as THREE.MeshStandardMaterial).color.setHex(fxc[0]);
     (this.drops.material as THREE.MeshStandardMaterial).emissive.setHex(fxc[1]);
     for (const r of this.rippleMeshes) (r.material as THREE.MeshBasicMaterial).color.setHex(fxc[2]);
@@ -578,7 +578,7 @@ export class Renderer3D {
 
     let bx = b.x, by = b.y;
     const ground = this.h(b.x, b.y);
-    let bh = ground + BALL_R + this.hop.y;
+    let bh = ground + BALL_R + this.hop.y + (b.z ?? 0); // z: flying off a trampoline or out of a cannon
     if (fx.sink) {
       const t = Math.min(1, fx.sink.t);
       bx += (world.level.cup[0] - bx) * Math.min(1, t * 2);
@@ -589,7 +589,7 @@ export class Renderer3D {
     this.ball.visible = !fx.splash || fx.splash.t < 0.03;
     this.ballShadowFake.visible = this.ball.visible && !fx.sink;
     this.ballShadowFake.position.copy(to3(bx, by)).setY(ground + 0.6);
-    const sh = 1 + this.hop.y / 40;
+    const sh = 1 + (this.hop.y + (b.z ?? 0)) / 40;
     this.ballShadowFake.scale.set(sh, 1, sh);
     (this.ballShadowFake.material as THREE.MeshBasicMaterial).opacity = 0.55 / sh;
   }

@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Crater, Dino, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Crater, Dino, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -55,7 +55,8 @@ export interface SpinnerState { x: number; y: number; len: number; speed: number
 
 export interface AimPath { pts: { x: number; y: number }[]; contacts: number; cup: boolean }
 
-export interface Ball { x: number; y: number; vx: number; vy: number }
+/** The ball; `z` is its height while it flies off a trampoline or out of a cannon. */
+export interface Ball { x: number; y: number; vx: number; vy: number; z?: number }
 
 export type Event =
   | { type: 'rail'; speed: number }
@@ -64,6 +65,9 @@ export type Event =
   | { type: 'spinner'; speed: number }
   | { type: 'sink' }
   | { type: 'water' }
+  | { type: 'launch'; by: 'trampoline' | 'cannon' }
+  | { type: 'land' }
+  | { type: 'oob' }
   | { type: 'lip' }
   | { type: 'stop' };
 
@@ -78,6 +82,10 @@ export class World {
   contacts = 0;
   /** Spin left on the ball from the last shot. */
   spin: Spin = { side: 0, vert: 0 };
+  /** A flight off a trampoline or out of a cannon: from (x0, y0) to (x1, y1), then rolling on at (vx, vy). */
+  air: { t: number; dur: number; x0: number; y0: number; x1: number; y1: number; peak: number; vx: number; vy: number } | null = null;
+  /** Seconds after landing before a trampoline or cannon can catch the ball again. */
+  private launchCool = 0;
   private inCup = false;
 
   constructor(public level: LevelDef) {
@@ -123,6 +131,8 @@ export class World {
 
   shoot(vx: number, vy: number, spin: Spin = { side: 0, vert: 0 }) {
     this.crawl = 0;
+    this.air = null;
+    this.ball.z = 0;
     this.spin = { ...spin };
     this.ball.vx = vx;
     this.ball.vy = vy;
@@ -148,6 +158,31 @@ export class World {
         this.collideMovers(events);
         continue;
       }
+
+      if (this.air) {
+        // In flight: over everything, along an arc, then land and roll on
+        const a = this.air;
+        a.t += h;
+        const u = Math.min(1, a.t / a.dur);
+        b.x = a.x0 + (a.x1 - a.x0) * u;
+        b.y = a.y0 + (a.y1 - a.y0) * u;
+        b.z = 4 * a.peak * u * (1 - u);
+        if (u < 1) continue;
+        b.z = 0;
+        this.air = null;
+        b.vx = a.vx; b.vy = a.vy;
+        this.launchCool = 0.3;
+        if (!inZone({ kind: 'poly', pts: fairwayOutline(this.level) }, b.x, b.y)) {
+          events.push({ type: 'oob' });
+          this.moving = false;
+          b.vx = b.vy = 0;
+          return events;
+        }
+        events.push({ type: 'land' });
+        continue;
+      }
+      if (this.launchCool > 0) this.launchCool -= h;
+      else if (this.launch(events)) continue;
 
       b.x += b.vx * h;
       b.y += b.vy * h;
@@ -218,6 +253,7 @@ export class World {
       for (const bp of this.level.bumpers ?? []) this.collideCircle(bp.x, bp.y, bp.r, BUMPER_E, events);
       for (const rk of this.level.rocks ?? []) this.collideCircle(rk.x, rk.y, rk.r, ROCK_E, events, 'wall');
       for (const pm of this.level.palms ?? []) this.collideCircle(pm.x, pm.y, palmR(pm), PALM_E, events, 'wall');
+      for (const el of this.level.elephants ?? []) this.collideCircle(el.x, el.y, el.r ?? ELEPHANT_R, ROCK_E, events, 'wall');
       for (const v of this.level.volcanoes ?? []) this.collideCircle(v.x, v.y, volcanoCore(v.r), ROCK_E, events, 'wall');
       this.collideMovers(events);
       this.collideSpinners(events, h);
@@ -236,6 +272,36 @@ export class World {
       }
     }
     return events;
+  }
+
+  /** Trampolines and cannons: start a flight if the ball has rolled onto one. */
+  private launch(events: Event[]) {
+    const b = this.ball, L = this.level;
+    const sp = Math.hypot(b.vx, b.vy);
+    for (const tp of L.trampolines ?? []) {
+      if (sp < 40 || Math.hypot(b.x - tp.x, b.y - tp.y) > (tp.r ?? TRAMPOLINE_R)) continue;
+      // Bounces on along its line: faster in, further out
+      const dx = b.vx / sp, dy = b.vy / sp, dist = Math.max(140, Math.min(360, sp * 0.45));
+      this.fly(b.x, b.y, b.x + dx * dist, b.y + dy * dist, 0.45 + dist / 900, 40 + dist * 0.25, dx * sp * 0.7, dy * sp * 0.7);
+      events.push({ type: 'launch', by: 'trampoline' });
+      return true;
+    }
+    for (const c of L.cannons ?? []) {
+      if (Math.hypot(b.x - c.x, b.y - c.y) > CANNON_CATCH) continue;
+      const a = cannonAngle(c, this.time), dx = Math.cos(a), dy = Math.sin(a);
+      const mx = c.x + dx * 34, my = c.y + dy * 34; // out of the muzzle
+      this.fly(mx, my, mx + dx * c.dist, my + dy * c.dist, 0.55 + c.dist / 1100, 60 + c.dist * 0.28, dx * 360, dy * 360);
+      events.push({ type: 'launch', by: 'cannon' });
+      return true;
+    }
+    return false;
+  }
+
+  private fly(x0: number, y0: number, x1: number, y1: number, dur: number, peak: number, vx: number, vy: number) {
+    this.air = { t: 0, dur, x0, y0, x1, y1, peak, vx, vy };
+    // The ball's velocity points along the flight (the camera and the spin animation follow it)
+    this.ball.vx = (x1 - x0) / dur; this.ball.vy = (y1 - y0) / dur;
+    this.spin = { side: 0, vert: 0 };
   }
 
   private collideSpinners(events: Event[], _h: number) {
@@ -363,6 +429,10 @@ export class World {
     for (const bp of this.level.bumpers ?? []) {
       const d = Math.hypot(x - bp.x, y - bp.y);
       if (d < BALL_R + bp.r) return { x: (x - bp.x) / d, y: (y - bp.y) / d, e: BUMPER_E };
+    }
+    for (const el of this.level.elephants ?? []) {
+      const d = Math.hypot(x - el.x, y - el.y);
+      if (d < BALL_R + (el.r ?? ELEPHANT_R)) return { x: (x - el.x) / d, y: (y - el.y) / d, e: ROCK_E };
     }
     for (const pm of this.level.palms ?? []) {
       const d = Math.hypot(x - pm.x, y - pm.y);
@@ -530,6 +600,7 @@ function routeField(world: World) {
     || (L.bumpers ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.rocks ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.palms ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + palmR(b))
+    || (L.elephants ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + (b.r ?? ELEPHANT_R))
     || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
     || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
     || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));
@@ -613,6 +684,15 @@ export function heightAt(level: LevelDef, x: number, y: number) {
   return h;
 }
 
+export const TRAMPOLINE_R = 30;
+/** How close to a cannon's mouth the ball must roll to be caught. */
+export const CANNON_CATCH = 22;
+export const ELEPHANT_R = 38;
+/** A cannon's barrel angle (radians) at time t. */
+export function cannonAngle(c: Cannon, t: number) {
+  return ((c.angle + (c.sweep ?? 0) * Math.sin(t * (c.speed ?? 0.8))) * Math.PI) / 180;
+}
+
 /** Shot speed for a power setting 0..1 (squared at the low end, for finer control on short putts). */
 export const shotSpeed = (p: number) => MAX_SHOT_SPEED * (p * p * 0.35 + p * 0.65);
 
@@ -650,7 +730,7 @@ export function spinPath(level: LevelDef, x: number, y: number, dx: number, dy: 
     }
     pts.push({ x: b.x, y: b.y });
     seg.push(w.contacts);
-    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'sink')) break;
+    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'oob' || e.type === 'sink' || e.type === 'launch')) break;
   }
   return { pts, seg, hits };
 }
@@ -779,6 +859,7 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const w of level.asteroids ?? []) circles.push({ ...tumbleweedAt(w, t), r: w.r ?? 20, e: 0.6, kind: 'wall' });
   for (const a of level.aliens ?? []) circles.push({ ...alienAt(a, t), e: 0.7, kind: 'rail' });
   for (const s of level.astronauts ?? []) circles.push({ ...astronautAt(s, t), e: 0.5, kind: 'wall' });
+  for (const s of level.clowns ?? []) circles.push({ ...astronautAt(s, t), e: 0.6, kind: 'wall' });
   for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });
   for (const m of level.meteors ?? []) { const p = meteorAt(m, t); if (p.grounded) circles.push({ x: m.x, y: m.y, r: p.r, vx: 0, vy: 0, e: 0.5, kind: 'wall' }); }
   for (const d of level.dinos ?? []) {

@@ -6,7 +6,8 @@ import { Bridge, Bumper, LevelDef, Theme, WORLD_H, WORLD_W, Zone } from './level
 import { clonePiece, Models, PieceBatch, windmillRig } from './models';
 import { lawnMaterial } from './art';
 import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
-import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, setInkColor, tumbleweed } from './jurassic';
+import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, setInkColor, toon, tumbleweed } from './jurassic';
+import { cannon, circusLandscape, clown, elephant, feltMaterial, sawdustMaterial, stripedKerb, trampoline } from './circus';
 import { alien, asteroid, astronaut, fallingMeteor, landingRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
 import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, palmR, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
@@ -52,18 +53,18 @@ export function buildCourse(world: World, models: Models | null): Course {
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 
   // ---- Fairway turf, shaped to the slopes, with arrows showing which way it falls ----
-  const jur = L.theme === 'jurassic', space = L.theme === 'space';
+  const jur = L.theme === 'jurassic', space = L.theme === 'space', circus = L.theme === 'circus';
   setInkColor(space ? SPACE_INK : 0x2a1408);
   const rockSwap = jur ? basaltSwap() : space ? moonRockSwap() : undefined;
   add(fairwayMesh(L, outline, L.theme));
   const lawnH = makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
   const centre3 = to3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
-  add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : space ? regolithMaterial() : lawnMaterial(), centre3));
+  add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : space ? regolithMaterial() : circus ? sawdustMaterial() : lawnMaterial(), centre3));
   const arrows = slopeArrows(world, outline);
   if (arrows) { add(arrows.group); anims.push(arrows); }
 
   // ---- Curved timber kerb swept along the outline (its centre line is the physics boundary) ----
-  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : space ? moonKerb() : undefined));
+  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : space ? moonKerb() : circus ? stripedKerb() : undefined));
 
   // ---- Cup, flag and tee ----
   const cupPos = at(L.cup[0], L.cup[1]);
@@ -84,7 +85,7 @@ export function buildCourse(world: World, models: Models | null): Course {
 
   // ---- Bunkers: dished sand with rake lines, sitting just above the dipped turf ----
   const [sandMap, sandBump] = rakedSandTextures();
-  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: jur ? 0x8c8078 : space ? 0xe6e6f4 : 0xf2e2b6 }); // ash-grey gravel in the canyon, fine moon dust in space
+  const sandMat = new THREE.MeshStandardMaterial({ map: sandMap, bumpMap: sandBump, bumpScale: 1.4, roughness: 1, color: jur ? 0x8c8078 : space ? 0xe6e6f4 : circus ? 0xe8b878 : 0xf2e2b6 }); // ash-grey gravel in the canyon, fine moon dust in space
   sandMat.userData.shared = true;
   (L.sand ?? []).forEach((z, i) => {
     const m = add(new THREE.Mesh(zoneSurface(z, (x, y) => heightAt(L, x, y) + 0.35, 1 / 120, i * 0.9), sandMat));
@@ -115,11 +116,12 @@ export function buildCourse(world: World, models: Models | null): Course {
       if (!anims.some((x) => (x.group as THREE.Mesh).material === v.material)) anims.push({ group: v, update: (_a, t) => map.offset.set(t * 0.006, -t * 0.004) });
       continue;
     }
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0x2f6470, roughness: 0.04, metalness: 0.15, transparent: true, opacity: 0.78, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 1 });
+    const mat = new THREE.MeshPhysicalMaterial({ color: circus ? 0x2a7ae0 : 0x2f6470, roughness: 0.04, metalness: 0.15, transparent: true, opacity: 0.78, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4), clearcoat: 1 });
     waterMats.push(mat);
     const w = add(new THREE.Mesh(zoneSurface(z, () => y - WATER_LEVEL, 1 / 160), mat));
     w.receiveShadow = true;
-    if (!world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y))) add(pondLife(L, z, y - WATER_LEVEL));
+    // (the circus dunk tank is just clear blue water)
+    if (!circus && !world.spinners.some((s) => isMill(s) && inZone(z, s.x, s.y))) add(pondLife(L, z, y - WATER_LEVEL));
   }
 
   // ---- Walls and bars (outline edging is drawn above, so skip the rail segments) ----
@@ -135,7 +137,8 @@ export function buildCourse(world: World, models: Models | null): Course {
       strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
       add(strip);
     });
-    add(batch.build()); // walls stand on flat ground
+    // In the big top the walls are painted show barriers: blue panels, gold trim, red caps
+    add(batch.build(circus ? { Brick: toon(0x2a6ad8), Stone: toon(0x2a6ad8), Mortar: toon(0xffc83a), Oak: toon(0xd8202e), Brass: toon(0xffe08a) } : undefined)); // walls stand on flat ground
   } else if (premium) {
     const rivets: THREE.Vector3[] = [];
     for (const s of segs) {
@@ -228,6 +231,15 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const s of L.astronauts ?? []) { const a = astronaut(s, world, L, to3); add(a.group); anims.push(a); }
   for (const o of L.rockets ?? []) { const a = landingRocket(o, world, L, to3); add(a.group); anims.push(a); }
   for (const m of L.meteors ?? []) { const a = fallingMeteor(m, world, L, to3); add(a.group); anims.push(a); }
+  for (const tp of L.trampolines ?? []) { const a = trampoline(tp, world, L, to3); add(a.group); anims.push(a); }
+  for (const c of L.cannons ?? []) { const a = cannon(c, world, L, to3); add(a.group); anims.push(a); }
+  for (const c of L.clowns ?? []) { const a = clown(c, world, L, to3); add(a.group); anims.push(a); }
+  for (const el of L.elephants ?? []) {
+    const a = elephant(el, L, to3); add(a.group); anims.push(a);
+    const shadow = contactDisc((el.r ?? 38) + 14);
+    shadow.position.copy(to3(el.x, el.y)).setY(heightAt(L, el.x, el.y) + 0.45);
+    add(shadow);
+  }
   for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
   for (const pm of L.palms ?? []) {
     add(space ? moonTree(pm, L, to3) : coursePalm(pm, L, to3));
@@ -237,9 +249,12 @@ export function buildCourse(world: World, models: Models | null): Course {
   }
 
   if (models) {
-    const dress = jur ? jurassicLandscape : space ? spaceLandscape : landscape;
-    group.add(dress(L, outline, models, to3, lawnH, anims));
-    group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y), rockSwap));
+    if (circus) group.add(circusLandscape(L, outline, to3, lawnH, anims));
+    else {
+      const dress = jur ? jurassicLandscape : space ? spaceLandscape : landscape;
+      group.add(dress(L, outline, models, to3, lawnH, anims));
+    }
+    if (!circus) group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y), rockSwap));
   }
 
   return { group, spinnerAnims, legacySpinners, anims, waterMats, cupPos, cupPulse, bounds };
@@ -249,7 +264,7 @@ export function buildCourse(world: World, models: Models | null): Course {
 
 /** Turf over the outline (with the cup cut out), subdivided so it can follow the slopes. */
 function fairwayMesh(L: LevelDef, outline: [number, number][], theme: Theme = 'garden') {
-  const jur = theme === 'jurassic', space = theme === 'space';
+  const jur = theme === 'jurassic', space = theme === 'space', circus = theme === 'circus';
   const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x - HW, -(y - HH))));
   const hole = new THREE.Path();
   hole.absarc(L.cup[0] - HW, -(L.cup[1] - HH), CUP_R, 0, Math.PI * 2, true);
@@ -312,7 +327,7 @@ function fairwayMesh(L: LevelDef, outline: [number, number][], theme: Theme = 'g
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
   flat.dispose();
-  const m = new THREE.Mesh(g, jur ? dirtMaterial() : space ? moonDustMaterial() : fairwayMaterial());
+  const m = new THREE.Mesh(g, jur ? dirtMaterial() : space ? moonDustMaterial() : circus ? feltMaterial() : fairwayMaterial());
   m.receiveShadow = true;
   return m;
 }
