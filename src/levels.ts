@@ -864,23 +864,24 @@ const CANDY: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 850, y: 320, r: 55, h: -2 }],
   },
   {
-    // The finale: a two-layer cake with the cup on top. Ladders climb each layer, and the open
+    // The finale: a two-layer cake with the cup on top. Ladders climb each layer (the second faces the
+    // first, round the corner of the top layer), and the open
     // east sides of both layers send an overhit ball tumbling back down to the ground.
     name: 'Cake Walk',
     par: 4,
     tee: [110, 250],
-    cup: [700, 285],
+    cup: [705, 212],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
     tiers: [
       { pts: ngon(650, 250, 175, 8, 22.5), h: 36, open: [7, 0] },
       { pts: ngon(650, 250, 92, 8, 22.5), h: 36, open: [7, 0] },
     ],
-    ladders: [{ path: [[438, 250], [522, 250]] }, { path: [[650, 118], [650, 202]] }],
-    water: [blob(320, 110, 60, 34, 5, 0.2), blob(330, 395, 55, 32, 6, 0.2)],
+    ladders: [{ path: [[438, 250], [522, 250]] }, { path: [[562, 162], [616, 216]] }],
+    water: [blob(335, 125, 44, 26, 5, 0.2), blob(335, 375, 44, 26, 6, 0.2)],
     bumpers: [gumdrop(560, 120, 1), gumdrop(560, 380, 4), gumdrop(880, 250, 2)],
-    gingerbread: [{ a: [250, 200], b: [250, 300], speed: 40 }],
-    palms: [{ x: 200, y: 90 }, { x: 200, y: 410 }],
-    slopes: [{ kind: 'hill', x: 700, y: 285, r: 50, h: -2 }],
+    gingerbread: [{ a: [180, 72], b: [420, 72], speed: 45 }],
+    palms: [{ x: 200, y: 160 }, { x: 200, y: 410 }],
+    slopes: [{ kind: 'hill', x: 705, y: 212, r: 50, h: -2 }],
   },
 ];
 

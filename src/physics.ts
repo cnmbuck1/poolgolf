@@ -1112,7 +1112,7 @@ export const LEDGE_R = 5;
 const DROP_G = 1400;
 /** A ball creeping over an open edge tips off at least this fast, so it clears the face. */
 const DROP_MIN_SPEED = 90;
-export const CHUTE_CATCH = 20;
+export const CHUTE_CATCH = 24;
 const CHUTE_START = 160, CHUTE_G = 900, CHUTE_MAX = 620, CHUTE_EXIT = 180;
 export const LADDER_SPEED = 130, LADDER_EXIT = 150, LADDER_RUNG = 14;
 
