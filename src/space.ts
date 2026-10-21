@@ -4,9 +4,9 @@
 // Purely visual; positions of moving things come from physics.ts so what you see is what you hit.
 import * as THREE from 'three';
 import { Animated } from './art';
-import { Alien, Asteroid, Astronaut, LevelDef, Pt } from './levels';
+import { Alien, Asteroid, Astronaut, LevelDef, Meteor, Palm, Pt, Rocket } from './levels';
 import { Models, PieceBatch } from './models';
-import { alienAt, astronautAt, heightAt, tumbleweedAt, World } from './physics';
+import { alienAt, astronautAt, heightAt, meteorAt, palmR, rocketAt, tumbleweedAt, World } from './physics';
 import { blob, cached, canvasTex, eye, mergeGeos, organic, part, place, rng, shared, toon, toonRamp, V } from './jurassic';
 import { outlineDistance, resample } from './landscape';
 
@@ -258,6 +258,182 @@ export function astronaut(s: Astronaut, world: World, L: LevelDef, toScene: ToSc
       }
     },
   };
+}
+
+// ---------- landing rockets ----------
+
+const glow = (color: number, emissive: number, key: string) => cached(`m:glow:${key}`, () => shared(new THREE.MeshToonMaterial({ color, emissive, emissiveIntensity: 1, gradientMap: toonRamp(), transparent: true, opacity: 0.9 })));
+
+/** A puff of moon dust: a flattened ring that expands and fades. */
+function dustRing() {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.35, 8, 28).rotateX(Math.PI / 2), new THREE.MeshToonMaterial({ color: 0xd8d6ea, gradientMap: toonRamp(), transparent: true, opacity: 0.8, depthWrite: false }));
+  m.scale.set(1, 0.4, 1);
+  m.visible = false;
+  return m;
+}
+
+/**
+ * A rocket that drops onto its landing pad on a jet of flame, sits there (solid) for a few seconds,
+ * then blasts off again. The pad shows where it will come down.
+ */
+export function landingRocket(o: Rocket, world: World, L: LevelDef, toScene: ToScene): Animated {
+  const root = new THREE.Group();
+  const ground = heightAt(L, o.x, o.y);
+  root.position.copy(toScene(o.x, o.y)).setY(ground);
+  // Landing pad: a flat metal disc with a yellow ring and stripes (the ball rolls over it)
+  const pad = new THREE.Group();
+  pad.add(part(new THREE.CylinderGeometry(34, 36, 2, 32), toon(0x7c80a4), 0.8, false));
+  place(pad, part(new THREE.TorusGeometry(26, 1.8, 6, 32).rotateX(Math.PI / 2), toon(0xffc83a), 0, false), 0, 1.2, 0);
+  for (const a of [0, Math.PI / 2]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(30, 0.6, 4), toon(0xffc83a));
+    bar.position.y = 1.3; bar.rotation.y = a + Math.PI / 4;
+    pad.add(bar);
+  }
+  pad.position.y = 0.2;
+  root.add(pad);
+  // The rocket itself, half the size of the scenery rocket so its fins match the collider
+  const ship = new THREE.Group();
+  const body = rocket();
+  body.scale.setScalar(0.5);
+  ship.add(body);
+  const flame = new THREE.Group();
+  flame.add(new THREE.Mesh(new THREE.ConeGeometry(9, 34, 14).rotateX(Math.PI).translate(0, -17, 0), glow(0xffb02a, 0xff7a10, 'flame')));
+  flame.add(new THREE.Mesh(new THREE.ConeGeometry(5, 22, 12).rotateX(Math.PI).translate(0, -11, 0), glow(0xfff6c0, 0xffe080, 'core')));
+  flame.position.y = 10;
+  ship.add(flame);
+  root.add(ship);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(30, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+  shadow.position.y = 2.6;
+  root.add(shadow);
+  const dust = dustRing();
+  dust.position.y = 3;
+  root.add(dust);
+  return {
+    group: root,
+    update(_a, t) {
+      const p = rocketAt(o, world.time);
+      ship.visible = p.h < 0.999;
+      ship.position.y = p.h * 900;
+      ship.rotation.y = t * 0.3;
+      ship.rotation.z = p.landed ? 0 : 0.04 * Math.sin(t * 7);
+      // Flame while flying, and briefly as it settles on the pad
+      flame.visible = ship.visible && p.h > 0.0005;
+      flame.scale.set(1, 0.8 + 0.25 * Math.sin(t * 40) + Math.min(1, p.h * 4) * 0.5, 1);
+      (shadow.material as THREE.MeshBasicMaterial).opacity = 0.32 * Math.max(0, 1 - p.h * 2.5);
+      shadow.scale.setScalar(0.6 + 0.4 * (1 - Math.min(1, p.h * 2.5)));
+      // Dust blows out across the pad on touchdown and lift-off
+      const near = p.h > 0 && p.h < 0.12;
+      dust.visible = near;
+      if (near) {
+        const k = 1 - p.h / 0.12;
+        dust.scale.set(30 + k * 35, 12 * (1 - k * 0.6), 30 + k * 35);
+        (dust.material as THREE.MeshToonMaterial).opacity = 0.75 * (1 - k * 0.5);
+      }
+    },
+  };
+}
+
+// ---------- falling asteroids ----------
+
+/**
+ * An asteroid that falls out of the sky on a fiery streak: a red ring pulses on the ground where it
+ * will land, it crashes down in a puff of dust, sits there glowing hot (solid), then crumbles away.
+ */
+export function fallingMeteor(m: Meteor, world: World, L: LevelDef, toScene: ToScene): Animated {
+  const R = m.r ?? 22;
+  const root = new THREE.Group();
+  const ground = heightAt(L, m.x, m.y);
+  root.position.copy(toScene(m.x, m.y)).setY(ground);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(R * 1.05, R * 1.35, 36).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff4a3a, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }));
+  ring.position.y = 0.8;
+  root.add(ring);
+  const rockMat = new THREE.MeshToonMaterial({ color: 0x8a6e6a, emissive: 0xff5a1a, emissiveIntensity: 0, gradientMap: toonRamp() });
+  const rock = part(asteroidGeo(Math.round(m.x + m.y) % 5), rockMat, 0.05);
+  const fall = new THREE.Group();
+  fall.add(rock);
+  rock.scale.setScalar(R);
+  // Fiery tail streaming up behind it while it falls
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(R * 0.9, R * 5, 14).translate(0, R * 2.5, 0), glow(0xffa030, 0xff6010, 'tail'));
+  fall.add(tail);
+  root.add(fall);
+  const dust = dustRing();
+  dust.position.y = 3;
+  root.add(dust);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(R * 1.1, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+  shadow.position.y = 0.6;
+  root.add(shadow);
+  // It comes in at a slant from this direction
+  const dir = new THREE.Vector3(0.5, 1, -0.35).normalize();
+  tail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  return {
+    group: root,
+    update(_a, t) {
+      const p = meteorAt(m, world.time);
+      ring.visible = p.warning;
+      if (p.warning) {
+        (ring.material as THREE.MeshBasicMaterial).opacity = 0.45 + 0.4 * Math.abs(Math.sin(t * 7));
+        ring.scale.setScalar(1 + 0.08 * Math.sin(t * 7));
+      }
+      const falling = p.warning && p.h < 1;
+      fall.visible = falling || p.size > 0;
+      tail.visible = falling;
+      fall.position.copy(dir).multiplyScalar(p.h * 900).setY(R * 0.75 + p.h * 900 * dir.y);
+      rock.scale.setScalar(R * (falling ? 1 : p.size));
+      rock.rotation.set(t * 2, t * 1.3, 0);
+      if (!falling) rock.rotation.set(0.4, Math.round(m.x) * 0.1, 0.2);
+      // Glows hot on impact and cools off
+      rockMat.emissiveIntensity = falling ? 0.8 : Math.max(0, 0.7 - p.u * 0.35);
+      shadow.visible = fall.visible;
+      shadow.scale.setScalar(falling ? 0.4 + 0.6 * (1 - p.h) : Math.max(0.01, p.size));
+      // Dust on impact
+      const puff = p.u < 0.6 && !p.warning;
+      dust.visible = puff;
+      if (puff) {
+        const k = p.u / 0.6;
+        dust.scale.set(R * (1.2 + k * 2.2), 10 * (1 - k * 0.6), R * (1.2 + k * 2.2));
+        (dust.material as THREE.MeshToonMaterial).opacity = 0.8 * (1 - k);
+      }
+    },
+  };
+}
+
+// ---------- moon trees ----------
+
+/**
+ * A moon tree: a twisting lilac trunk crowned with round, glowing teal-and-pink puffs.
+ * Its trunk base matches the physics post.
+ */
+export function moonTree(pm: Palm, L: LevelDef, toScene: ToScene) {
+  const seed = Math.round(pm.x * 3 + pm.y);
+  const r = rng(seed);
+  const H = pm.height ?? 95, base = palmR(pm);
+  const g = new THREE.Group();
+  const lean = (r() - 0.5) * 16;
+  const bark = toon([0xb88ad8, 0x8ab8e8][seed % 2], { vertexColors: true });
+  g.add(part(organic([V(0, -2), V(lean * 0.3, H * 0.3, 5), V(-lean * 0.2, H * 0.6, -4), V(lean, H * 0.85)], [base, base * 0.8, base * 0.65, base * 0.55]), bark, 1.2));
+  // A couple of curly branches
+  for (const s of [-1, 1]) {
+    const y0 = H * (0.55 + r() * 0.15);
+    g.add(part(organic([V(0, y0), V(s * 14, y0 + 12, s * 6), V(s * 26, y0 + 18, s * 4), V(s * 30, y0 + 30)], [base * 0.4, base * 0.32, base * 0.26, base * 0.24], 10, 12), bark, 0.9));
+  }
+  // Canopy puffs
+  const colors = seed % 2 ? [0x5ae0c8, 0x7af0d8] : [0xff8ad8, 0xffb0e6];
+  const puffs: [number, number, number, number][] = [[lean, H, 0, 26], [-20, H * 0.78 + 20, 8, 18], [24, H * 0.82 + 18, -6, 17], [lean * 0.5, H + 18, -10, 15]];
+  puffs.forEach(([x, y, z, rad], i) => place(g, part(blob(rad, rad * 0.85, rad), toon(colors[i % 2], { vertexColors: true }), 1.3), x, y, z));
+  // Little glowing fruit
+  const fruit = cached('m:moonfruit', () => shared(new THREE.MeshToonMaterial({ color: 0xfff27a, emissive: 0xffd02a, emissiveIntensity: 0.8, gradientMap: toonRamp() })));
+  for (let i = 0; i < 6; i++) {
+    const [x, y, z, rad] = puffs[i % puffs.length];
+    const a = r() * Math.PI * 2;
+    place(g, part(new THREE.SphereGeometry(3, 10, 8), fruit, 0.5, false), x + Math.cos(a) * rad * 0.9, y - rad * 0.3 + r() * 6, z + Math.sin(a) * rad * 0.9);
+  }
+  // Roots spreading into the dust
+  const root = part(new THREE.SphereGeometry(base * 1.5, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon(0x8a86a8), 1.1);
+  root.scale.y = 0.35;
+  g.add(root);
+  g.rotation.y = seed * 0.37;
+  g.position.copy(toScene(pm.x, pm.y)).setY(heightAt(L, pm.x, pm.y));
+  return g;
 }
 
 // ---------- scenery ----------

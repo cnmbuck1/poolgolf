@@ -7,7 +7,7 @@ import { clonePiece, Models, PieceBatch, windmillRig } from './models';
 import { lawnMaterial } from './art';
 import { kerbMesh, landscape, lawnMesh, makeLawnHeight, outlineDistance, riverStones } from './landscape';
 import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosaur, dirtMaterial, jurassicLandscape, lavaSurfaceMaterial, setInkColor, tumbleweed } from './jurassic';
-import { alien, asteroid, astronaut, moonDustMaterial, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
+import { alien, asteroid, astronaut, fallingMeteor, landingRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
 import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, heightAt, inZone, onBridge, palmR, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
 
 // Table-plane (x, y) → scene (x, height, z), centred on the original table.
@@ -226,9 +226,11 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const w of L.asteroids ?? []) { const a = asteroid(w, world, L, to3); add(a.group); anims.push(a); }
   for (const al of L.aliens ?? []) { const a = alien(al, world, L, to3); add(a.group); anims.push(a); }
   for (const s of L.astronauts ?? []) { const a = astronaut(s, world, L, to3); add(a.group); anims.push(a); }
+  for (const o of L.rockets ?? []) { const a = landingRocket(o, world, L, to3); add(a.group); anims.push(a); }
+  for (const m of L.meteors ?? []) { const a = fallingMeteor(m, world, L, to3); add(a.group); anims.push(a); }
   for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
   for (const pm of L.palms ?? []) {
-    add(coursePalm(pm, L, to3));
+    add(space ? moonTree(pm, L, to3) : coursePalm(pm, L, to3));
     const shadow = contactDisc(palmR(pm) + 16);
     shadow.position.copy(to3(pm.x, pm.y)).setY(heightAt(L, pm.x, pm.y) + 0.45);
     add(shadow);

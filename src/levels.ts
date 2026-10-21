@@ -20,7 +20,7 @@ export interface Spinner { x: number; y: number; len: number; speed: number; sty
 export interface Bridge { x: number; y: number; len: number; width: number; angle: number }
 /** A boulder: solid, and duller to bounce off than a wall. */
 export interface Rock { x: number; y: number; r: number }
-/** A palm tree on the fairway: its trunk is a solid post of radius r (default 13). */
+/** A tree on the fairway (a palm in the canyon, a moon tree in space): its trunk is a solid post of radius r (default 13). */
 export interface Palm { x: number; y: number; r?: number; height?: number }
 /** Rolls back and forth between a and b at `speed` units/s; `phase` (0..1) staggers start positions. */
 export interface Tumbleweed { a: Pt; b: Pt; speed: number; r?: number; phase?: number }
@@ -39,6 +39,13 @@ export interface Asteroid { a: Pt; b: Pt; speed: number; r?: number; phase?: num
 export interface Alien { x: number; y: number; orbit: number; speed: number; phase?: number }
 /** An astronaut: moonwalks between a and b, or stands waving at a when there is no b. */
 export interface Astronaut { a: Pt; b?: Pt; speed?: number; phase?: number }
+/**
+ * A rocket that comes down onto a landing pad at (x, y), sits there for a few seconds (solid), then
+ * lifts off again; `period` seconds per cycle, `phase` (0..1) staggers it.
+ */
+export interface Rocket { x: number; y: number; period?: number; phase?: number }
+/** An asteroid that falls out of the sky onto (x, y) after a warning ring, sits there (solid), then crumbles. */
+export interface Meteor { x: number; y: number; r?: number; period?: number; phase?: number }
 /** An impact crater: a bowl `depth` deep inside radius r, ringed by a raised rim `rim` high. */
 export interface Crater { x: number; y: number; r: number; depth?: number; rim?: number }
 export type Theme = 'garden' | 'jurassic' | 'space';
@@ -72,6 +79,8 @@ export interface LevelDef {
   aliens?: Alien[];
   astronauts?: Astronaut[];
   craters?: Crater[];
+  rockets?: Rocket[];
+  meteors?: Meteor[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -352,6 +361,7 @@ const SPACE: LevelDef[] = [
     astronauts: [{ a: [500, 250] }],
     craters: [{ x: 360, y: 150, r: 60 }, { x: 650, y: 350, r: 62 }],
     rocks: [{ x: 270, y: 345, r: 20 }, { x: 730, y: 140, r: 22 }],
+    palms: [{ x: 760, y: 255 }, { x: 230, y: 175, height: 95 }],
     sand: [blob(800, 360, 50, 26, 2, 0.2, 10)],
     slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
   },
@@ -368,6 +378,7 @@ const SPACE: LevelDef[] = [
       { a: [700, 90], b: [700, 410], speed: 85, r: 20, phase: 0.7 },
     ],
     rocks: [{ x: 420, y: 140, r: 20 }, { x: 600, y: 360, r: 22 }],
+    palms: [{ x: 610, y: 250 }],
     craters: [{ x: 810, y: 150, r: 50 }],
   },
   {
@@ -380,12 +391,13 @@ const SPACE: LevelDef[] = [
     craters: [{ x: 700, y: 330, r: 95, depth: 10, rim: 5 }],
     aliens: [{ x: 700, y: 330, orbit: 115, speed: 0.7 }],
     rocks: [{ x: 380, y: 420, r: 22 }, { x: 640, y: 120, r: 20 }],
+    palms: [{ x: 480, y: 395 }, { x: 790, y: 105, height: 95 }],
     water: [blob(300, 330, 55, 22, 3, 0.25, 5)],
     slopes: [{ kind: 'hill', x: 870, y: 130, r: 60, h: -2.5 }],
   },
   {
     // A crack into space splits the fairway. Cross on the metal bridge, past a moonwalking
-    // astronaut, and an alien keeps watch by the cup.
+    // astronaut, then time your putt round the rocket landing in front of the cup.
     name: 'Space Walk',
     par: 3,
     tee: [110, 250],
@@ -394,21 +406,21 @@ const SPACE: LevelDef[] = [
     water: [creek([[470, 40], [440, 150], [500, 300], [460, 460]], 70, 4)],
     bridges: [{ x: 478, y: 250, len: 170, width: 80, angle: 5 }],
     astronauts: [{ a: [640, 110], b: [640, 390], speed: 45 }],
-    aliens: [{ x: 760, y: 250, orbit: 55, speed: -1.1 }],
+    rockets: [{ x: 790, y: 250, period: 9 }],
     rocks: [{ x: 260, y: 160, r: 20 }, { x: 290, y: 360, r: 22 }],
+    palms: [{ x: 690, y: 120 }],
   },
   {
-    // Three aliens circle along the fairway, each in its own loop; void pockets wait at the sides.
+    // Asteroids crash down either side of an alien circling mid-fairway; watch for the red warning
+    // rings. Void pockets wait at the sides.
     name: 'Close Encounters',
     par: 3,
     tee: [100, 250],
     cup: [900, 250],
     outline: [[40, 160], [180, 40], [820, 40], [960, 160], [960, 340], [820, 460], [180, 460], [40, 340]],
-    aliens: [
-      { x: 320, y: 250, orbit: 70, speed: 1.1 },
-      { x: 540, y: 250, orbit: 95, speed: -0.8, phase: 0.25 },
-      { x: 760, y: 250, orbit: 60, speed: 1.4, phase: 0.5 },
-    ],
+    aliens: [{ x: 540, y: 250, orbit: 95, speed: -0.8, phase: 0.25 }],
+    meteors: [{ x: 330, y: 250, r: 24, period: 8 }, { x: 760, y: 260, r: 22, period: 7, phase: 0.5 }],
+    palms: [{ x: 250, y: 130, height: 95 }, { x: 680, y: 380 }],
     water: [blob(540, 85, 70, 24, 5, 0.25), blob(540, 415, 70, 24, 6, 0.25)],
     craters: [{ x: 200, y: 380, r: 50 }],
     rocks: [{ x: 430, y: 380, r: 18 }, { x: 650, y: 120, r: 18 }],
@@ -416,7 +428,7 @@ const SPACE: LevelDef[] = [
   },
   {
     // The finale: an asteroid stream, an astronaut on patrol, a crack into space with one bridge,
-    // and an alien hopping round the raised green.
+    // and a rocket landing on the raised green.
     name: 'Lunar Landing',
     par: 4,
     tee: [100, 250],
@@ -426,9 +438,11 @@ const SPACE: LevelDef[] = [
     astronauts: [{ a: [530, 120], b: [530, 380], speed: 50, phase: 0.3 }],
     water: [creek([[700, 40], [670, 160], [720, 300], [690, 460]], 64, 8)],
     bridges: [{ x: 700, y: 250, len: 140, width: 60, angle: 5 }],
-    aliens: [{ x: 880, y: 250, orbit: 75, speed: 0.9 }],
+    rockets: [{ x: 835, y: 250, period: 10, phase: 0.4 }],
+    meteors: [{ x: 160, y: 360, r: 20, period: 9, phase: 0.2 }],
     craters: [{ x: 200, y: 140, r: 55 }],
     rocks: [{ x: 600, y: 420, r: 20 }],
+    palms: [{ x: 610, y: 110 }],
     slopes: [{ kind: 'hill', x: 905, y: 250, r: 140, h: 5 }],
   },
 ];

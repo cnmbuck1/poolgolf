@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Crater, Dino, LevelDef, Pt, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Crater, Dino, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -631,6 +631,33 @@ export function astronautAt(s: Astronaut, t: number) {
 }
 export const ASTRONAUT_R = 17;
 
+/**
+ * A landing rocket's cycle at time t: `h` is its height (1 = out of sight, 0 = on the pad), `u` the
+ * seconds into the cycle. It eases down, sits on the pad, then accelerates away.
+ */
+export function rocketAt(o: Rocket, t: number) {
+  const P = o.period ?? 9;
+  const u = (((t + (o.phase ?? 0) * P) % P) + P) % P;
+  const D = 2.5, S = P - 3.5, L = S + 2; // touch down, start lifting off, gone
+  const h = u < D ? (1 - u / D) ** 2 : u < S ? 0 : u < L ? ((u - S) / 2) ** 2 : 1;
+  return { h, u, landed: h < 0.04, period: P };
+}
+export const ROCKET_R = 22;
+
+/**
+ * A falling asteroid's cycle at time t: a warning ring for 1.5 s, a 1 s fall, a few seconds sitting
+ * on the ground, then it crumbles away. `h` is height (1 = high in the sky), `size` its scale.
+ */
+export function meteorAt(m: Meteor, t: number) {
+  const P = m.period ?? 8;
+  const u = (((t + (m.phase ?? 0) * P) % P) + P) % P;
+  const warnAt = P - 2.5, fallAt = P - 1; // the cycle ends at impact
+  const h = u >= fallAt ? 1 - (u - fallAt) : u >= warnAt ? 1 : 0;
+  const sit = P - 3.2; // seconds on the ground, counted from impact at u = 0
+  const size = u < sit ? 1 : u < sit + 0.5 ? 1 - (u - sit) / 0.5 : 0;
+  return { h, u, size, grounded: u < sit + 0.2, warning: u >= warnAt, period: P, r: m.r ?? 22 };
+}
+
 /** Leg positions (forward, sideways, radius) per species; the renderer builds legs at exactly these spots. */
 export const DINO_LEGS: Record<Dino['kind'], [number, number, number][]> = {
   bronto: [[40, 32, 9], [40, -32, 9], [-40, 32, 9], [-40, -32, 9]],
@@ -648,6 +675,8 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const w of level.asteroids ?? []) circles.push({ ...tumbleweedAt(w, t), r: w.r ?? 20, e: 0.6, kind: 'wall' });
   for (const a of level.aliens ?? []) circles.push({ ...alienAt(a, t), e: 0.7, kind: 'rail' });
   for (const s of level.astronauts ?? []) circles.push({ ...astronautAt(s, t), e: 0.5, kind: 'wall' });
+  for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });
+  for (const m of level.meteors ?? []) { const p = meteorAt(m, t); if (p.grounded) circles.push({ x: m.x, y: m.y, r: p.r, vx: 0, vy: 0, e: 0.5, kind: 'wall' }); }
   for (const d of level.dinos ?? []) {
     const p = dinoPose(d, t);
     const ux = Math.cos(p.heading), uy = Math.sin(p.heading);
