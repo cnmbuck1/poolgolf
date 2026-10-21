@@ -172,34 +172,46 @@ svg { width: 22px; height: 22px; flex: none; }
 }
 .power-fill.max { animation: flash 0.35s infinite alternate; }
 
-/* Hole intro banner */
-.banner {
-  position: absolute; left: 50%; top: 34%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  opacity: 0;
+/* The top bar's free space between the score card and the buttons (main.ts sizes it). The hole
+   banner and shot results show here so they never sit over the fairway. */
+#top-slot {
+  position: absolute; top: calc(10px + var(--sat)); left: 40%; right: 40%;
+  height: 46px;
+  display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center;
   pointer-events: none;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
 }
-.banner.show { animation: banner 2.2s ease forwards; }
-.banner-hole { display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: 0.3em; color: var(--gold); }
-.banner-hole span { width: 40px; height: 2px; background: linear-gradient(90deg, transparent, var(--gold)); }
-.banner-hole span:last-child { transform: scaleX(-1); }
-.banner-hole b { font-weight: 800; }
-.banner-name { font-family: var(--logo); font-weight: 900; font-size: 50px; line-height: 1.05; text-transform: uppercase; background: linear-gradient(180deg, #fff 30%, #c9d2da 70%, #8e9aa6); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 rgba(30, 38, 48, 0.9)) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.6)); }
-.banner-par { margin-top: 6px; font-size: 15px; color: var(--ink); opacity: 0.85; }
+#top-slot > * { grid-area: 1 / 1; max-width: 100%; }
 
-.toast {
-  position: absolute; left: 50%; top: calc(72px + var(--sat));
-  transform: translate(-50%, -6px) scale(0.96);
-  padding: 8px 22px; border-radius: 14px;
+/* Hole intro banner; it also clears as soon as the player starts aiming */
+.banner {
+  height: 46px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 18px; border-radius: 23px;
   background: linear-gradient(180deg, var(--glass-top), var(--glass-bot));
   border: 1px solid var(--edge);
-  font-family: var(--display); font-size: 22px; font-weight: 800; letter-spacing: 0.05em;
-  white-space: nowrap; pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+.banner.show { animation: banner 2.6s ease forwards; }
+.banner-hole { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.18em; color: var(--gold); }
+.banner-hole span { display: none; }
+.banner-hole b { font-weight: 800; color: var(--gold-hi); }
+.banner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--display); font-weight: 800; font-size: 19px; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; }
+.banner-par { display: none; } /* par is already on the score card */
+
+/* Shot results share the top bar with the banner, clear of the play area */
+.toast {
+  transform: translateY(-6px) scale(0.96);
+  height: 46px; box-sizing: border-box; display: block; line-height: 44px;
+  padding: 0 20px; border-radius: 23px;
+  background: linear-gradient(180deg, var(--glass-top), var(--glass-bot));
+  border: 1px solid var(--edge);
+  font-family: var(--display); font-size: 18px; font-weight: 800; letter-spacing: 0.05em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
   opacity: 0; transition: opacity 0.2s, transform 0.25s;
 }
-.toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.toast.show { opacity: 1; transform: none; }
 .toast.good { color: var(--gold-hi); }
 .toast.bad { color: var(--over); }
 
@@ -410,7 +422,6 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
   .hud-card { height: 46px; gap: 12px; }
   .hud-hole .num { font-size: 25px; }
   .hud-stat .num { font-size: 20px; }
-  .banner-name { font-size: 40px; }
   .panel { padding: 14px 20px; gap: 8px; }
   h2 { font-size: 28px; }
   .btn { padding: 8px 16px; font-size: 16px; }
@@ -423,6 +434,7 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 }
 @media (max-width: 760px) {
   .hud-pips, .hud-div { display: none; }
+  .hud-meta { display: none; } /* narrow phones: the banner names the hole instead */
   .power { width: 200px; }
 }
 
@@ -433,9 +445,9 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 @keyframes rise { from { transform: translateY(16px) scale(0.97); opacity: 0; } }
 @keyframes turn { 50% { transform: rotate(90deg); } }
 @keyframes banner {
-  0% { opacity: 0; transform: translate(-50%, -40%) scale(0.95); }
-  15%, 75% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -58%) scale(1); }
+  0% { opacity: 0; transform: translateY(-8px); }
+  10%, 80% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-4px); }
 }
 @keyframes drag {
   0%, 15% { transform: translate(0, 0); opacity: 0; }

@@ -142,8 +142,18 @@ function updatePower() {
   $('power-pct').textContent = `${Math.round(aim.power * 100)}%`;
 }
 
+/** Fit the banner/toast slot into the top bar's gap between the score card and the buttons. */
+function fitTopSlot() {
+  const card = document.querySelector('.hud-card')!.getBoundingClientRect();
+  const btns = document.querySelector('.hud-actions')!.getBoundingClientRect();
+  const slot = $('top-slot');
+  slot.style.left = `${card.right + 10}px`;
+  slot.style.right = `${window.innerWidth - btns.left + 10}px`;
+}
+
 let toastTimer = 0;
 function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
+  fitTopSlot();
   const t = $('toast');
   t.textContent = msg;
   t.className = `toast show ${kind}`;
@@ -154,7 +164,8 @@ function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
 function banner() {
   $('banner-num').textContent = String(holeIdx + 1);
   $('banner-name').textContent = world.level.name;
-  $('banner-par').textContent = `Par ${world.level.par} · ${LEVELS.length} holes`;
+  $('banner-par').textContent = `Par ${world.level.par}`;
+  fitTopSlot();
   const b = $('banner');
   b.classList.remove('show');
   void b.offsetWidth; // restart the animation
@@ -296,6 +307,7 @@ canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
   aim.active = true;
   aim.power = 0;
+  $('banner').classList.remove('show'); // get the hole banner out of the way of the shot
   updateHud();
 });
 
