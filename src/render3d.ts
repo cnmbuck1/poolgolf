@@ -28,7 +28,12 @@ const GradeShader = {
 };
 
 const C = {
-  aim: 0xfdf4a4,
+  aim: 0xff2b2b,
+};
+/** Aim guide colours: red on green, grey, white and sand; cyan on the orange canyon dirt and red circus felt; blue on candy pink and mint. */
+const AIM_COLORS: Record<Theme, number> = {
+  garden: C.aim, space: C.aim, arctic: C.aim, tomb: C.aim,
+  jurassic: 0x18e8ff, circus: 0x18e8ff, candy: 0x1f5bff,
 };
 
 export type GuideMode = 'full' | 'short';
@@ -61,6 +66,9 @@ export class Renderer3D {
   private ball: THREE.Mesh;
   private ballShadowFake: THREE.Mesh;
   private dots: THREE.InstancedMesh;
+  private dotRims: THREE.InstancedMesh;
+  /** The aim guide's colour on this course: bright red, or cyan where the ground itself is red or orange. */
+  private aimColor = new THREE.Color(AIM_COLORS.garden);
   private ghosts: THREE.Mesh[] = [];
   private cue = new THREE.Group();
   private cuePitch = new THREE.Group();
@@ -150,7 +158,7 @@ export class Renderer3D {
     );
     this.scene.add(this.ballShadowFake);
 
-    const dotGeo = new THREE.CircleGeometry(3.2, 12).rotateX(-Math.PI / 2);
+    const dotGeo = new THREE.CircleGeometry(3.8, 12).rotateX(-Math.PI / 2);
     // The guide draws over everything so walls and the windmill never hide it
     this.dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, depthTest: false, toneMapped: false }), MAX_DOTS);
     this.dots.count = 0;
@@ -159,6 +167,14 @@ export class Renderer3D {
     this.dots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_DOTS * 3), 3);
     this.dots.renderOrder = 3;
     this.scene.add(this.dots);
+    // A dark rim under each dot (sharing the dots' positions) so the guide reads on light and busy ground
+    this.dotRims = new THREE.InstancedMesh(new THREE.CircleGeometry(5.4, 14).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, depthTest: false }), MAX_DOTS);
+    this.dotRims.instanceMatrix = this.dots.instanceMatrix;
+    this.dotRims.count = 0;
+    this.dotRims.frustumCulled = false;
+    this.dotRims.renderOrder = 2;
+    this.scene.add(this.dotRims);
     for (let i = 0; i < 3; i++) {
       const g = new THREE.Mesh(
         new THREE.RingGeometry(BALL_R - 1.8, BALL_R, 32).rotateX(-Math.PI / 2),
@@ -278,6 +294,8 @@ export class Renderer3D {
     disposeGroup(this.levelGroup);
     this.level = world.level;
     this.applyTheme(world.level.theme ?? 'garden');
+    this.aimColor.setHex(AIM_COLORS[world.level.theme ?? 'garden']);
+    for (const g of this.ghosts) (g.material as THREE.MeshBasicMaterial).color.copy(this.aimColor);
     this.course = buildCourse(world, getModels());
     this.levelGroup.add(this.course.group);
     this.setSlopeArrows(this.showArrows);
@@ -618,6 +636,7 @@ export class Renderer3D {
     }
 
     this.updateAim(world, aim);
+    this.dotRims.count = this.dots.count;
     this.updateCue(world, cue);
     if (this.quality <= 1) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
@@ -664,7 +683,7 @@ export class Renderer3D {
     const path = world.aimPath(aim.dx, aim.dy, maxLen, banks);
     const m = new THREE.Matrix4();
     const col = new THREE.Color();
-    const base = new THREE.Color(C.aim);
+    const base = this.aimColor;
     let n = 0;
     const spacing = 20;
     let carry = 0;
@@ -702,7 +721,7 @@ export class Renderer3D {
     const { pts, seg, hits } = spinPath(world.level, b.x, b.y, aim.dx, aim.dy, aim.power, aim.spin!, banks, maxLen);
     const m = new THREE.Matrix4();
     const col = new THREE.Color();
-    const base = new THREE.Color(C.aim);
+    const base = this.aimColor;
     let n = 0, carry = 0;
     for (let s = 0; s < pts.length - 1 && n < MAX_DOTS; s++) {
       const a = pts[s], c = pts[s + 1];

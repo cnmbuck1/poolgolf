@@ -696,3 +696,33 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .trophy .bar { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
 .trophy .bar i { display: block; height: 100%; background: var(--gold); }
 @media (max-width: 560px) { .trophies { grid-template-columns: repeat(2, 1fr); } }
+
+/* Main menu: Career leads, then the other ways to play */
+.btn-career { justify-content: flex-start; gap: 12px; padding-left: 18px; text-align: left; }
+.btn-career .ico { width: 26px; height: 26px; flex: none; }
+.btn-career span { flex: 1; display: flex; flex-direction: column; line-height: 1; }
+.btn-career small { font-size: 12px; letter-spacing: 0.08em; font-weight: 700; opacity: 0.75; margin-top: 3px; text-shadow: none; }
+.menu-row .row-note { font-style: normal; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); white-space: nowrap; }
+.menu-row .course-icons { font-size: 13px; letter-spacing: -0.12em; }
+
+/* Course picker */
+.ctiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ctile {
+  position: relative; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.ctile.cur { outline: 2px solid var(--gold-hi); outline-offset: 1px; }
+.ctile-play {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px 8px; text-align: left;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55));
+}
+.ctile-icon { font-style: normal; font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)); }
+.ctile-play b { margin-top: 4px; font-family: var(--display); font-weight: 800; font-size: 18px; text-transform: uppercase; color: #fff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6); }
+.ctile-play small { font-size: 12px; color: rgba(255, 255, 255, 0.88); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); }
+.ctile-prog { color: #ffe08a !important; }
+.ctile-holes {
+  padding: 6px 12px; text-align: right; font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: 0.1em;
+  color: #fff; background: rgba(0, 0, 0, 0.45); border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.back-link { display: block; padding: 0 0 2px; font-family: var(--display); font-weight: 800; font-size: 15px; color: var(--gold-hi); }
+@media (max-width: 560px) { .ctiles { grid-template-columns: repeat(2, 1fr); } }

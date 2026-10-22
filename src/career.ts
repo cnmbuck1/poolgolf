@@ -39,13 +39,11 @@ export const bestStars = (ev: CareerEvent) => Number(get(`${ev.id}.stars`) ?? 0)
 export const bestScore = (ev: CareerEvent) => { const v = get(`${ev.id}.best`); return v == null ? null : Number(v); };
 export const totalStars = () => EVENTS.reduce((a, ev) => a + bestStars(ev), 0);
 
-/** A tour opens once every event in the tour before it is cleared; within a tour, events open in order. */
+/** A tour opens once every event in the tour before it is cleared; every event in an open tour can be played, in any order. */
 export function isUnlocked(ev: CareerEvent) {
   const t = TIERS.indexOf(ev.tier);
   if (t > 0 && EVENTS.filter((e) => e.tier === TIERS[t - 1]).some((e) => bestStars(e) === 0)) return false;
-  const inTier = EVENTS.filter((e) => e.tier === ev.tier);
-  const i = inTier.indexOf(ev);
-  return i === 0 || bestStars(inTier[i - 1]) > 0;
+  return true;
 }
 
 /** Record a finished round; returns the stars, what was newly earned, and the coin lines for it. */

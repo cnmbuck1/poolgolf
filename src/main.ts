@@ -549,7 +549,6 @@ function refreshTitle() {
   $('menu-coins').innerHTML = `<i class="coin"></i>${coins()}`;
   const best = localGet(ck('best'));
   $('best').textContent = best ? `${COURSE.name} best round: ${best}` : '';
-  setLabel('btn-play', `PLAY ${COURSE.name.toUpperCase()}`);
 }
 
 /** Switch course; the menu background moves to its first hole. */
@@ -705,7 +704,6 @@ function updateCue(dt: number) {
 
 // ---------- Buttons ----------
 const click = (id: string, fn: () => void) => { $(id).onclick = () => { unlockAudio(); sfx.ui(); fn(); }; };
-click('btn-play', () => startRound());
 click('btn-pause', pause);
 click('btn-resume', () => { phase = 'play'; show(null); });
 function toggleView() {
@@ -752,26 +750,59 @@ function sheet(title: string, html: string) {
 }
 click('btn-sheet-close', () => { refreshTitle(); show('screen-title'); });
 
-function openCourses() {
-  const sections = COURSES.map((c) => {
+/** Each course's badge and colours for the course picker. */
+const COURSE_LOOK: Record<string, { icon: string; bg: string }> = {
+  candy: { icon: '🍭', bg: 'linear-gradient(160deg, #ff8fc8, #c35c9a 55%, #5fae8a)' },
+  jurassic: { icon: '🦖', bg: 'linear-gradient(160deg, #e8913f, #9a4516 60%, #4a2410)' },
+  space: { icon: '🌙', bg: 'linear-gradient(160deg, #6a70b0, #2a2d5a 55%, #0e0f22)' },
+  circus: { icon: '🎪', bg: 'linear-gradient(160deg, #f4c542, #d8303c 55%, #7a1420)' },
+  tomb: { icon: '🏺', bg: 'linear-gradient(160deg, #f0d08a, #c08a3a 55%, #6a4518)' },
+  arctic: { icon: '❄️', bg: 'linear-gradient(160deg, #e6f4ff, #7ab4e4 55%, #2e5e94)' },
+};
+
+/** Pick a course: a tile per course to play a round, or open its holes to practise one. */
+function openCourses(holesOf?: string) {
+  if (holesOf) return openCourseHoles(holesOf);
+  const tiles = COURSES.map((c) => {
     const best = localGet(ck('best', c.id));
     const par = c.holes.reduce((a, l) => a + l.par, 0);
-    const cards = c.holes.map((l, i) => {
-      const hb = localGet(ck(`hole${i}`, c.id));
-      const found = P.eightFound(c.id, l.name);
-      return `<button class="course" data-course="${c.id}" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${hb ? ` · Best ${hb}` : ''}</small>`
-        + `<em class="prog"><i class="stars">${P.starRow(P.starsOf(c.id, l.name))}</i><i class="eight${found ? ' got' : ''}" title="${found ? 'Golden 8-ball found' : 'A golden 8-ball is hidden here'}">8</i></em></button>`;
-    }).join('');
-    return `<div class="course-head${c.id === COURSE.id ? ' cur' : ''}"><div><h3>${c.name}</h3><small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''} · ★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></div>
-      <button class="btn-gold small" data-play="${c.id}">PLAY</button></div><div class="courses">${cards}</div>`;
+    const look = COURSE_LOOK[c.id];
+    return `<div class="ctile${c.id === COURSE.id ? ' cur' : ''}" style="background:${look.bg}">
+      <button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
+        <small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''}</small>
+        <small class="ctile-prog">★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></button>
+      <button class="ctile-holes" data-holes="${c.id}">HOLES ›</button></div>`;
   }).join('');
-  sheet('Courses', `<p>Play a full course, or tap any hole to practise it. Earn up to three stars a hole (par, birdie, hole in one) and hunt for the golden 8-ball hidden on each.</p>${sections}`);
-  $('sheet-body').querySelectorAll<HTMLButtonElement>('.course').forEach((b) => {
-    b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.course!); playSingle(Number(b.dataset.hole)); };
-  });
-  $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-play]').forEach((b) => {
+  sheet('Pick a course', `<p>Tap a course to play a round, or <b>Holes</b> to practise one hole.</p><div class="ctiles">${tiles}</div>`);
+  const body = $('sheet-body');
+  body.querySelectorAll<HTMLButtonElement>('[data-play]').forEach((b) => {
     b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.play!); startRound(); };
   });
+  body.querySelectorAll<HTMLButtonElement>('[data-holes]').forEach((b) => {
+    b.onclick = () => { sfx.ui(); openCourseHoles(b.dataset.holes!); };
+  });
+}
+
+/** One course's holes, to practise any of them. */
+function openCourseHoles(id: string) {
+  const c = COURSES.find((k) => k.id === id)!;
+  const best = localGet(ck('best', c.id));
+  const par = c.holes.reduce((a, l) => a + l.par, 0);
+  const cards = c.holes.map((l, i) => {
+    const hb = localGet(ck(`hole${i}`, c.id));
+    const found = P.eightFound(c.id, l.name);
+    return `<button class="course" data-hole="${i}"><b>HOLE ${i + 1}</b><span>${l.name}</span><small>Par ${l.par}${hb ? ` · Best ${hb}` : ''}</small>`
+      + `<em class="prog"><i class="stars">${P.starRow(P.starsOf(c.id, l.name))}</i><i class="eight${found ? ' got' : ''}" title="${found ? 'Golden 8-ball found' : 'A golden 8-ball is hidden here'}">8</i></em></button>`;
+  }).join('');
+  sheet(c.name, `<div class="course-head"><div><button class="back-link" id="btn-courses-back">‹ All courses</button><small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''} · ★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></div>
+      <button class="btn-gold small" id="btn-course-round">PLAY ROUND</button></div>
+    <p>Tap a hole to practise it. Earn up to three stars a hole (par, birdie, hole in one) and hunt for the golden 8-ball hidden on each.</p><div class="courses">${cards}</div>`);
+  const body = $('sheet-body');
+  body.querySelectorAll<HTMLButtonElement>('[data-hole]').forEach((b) => {
+    b.onclick = () => { sfx.ui(); chooseCourse(c.id); playSingle(Number(b.dataset.hole)); };
+  });
+  $('btn-course-round').onclick = () => { sfx.ui(); chooseCourse(c.id); startRound(); };
+  $('btn-courses-back').onclick = () => { sfx.ui(); openCourses(); };
 }
 
 function openSettings() {
@@ -1319,18 +1350,18 @@ function openCareer(tab: 'tours' | 'tricks' = 'tours') {
   }
   const tiers = TIERS.map((t, ti) => {
     const evs = EVENTS.filter((e) => e.tier === t);
-    const cards = evs.map((ev, i) => {
+    const cards = evs.map((ev) => {
       const open = isUnlocked(ev), best = bestScore(ev);
       const course = COURSES.find((c) => c.id === ev.course)!.name;
-      const note = open ? `Shoot ${ev.target} or better${best != null ? ` · Best ${best}` : ''}` : i ? `Clear ${evs[i - 1].name} first` : 'Locked';
-      return `<button class="course event${open ? '' : ' locked'}" data-event="${ev.id}"${open ? '' : ' disabled'}><b>${course.toUpperCase()}</b><span>${ev.name}</span><small>${note}</small><em class="stars">${starText(bestStars(ev))}</em></button>`;
+      const note = open ? `Shoot ${ev.target} or better${best != null ? ` · Best ${best}` : ''}` : 'Locked';
+      return `<button class="course event${open ? '' : ' locked'}" data-event="${ev.id}"${open ? '' : ' disabled'}><b>${COURSE_LOOK[ev.course].icon} ${course.toUpperCase()}</b><span>${ev.name}</span><small>${note}</small><em class="stars">${starText(bestStars(ev))}</em></button>`;
     }).join('');
     const sub = isUnlocked(evs[0])
       ? `Target ${t.toPar > 0 ? `${t.toPar} over par` : t.toPar < 0 ? `${-t.toPar} under par` : 'par'} · ${t.reward} coins per event cleared`
       : `Clear every ${TIERS[ti - 1].name} event to open`;
     return `<div class="course-head"><div><h3>${t.name}</h3><small>${sub}</small></div></div><div class="courses">${cards}</div>`;
   }).join('');
-  sheet('Career', `<div class="tabs"><button class="tab on">TOURS</button><button class="tab" data-tab="tricks">TRICK SHOTS</button></div><div class="gear-top"><p>Win events to climb the tours. Beat the target by 2 for a second star and by 4 for a third; every new star pays ${STAR_COINS} coins.</p><b class="wallet"><span class="star">★</span>${totalStars()}/${EVENTS.length * 3}</b></div>${tiers}`);
+  sheet('Career', `<div class="tabs"><button class="tab on">TOURS</button><button class="tab" data-tab="tricks">TRICK SHOTS</button></div><div class="gear-top"><p>Play the events in any order; clear them all to open the next tour. Beat the target by 2 for a second star and by 4 for a third; every new star pays ${STAR_COINS} coins.</p><b class="wallet"><span class="star">★</span>${totalStars()}/${EVENTS.length * 3}</b></div>${tiers}`);
   $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-event]').forEach((b) => {
     b.onclick = () => {
       const ev = EVENTS.find((e) => e.id === b.dataset.event)!;
@@ -1465,7 +1496,7 @@ function comingSoon(title: string, icon: string, what: string) {
   sheet(title, `<div class="soon"><svg><use href="#${icon}"/></svg><p>${what}</p><p><b>Not in this prototype yet.</b></p></div>`);
 }
 
-click('btn-courses', openCourses);
+click('btn-courses', () => openCourses());
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
 click('btn-demo', () => startDemo());
@@ -1672,7 +1703,7 @@ click('btn-next', () => {
   if (daily) { daily = null; toTitle(); return; }
   if (trick) { toTitle(); openCareer('tricks'); return; }
   if (careerEvent && holeIdx === LEVELS.length - 1) { toTitle(); openCareer(); return; }
-  if (practice) { toTitle(); openCourses(); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
+  if (practice) { toTitle(); openCourses(COURSE.id); } else if (holeIdx === LEVELS.length - 1) startRound(); else loadHole(holeIdx + 1);
 });
 click('set-sound', toggleSound);
 click('set-music', toggleMusic);
