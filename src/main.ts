@@ -22,7 +22,7 @@ import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
-import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track } from './telemetry';
+import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track, watchErrors } from './telemetry';
 
 const MAX_STROKES = 10;
 declare const __VERSION__: string;
@@ -955,10 +955,13 @@ async function openPlaytest() {
     `<tr><td>${esc(name(h.course))} ${h.hole}</td><td>${esc(h.name)}</td><td class="num">${h.n}</td><td class="num">${h.par}</td><td class="num">${h.avg.toFixed(1)}</td><td class="num ${h.diff > 0.75 ? 'hard' : h.diff < -0.5 ? 'easy' : ''}">${h.diff >= 0 ? '+' : ''}${h.diff.toFixed(1)}</td></tr>`).join('');
   const fb = records.filter((r): r is PlaytestRecord & { type: 'feedback' } => r.type === 'feedback').sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 40);
   const icon = { bug: '🐞', idea: '💡', love: '❤️' } as const;
+  const errs = records.filter((r): r is PlaytestRecord & { type: 'error' } => r.type === 'error').sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 20)
+    .map((e) => `<li>⚠️ ${esc(e.message)}<small>${e.course === 'menu' ? 'menu' : `${esc(name(e.course))} hole ${e.hole}`} · ${esc(e.mode)} · ${esc(e.device)} ${esc(e.screen)} · build ${esc(e.build)} · ${new Date(e.at).toLocaleString()}</small></li>`).join('');
   const items = fb.map((f) => `<li>${icon[f.kind] ?? ''} ${esc(f.text || '(no text)')}<small>${esc(f.testerName || 'Tester ' + f.tester)} · ${f.course === 'menu' ? 'menu' : esc(name(f.course)) + ' hole ' + f.hole} · ${esc(f.device)} · build ${esc(f.build)} · ${new Date(f.at).toLocaleString()}</small></li>`).join('');
   $('sheet-body').innerHTML = `<p>${everyone ? `Everyone's results on this game page: ${testers} tester${testers === 1 ? '' : 's'}.` : `Results played on this device.${PLAYTEST_URL ? ' Every tester\'s results also go to the playtest sheet.' : ''}`}</p>
     ${rows ? `<div class="card-wrap"><table class="pt-table"><tr><th>Hole</th><th></th><th>Plays</th><th>Par</th><th>Avg</th><th>vs par</th></tr>${rows}</table></div>` : '<p>No holes finished yet.</p>'}
-    <h3>Feedback</h3>${items ? `<ul class="pt-fb">${items}</ul>` : '<p>None yet.</p>'}`;
+    <h3>Feedback</h3>${items ? `<ul class="pt-fb">${items}</ul>` : '<p>None yet.</p>'}
+    ${errs ? `<h3>Errors</h3><ul class="pt-fb">${errs}</ul>` : ''}`;
 }
 
 /** Progress: hole stars, golden 8-balls and the trophy room, then this course's stats. */
@@ -2000,35 +2003,49 @@ syncSettingsUi();
 
 // ---------- Loop ----------
 let prev = performance.now();
+/** Unexpected errors go to the playtest sheet, with where the player was. */
+const reportError = watchErrors(() => {
+  const at = phase === 'title' ? null : whereIs(world.level);
+  const mode = demo ? 'demo' : party ? 'party' : trick ? 'trick' : daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : phase === 'title' ? 'menu' : 'round';
+  return { course: at?.course ?? (phase === 'title' ? 'menu' : world.level.theme ?? ''), hole: at?.hole ?? 0, name: world.level.name, phase, mode };
+});
+canvas.addEventListener('webglcontextlost', () => reportError('WebGL context lost'));
+
 /** Length of one game step (s), and the time not yet stepped. */
 const STEP = 1 / 60;
 let stepAcc = 0;
 function frame(now: number) {
-  const dt = Math.min(1 / 30, (now - prev) / 1000);
-  prev = now;
-  lastFrameDt = dt;
-  time += dt;
+  // One bad frame shouldn't freeze the game: report it and keep going
+  try {
+    const dt = Math.min(1 / 30, (now - prev) / 1000);
+    prev = now;
+    lastFrameDt = dt;
+    time += dt;
 
-  if (demo) updateDemo(dt);
-  // The game runs in fixed steps whatever the screen's refresh rate (60 or 120 Hz), so a shot plays out
-  // the same on every phone: challenges and the daily are fair, and the computer's planned shots land
-  stepAcc = Math.min(stepAcc + dt, 4 * STEP);
-  while (stepAcc >= STEP) {
-    stepAcc -= STEP;
-    if (phase === 'play' || phase === 'title') tick(STEP);
-    // FAST plays the computer's turn at triple speed
-    if (phase === 'play' && match && turn === 'ai' && fastAi) for (let k = 0; k < 2 && phase === 'play' && turn === 'ai'; k++) { tick(STEP); stepAi(); }
+    if (demo) updateDemo(dt);
+    // The game runs in fixed steps whatever the screen's refresh rate (60 or 120 Hz), so a shot plays out
+    // the same on every phone: challenges and the daily are fair, and the computer's planned shots land
+    stepAcc = Math.min(stepAcc + dt, 4 * STEP);
+    while (stepAcc >= STEP) {
+      stepAcc -= STEP;
+      if (phase === 'play' || phase === 'title') tick(STEP);
+      // FAST plays the computer's turn at triple speed
+      if (phase === 'play' && match && turn === 'ai' && fastAi) for (let k = 0; k < 2 && phase === 'play' && turn === 'ai'; k++) { tick(STEP); stepAi(); }
+    }
+    if (phase === 'play' && match && turn === 'ai') stepAi();
+    if (phase === 'replay' && replay) stepReplay(dt);
+    if (phase === 'play') edgeTurn(dt);
+    updateCue(phase === 'play' ? dt : 0);
+    updateFinger();
+    updateCoach();
+    fadeScoreCard();
+    playMusic(phase === 'title' ? 'menu' : world.level.theme ?? 'candy');
+    // Slow motion slows the whole scene, not just the ball
+    view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt * (replay ? replay.speed : 1));
+  } catch (err) {
+    const e = err as Error;
+    reportError(e?.message ?? String(err), e?.stack);
   }
-  if (phase === 'play' && match && turn === 'ai') stepAi();
-  if (phase === 'replay' && replay) stepReplay(dt);
-  if (phase === 'play') edgeTurn(dt);
-  updateCue(phase === 'play' ? dt : 0);
-  updateFinger();
-  updateCoach();
-  fadeScoreCard();
-  playMusic(phase === 'title' ? 'menu' : world.level.theme ?? 'candy');
-  // Slow motion slows the whole scene, not just the ball
-  view3d.render(world, aim, cue, fx, time, phase === 'paused' ? 0 : dt * (replay ? replay.speed : 1));
   requestAnimationFrame(frame);
 }
 

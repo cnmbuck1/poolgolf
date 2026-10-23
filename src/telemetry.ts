@@ -13,8 +13,10 @@ export const BUILD = typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev';
 
 export interface HoleRecord { type: 'hole'; course: string; hole: number; name: string; par: number; strokes: number; mode: string; seconds: number; pickedUp: boolean }
 export interface FeedbackRecord { type: 'feedback'; kind: 'bug' | 'idea' | 'love'; text: string; course: string; hole: number; strokes: number }
+/** An unexpected error in the game, with where the player was ('menu' when not on a hole). */
+export interface ErrorRecord { type: 'error'; message: string; stack: string; course: string; hole: number; name: string; phase: string; mode: string; screen: string }
 type Common = { tester: string; testerName: string; session: string; build: string; platform: string; device: string; at: string };
-export type PlaytestRecord = (HoleRecord | FeedbackRecord) & Common;
+export type PlaytestRecord = (HoleRecord | FeedbackRecord | ErrorRecord) & Common;
 
 const KEY = 'poolgolf.playtest', OUTBOX = 'poolgolf.playtest.outbox';
 const get = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -44,12 +46,12 @@ function device() {
 const readLocal = (k: string): PlaytestRecord[] => { try { return JSON.parse(get(k) ?? '[]'); } catch { return []; } };
 
 /** Record one event everywhere it can go. Never throws, never blocks play. */
-export function track(rec: HoleRecord | FeedbackRecord) {
+export function track(rec: HoleRecord | FeedbackRecord | ErrorRecord) {
   const full = { ...rec, tester, testerName: testerName(), session, build: BUILD, platform: Capacitor.getPlatform(), device: device(), at: new Date().toISOString() } as PlaytestRecord;
   const local = readLocal(KEY);
   local.push(full);
   put(KEY, JSON.stringify(local.slice(-500)));
-  if (rec.type === 'hole' && !sharing()) return;
+  if (rec.type !== 'feedback' && !sharing()) return;
   if (PLAYTEST_URL) { const out = readLocal(OUTBOX); out.push(full); put(OUTBOX, JSON.stringify(out.slice(-200))); void flush(); }
   void toArtifact(full);
 }
@@ -66,6 +68,32 @@ export async function flush() {
     await fetch(PLAYTEST_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ records: out }), keepalive: true });
     put(OUTBOX, JSON.stringify(readLocal(OUTBOX).slice(out.length)));
   } catch { /* offline: try again on the next record or launch */ } finally { flushing = false; }
+}
+
+// ---------- automatic error reports ----------
+
+/**
+ * Report unexpected errors (and a lost WebGL context) with where the player was, so bugs nobody writes in
+ * about still show up on the playtest sheet. At most five different errors a session, each once.
+ * Returns a reporter for errors the game catches itself.
+ */
+export function watchErrors(where: () => Omit<ErrorRecord, 'type' | 'message' | 'stack' | 'screen'>) {
+  const seen = new Set<string>();
+  const report = (message: string, stack = '') => {
+    message = String(message || 'Unknown error').slice(0, 500);
+    if (message === 'Script error.' || message.startsWith('ResizeObserver loop')) return; // browser noise with no detail
+    if (seen.has(message) || seen.size >= 5) return;
+    seen.add(message);
+    let ctx: Omit<ErrorRecord, 'type' | 'message' | 'stack' | 'screen'> = { course: 'menu', hole: 0, name: '', phase: '', mode: '' };
+    try { ctx = where(); } catch { /* report what we have */ }
+    const lines = String(stack).split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 6);
+    try {
+      track({ type: 'error', message, stack: lines.join(' | ').slice(0, 1500), ...ctx, screen: `${innerWidth}x${innerHeight}@${devicePixelRatio}` });
+    } catch { /* never let reporting break the game */ }
+  };
+  window.addEventListener('error', (e) => report(e.message || String(e.error), e.error?.stack));
+  window.addEventListener('unhandledrejection', (e) => { const r = e.reason as { message?: string; stack?: string } | undefined; report(r?.message ?? String(r), r?.stack); });
+  return report;
 }
 
 // ---------- the claude.ai artifact's database (when the game is opened there) ----------
@@ -89,7 +117,7 @@ async function toArtifact(rec: PlaytestRecord) {
   if (!dbWritable) return;
   const { db, user } = await artifactDb();
   if (!db || user?.can('data.write') === false) return;
-  try { await db.collection(rec.type === 'hole' ? 'plays' : 'feedback').add(rec as unknown as Record<string, unknown>); } catch { dbWritable = false; }
+  try { await db.collection({ hole: 'plays', feedback: 'feedback', error: 'errors' }[rec.type]).add(rec as unknown as Record<string, unknown>); } catch { dbWritable = false; }
 }
 
 /**
@@ -100,8 +128,8 @@ export async function loadRecords(): Promise<{ records: PlaytestRecord[]; everyo
   const { db, user } = await artifactDb();
   if (db && user?.isOwner()) {
     try {
-      const [plays, feedback] = await Promise.all(['plays', 'feedback'].map((c) => db.collection(c).orderBy('at', 'desc').limit(1000).get()));
-      const records = [...plays.docs, ...feedback.docs].map((d) => d.data() as unknown as PlaytestRecord);
+      const lists = await Promise.all(['plays', 'feedback', 'errors'].map((c) => db.collection(c).orderBy('at', 'desc').limit(1000).get().catch(() => ({ docs: [] }))));
+      const records = lists.flatMap((l) => l.docs).map((d) => d.data() as unknown as PlaytestRecord);
       return { records, everyone: true };
     } catch { /* fall back to this device */ }
   }

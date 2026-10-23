@@ -60,6 +60,17 @@ From then on the sheet fills in by itself:
 - **Plays**: one row per finished hole.
 - **Feedback**: one row per report.
 - **Summary**: average strokes per hole against par, the holes testers struggle with most at the top.
+- **Errors**: one row per unexpected error a player's game hit (the message, the course, hole and mode they
+  were in, the device and screen size). Most bugs go unreported because players just quit, so check this tab
+  too. Each phone sends at most five different errors a session.
+
+### Updating the script (needed once for the Errors tab)
+
+The **Errors** tab needs the newest `docs/playtest-sheet.gs`. In the sheet: **Extensions → Apps Script**,
+select everything, paste in the new file, **Save**, then **Deploy → Manage deployments → ✏️ (edit) → Version:
+New version → Deploy**. Editing the existing deployment keeps the same web app URL, so nothing in the game
+changes. Until then, error reports are simply ignored by the sheet (they still show on each device under
+Settings → Playtest results).
 
 A tester who plays offline sends their results the next time they open the game. The repository is
 public, so the URL can be found; anyone who did could post rows to the sheet. That's fine for a playtest,

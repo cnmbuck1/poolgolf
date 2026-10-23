@@ -89,6 +89,7 @@ linked to the user's identity** and **Not used for tracking**:
 |---|---|---|
 | Usage Data → Product Interaction | Analytics | Finished holes: course, hole, strokes, time, mode |
 | Diagnostics → Other Diagnostic Data | Analytics | Game version and device kind/screen size |
+| Diagnostics → Crash Data | App Functionality | Unexpected error messages and where in the game they happened |
 | Identifiers → Device ID | Analytics | A random ID the game makes, to tell players' holes apart (not the advertising ID) |
 | User Content → Other User Content | App Functionality | Feedback a player chooses to send |
 | Contact Info → Name | App Functionality | Only if a player types a name into the feedback form |

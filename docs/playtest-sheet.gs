@@ -5,10 +5,12 @@
  * Sheets (created on first use):
  *   Plays     one row per finished hole
  *   Feedback  one row per bug report, idea or "love it"
+ *   Errors    one row per unexpected error the game hit, with where the player was
  *   Summary   average strokes per hole against par, worst holes first
  */
 const PLAY_COLS = ['at', 'tester', 'testerName', 'course', 'hole', 'name', 'par', 'strokes', 'pickedUp', 'mode', 'seconds', 'build', 'platform', 'device', 'session'];
 const FEEDBACK_COLS = ['at', 'tester', 'testerName', 'kind', 'text', 'course', 'hole', 'strokes', 'build', 'platform', 'device', 'session'];
+const ERROR_COLS = ['at', 'tester', 'message', 'course', 'hole', 'name', 'mode', 'phase', 'stack', 'build', 'platform', 'device', 'screen', 'session'];
 
 function doPost(e) {
   const lock = LockService.getScriptLock();
@@ -17,11 +19,13 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     const records = Array.isArray(body.records) ? body.records.slice(0, 200) : [];
     const plays = sheet_('Plays', PLAY_COLS), feedback = sheet_('Feedback', FEEDBACK_COLS);
-    const rows = { hole: [], feedback: [] };
+    const rows = { hole: [], feedback: [], error: [] };
     for (const r of records) {
       if (r.type === 'hole') rows.hole.push(PLAY_COLS.map((c) => clean_(r[c])));
       else if (r.type === 'feedback') rows.feedback.push(FEEDBACK_COLS.map((c) => clean_(r[c])));
+      else if (r.type === 'error') rows.error.push(ERROR_COLS.map((c) => clean_(r[c])));
     }
+    if (rows.error.length) { const errors = sheet_('Errors', ERROR_COLS); errors.getRange(errors.getLastRow() + 1, 1, rows.error.length, ERROR_COLS.length).setValues(rows.error); }
     if (rows.hole.length) plays.getRange(plays.getLastRow() + 1, 1, rows.hole.length, PLAY_COLS.length).setValues(rows.hole);
     if (rows.feedback.length) feedback.getRange(feedback.getLastRow() + 1, 1, rows.feedback.length, FEEDBACK_COLS.length).setValues(rows.feedback);
     summary_();
