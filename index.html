@@ -85,6 +85,7 @@
       <div id="toast" class="toast"></div>
       </div>
       <div id="finger" class="finger hidden"><span></span></div>
+      <div id="coach" class="coach hidden"><p id="coach-text"></p><button id="btn-coach-skip">Skip tips</button></div>
       <div id="ai-bar" class="replay-bar glass hidden">
         <span id="ai-avatar" class="avatar small"></span><b id="ai-label"></b>
         <button id="btn-fast" class="pill">FAST</button>
@@ -186,6 +187,15 @@
     </div>
 
     <!-- Tips for the hole being played (from the lightbulb in the scorecard) -->
+    <div id="screen-intro" class="screen hidden">
+      <div class="panel intro">
+        <span class="intro-icon" id="intro-icon"></span>
+        <p class="intro-kicker">NEW COURSE</p>
+        <h2 id="intro-title"></h2>
+        <ul id="intro-points"></ul>
+        <button class="btn-gold" id="btn-intro-ok">LET'S PLAY<svg><use href="#i-chev"/></svg></button>
+      </div>
+    </div>
     <div id="screen-tips" class="screen hidden">
       <div class="panel sheet tips">
         <div class="sheet-head">

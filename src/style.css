@@ -732,3 +732,26 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .opp .stake { font-style: normal; font-size: 12px; color: var(--gold-hi); }
 .opp .stake .coin { vertical-align: -2px; }
 .opp .stake.short { color: #ff8a7a; }
+
+/* First-time help: coach bubble and new-course intro */
+.coach {
+  position: absolute; left: 50%; top: calc(66px + var(--sat)); transform: translateX(-50%);
+  width: min(460px, calc(100% - 32px)); z-index: 6;
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px;
+  background: rgba(16, 27, 41, 0.92); border: 1px solid rgba(246, 189, 71, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); pointer-events: auto; transition: opacity 0.2s;
+}
+.coach p { margin: 0; flex: 1; font-size: 14px; line-height: 1.35; }
+.coach b { color: var(--gold-hi); }
+.coach button { flex: none; padding: 6px 8px; font-size: 12px; color: var(--muted); text-decoration: underline; }
+.coach.dim { opacity: 0.25; pointer-events: none; }
+.spin.pulse { animation: spinPulse 1.4s ease-in-out infinite; }
+@keyframes spinPulse { 50% { box-shadow: 0 0 0 6px rgba(246, 189, 71, 0.55), 0 0 24px rgba(246, 189, 71, 0.6); } }
+.panel.intro { max-width: 520px; align-items: center; text-align: center; gap: 6px; }
+.intro-icon { font-size: 44px; line-height: 1; }
+.intro-kicker { margin: 0; font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: 0.2em; color: var(--gold); }
+.panel.intro h2 { margin: 0; }
+.panel.intro ul { margin: 4px 0 8px; padding: 0 0 0 18px; text-align: left; display: grid; gap: 6px; font-size: 15px; line-height: 1.35; }
+.panel.intro b { color: var(--gold-hi); }
+.panel.intro .btn-gold { width: auto; padding-left: 28px; padding-right: 22px; }
+@media (max-height: 400px) { .intro-icon { font-size: 32px; } .panel.intro ul { font-size: 14px; gap: 4px; } }

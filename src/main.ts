@@ -20,6 +20,7 @@ import { sha256 } from './sha256';
 import { tipsFor } from './tips';
 import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
+import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -302,6 +303,39 @@ function show(id: string | null) {
   $('hud').classList.toggle('hidden', phase === 'title');
 }
 
+// ---------- First-time help ----------
+/** How far a new player is through the coach bubbles (players from before the coach existed skip it). */
+let coachStep = Number(localGet('coach') ?? (localGet('tutorial') === '1' ? COACH_STEPS.length : 0));
+let coachShown = false;
+function setCoachStep(n: number) { coachStep = n; localSet('coach', String(n)); }
+/** Show the next coach bubble while the player is lining up a shot; the last one waits for the start of a hole. */
+function updateCoach() {
+  const ready = coachStep < COACH_STEPS.length && phase === 'play' && !demo && !shootout && turn === 'player'
+    && !world.moving && busyTimer <= 0 && !strike && $('screen-intro').classList.contains('hidden')
+    && (coachStep < 3 ? strokes >= coachStep || coachStep === 0 : strokes === 0);
+  if (ready !== coachShown || (ready && $('coach-text').dataset.step !== String(coachStep))) {
+    coachShown = ready;
+    $('coach').classList.toggle('hidden', !ready);
+    if (ready) { $('coach-text').innerHTML = COACH_STEPS[coachStep]; $('coach-text').dataset.step = String(coachStep); }
+  }
+  $('coach').classList.toggle('dim', ready && aim.active);
+  $('spin').classList.toggle('pulse', ready && coachStep === 2);
+}
+/** A shot was taken: the bubble on screen has done its job. */
+function coachShot() { if (coachShown) setCoachStep(coachStep + 1); }
+
+/** The first time a course is played: a card naming what's new there. */
+function maybeIntro(L: LevelDef) {
+  const at = demo ? null : whereIs(L);
+  const intro = at && COURSE_INTROS[at.course];
+  if (!at || !intro || localGet(`intro.${at.course}`)) return;
+  localSet(`intro.${at.course}`, '1');
+  $('intro-icon').textContent = intro.icon;
+  $('intro-title').textContent = COURSES.find((c) => c.id === at.course)!.name;
+  $('intro-points').innerHTML = intro.points.map((p) => `<li>${p}</li>`).join('');
+  $('screen-intro').classList.remove('hidden');
+}
+
 /** On the first hole of a player's first round, show a finger pulling back from the ball. */
 function updateFinger() {
   if (demo) return; // the demo moves the finger itself
@@ -349,6 +383,7 @@ function enterLevel(L: LevelDef) {
   view3d.setMode('play');
   view3d.intro(world);
   placeEight(L);
+  maybeIntro(L);
   strokes = 0;
   lastRest = { x: world.ball.x, y: world.ball.y };
   fx.sink = undefined;
@@ -687,6 +722,7 @@ function fireShot(p: number) {
   buzz(p > 0.7 ? ImpactStyle.Heavy : ImpactStyle.Light);
   view3d.shake(p * 3);
   if (!settings.tutorialDone) { settings.tutorialDone = true; localSet('tutorial', '1'); }
+  coachShot();
   updateHud();
 }
 
@@ -1524,6 +1560,8 @@ function stepReplay(dt: number) {
 }
 
 click('btn-courses', () => openCourses());
+click('btn-coach-skip', () => { setCoachStep(COACH_STEPS.length); updateCoach(); });
+click('btn-intro-ok', () => { sfx.ui(); $('screen-intro').classList.add('hidden'); });
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
 click('btn-demo', () => startDemo());
@@ -1758,6 +1796,7 @@ function frame(now: number) {
   if (phase === 'play') edgeTurn(dt);
   updateCue(phase === 'play' ? dt : 0);
   updateFinger();
+  updateCoach();
   fadeScoreCard();
   playMusic(phase === 'title' ? 'menu' : world.level.theme ?? 'candy');
   // Slow motion slows the whole scene, not just the ball
