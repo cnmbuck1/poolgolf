@@ -1,0 +1,108 @@
+# Builds the iPhone app on a GitHub-hosted Mac and uploads it to TestFlight (no Mac needed).
+# Run it from the Actions tab: "iPhone build to TestFlight" → Run workflow.
+# Needs four repository secrets (Settings → Secrets and variables → Actions), see docs/APP_STORE.md:
+#   APPLE_TEAM_ID       10-character Team ID from developer.apple.com → Membership
+#   ASC_KEY_ID          App Store Connect API key ID
+#   ASC_ISSUER_ID       App Store Connect API issuer ID
+#   ASC_PRIVATE_KEY     the whole contents of the AuthKey_XXXX.p8 file
+name: iPhone build to TestFlight
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check the secrets are set
+        id: secrets
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+          KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          missing=""
+          [ -z "$TEAM" ] && missing="$missing APPLE_TEAM_ID"
+          [ -z "$KEY_ID" ] && missing="$missing ASC_KEY_ID"
+          [ -z "$ISSUER" ] && missing="$missing ASC_ISSUER_ID"
+          [ -z "$KEY" ] && missing="$missing ASC_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing repository secrets:$missing (see docs/APP_STORE.md). Building without signing to check the app compiles; nothing is uploaded."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Use the newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | grep -v beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Build the game
+        run: |
+          npm ci
+          npm run build
+          npx cap sync ios
+
+      - name: Compile check (no signing)
+        if: steps.secrets.outputs.ready != 'true'
+        run: |
+          cd ios/App
+          xcodebuild build -project App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
+          echo "The app compiles. Add the four secrets in docs/APP_STORE.md to sign and upload it to TestFlight." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive, sign and upload to TestFlight
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+          KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          printf '%s\n' "$KEY" > "$KEY_PATH"
+          VERSION=$(node -p "require('./package.json').version")
+          # Each upload needs a higher build number than the last
+          BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $KEY_ID -authenticationKeyIssuerID $ISSUER"
+          cd ios/App
+          xcodebuild archive \
+            -project App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            $AUTH
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            $AUTH
+          echo "Uploaded version $VERSION build $BUILD_NUMBER. It appears in TestFlight once Apple finishes processing (usually 5–30 minutes)." >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$KEY_PATH"

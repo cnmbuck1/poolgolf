@@ -4,7 +4,7 @@ android {
     namespace = "com.example.poolgolf"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.example.poolgolf"
+        applicationId "com.cnmbuckstudios.rackandroll"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
