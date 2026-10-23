@@ -17,7 +17,7 @@ location, no contacts, and no name unless the tester types one into the feedback
 - **In the game:** Settings → **Playtest results** shows average strokes per hole against par (hardest holes
   first) and the latest feedback. On the web link it shows what was played on that device; on the Google
   Sheet you see everyone.
-- **Feedback:** the speech-bubble button on the main menu, or **Report a bug / feedback** in the pause menu.
+- **Feedback:** the speech-bubble button on the main menu, or **Report a bug** in the pause menu.
   Testers pick Bug, Idea or Love it and type a note; the hole they're on and the build go along automatically.
 
 ## Step 1: put the web build online (GitHub Pages)

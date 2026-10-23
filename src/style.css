@@ -774,3 +774,44 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 /* Beat my score */
 .verdict { display: block; font-family: var(--display); font-size: 18px; letter-spacing: 0.04em; }
 .verdict.won { color: var(--gold-hi); } .verdict.tie { color: var(--ink); } .verdict.lost { color: #ff9a8a; }
+
+/* ---------- Short screens, sticky actions and tap targets (UI audit) ---------- */
+/* The main action of a scrolling panel stays in reach at the bottom */
+.sticky-go, #btn-party-go { position: sticky; bottom: -20px; z-index: 1; box-shadow: 0 -10px 18px #121b26, inset 0 2px 0 rgba(255, 255, 255, 0.55), inset 0 -4px 0 var(--gold-edge); }
+/* Sheet titles and the close button stay showing while the sheet scrolls */
+.sheet-head { position: sticky; top: -20px; z-index: 2; margin: -20px -24px 0; padding: 16px 24px 8px; background: #213042; border-radius: 22px 22px 0 0; }
+/* Course chips: one row that scrolls sideways instead of wrapping names over three lines */
+.tabs.chips { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.tabs.chips::-webkit-scrollbar { display: none; }
+.tabs.chips .tab { flex: none; white-space: nowrap; font-size: 13px; }
+/* Locked cards: readable, just quieter */
+.event.locked { opacity: 0.72; }
+.opp.locked { opacity: 0.68; }
+.toggle { gap: 10px; }
+/* Bigger hit areas for small controls, without changing how they look */
+.hud-tips, #btn-fs-tip, .back-link, .coach button, .replay-bar .pill { position: relative; }
+.hud-tips::after, #btn-fs-tip::after, .back-link::after, .coach button::after, .replay-bar .pill::after { content: ''; position: absolute; inset: -8px; }
+.about a { display: inline-block; padding: 9px 6px; }
+.back-link { padding: 6px 0; background: none; border: 0; outline: none; }
+.coach button { color: var(--ink); text-decoration: none; border: 1px solid var(--edge); border-radius: 999px; padding: 6px 12px; background: rgba(255, 255, 255, 0.06); }
+.result { position: relative; }
+
+@media (max-height: 414px) {
+  /* Main menu: two columns of rows so everything fits under the logo */
+  .menu-rows { grid-template-columns: repeat(2, 1fr); width: 100%; }
+  .menu-row { padding: 0 8px; gap: 6px; font-size: 12px; }
+  .menu-row .chev, .menu-row .row-note, .coin-count { display: none; }
+  .title-col { max-height: 100%; overflow-y: auto; padding-bottom: var(--sab); }
+  .title-col:has(.fs-tip:not(.off):not(.hidden)) .tagline { display: none; }
+  /* Results: the replay button tucks into the top corner; details tighten up */
+  .result .btn-watch { position: absolute; top: 12px; right: 14px; padding: 5px 10px; font-size: 12px; z-index: 1; }
+  .result .detail { margin: 0; }
+  .hole-stars { display: inline; margin: 0 0 0 8px; font-size: 18px; }
+  .coins-earned small { flex-basis: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Pause: toggles in three columns */
+  #screen-pause .settings { grid-template-columns: repeat(3, 1fr); }
+  #screen-pause .toggle { padding: 6px 10px; font-size: 13px; }
+  /* Feedback: a shorter box so Send shows above the keyboard */
+  #fb-text { height: 70px; min-height: 0; }
+  .pp-row { padding: 4px 8px 4px 4px; }
+}

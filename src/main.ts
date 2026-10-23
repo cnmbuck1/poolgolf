@@ -247,7 +247,7 @@ function updateHud() {
   $('hud-hole').textContent = trick ? '★' : String(holeIdx + 1);
   $('hud-par').textContent = String(world.level.par);
   $('hud-strokes').textContent = String(trick ? attempts : strokes);
-  $('hud-name').textContent = world.level.name;
+  $('hud-name').textContent = party ? `${party.players[party.cur].name}'s turn` : world.level.name;
   const d = roundToPar();
   const tp = $('hud-topar');
   tp.textContent = toParLabel(d);
@@ -328,6 +328,7 @@ function updateCoach() {
     if (ready) { $('coach-text').innerHTML = COACH_STEPS[coachStep]; $('coach-text').dataset.step = String(coachStep); }
   }
   $('coach').classList.toggle('dim', ready && aim.active);
+  $('hint').style.visibility = ready ? 'hidden' : ''; // the bubble says it better than the one-line hint
   $('spin').classList.toggle('pulse', ready && coachStep === 2);
 }
 /** A shot was taken: the bubble on screen has done its job. */
@@ -594,7 +595,7 @@ function finishHole(score: number, pickedUp = false) {
   setupShare(score, pickedUp, last);
   const ace = recorder.shots.some((x) => x.ace);
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
-  $('btn-watch').innerHTML = `<svg><use href="#i-play"/></svg>${ace ? 'WATCH YOUR HOLE IN ONE IN SLOW MOTION' : `WATCH REPLAY${recorder.shots.length > 1 ? ` · ${recorder.shots.length} SHOTS` : ''}`}`;
+  $('btn-watch').innerHTML = `<svg><use href="#i-play"/></svg>${ace ? 'SLOW-MO REPLAY' : 'WATCH REPLAY'}`;
   updateHud();
   show('screen-hole');
 }
@@ -831,6 +832,7 @@ function toTitle() {
 function sheet(title: string, html: string) {
   $('sheet-title').textContent = title;
   $('sheet-body').innerHTML = html;
+  $('sheet-body').parentElement!.scrollTop = 0; // a new sheet starts at the top, title and close button showing
   show('screen-sheet');
 }
 click('btn-sheet-close', () => { refreshTitle(); show('screen-title'); });
@@ -897,13 +899,13 @@ function openSettings() {
     <button class="toggle" data-set="vibrate" aria-pressed="${settings.vibrate}"><span>${canVibrate ? 'Vibration' : 'Vibration <small>(in the app)</small>'}</span><em></em></button>
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
     <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
-    <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
+    <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Follow the ball</span><em></em></button>
     <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button>
     <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button></div>
-    <button class="btn" id="btn-playtest">Playtest results</button>
+    ${native ? '' : '<button class="btn" id="btn-playtest">Playtest results</button>'}
     <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
       <a href="${SITE}privacy.html" target="_blank" rel="noopener">Privacy policy</a> · <a href="${SITE}support.html" target="_blank" rel="noopener">Support</a></p>`);
-  $('btn-playtest').onclick = () => void openPlaytest();
+  if (!native) $('btn-playtest').onclick = () => void openPlaytest();
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
@@ -1099,7 +1101,7 @@ function openParty() {
     const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-pcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
     sheet('Play with friends', `<p>Pass the phone: everyone plays each hole in turn, and the lowest total wins. Tap a ball to change it.</p>
       <div class="pp-count"><span>Players</span>${[2, 3, 4].map((n) => `<button class="tab${n === count ? ' on' : ''}" data-count="${n}">${n}</button>`).join('')}</div>
-      <div class="pp-rows">${rows}</div><div class="tabs">${chips}</div>
+      <div class="pp-rows">${rows}</div><div class="tabs chips">${chips}</div>
       <button class="btn-gold" id="btn-party-go">TEE OFF<svg><use href="#i-chev"/></svg></button>`);
     const body = $('sheet-body');
     body.querySelectorAll<HTMLInputElement>('[data-name]').forEach((inp) => { inp.oninput = () => { players[Number(inp.dataset.name)].name = inp.value; }; });
@@ -1265,7 +1267,7 @@ function matchUp() {
 
 function openVersus() {
   const courseId = localGet('vs.course') ?? COURSE.id;
-  const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-vcourse="${c.id}">${c.name.toUpperCase()}</button>`).join('');
+  const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-vcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
   const cards = OPPONENTS.map((o, i) => {
     const open = vsUnlocked(i), w = vsGet(`${o.id}.wins`), l = vsGet(`${o.id}.losses`);
     return `<button class="course opp${open ? '' : ' locked'}" data-opp="${o.id}"${open ? '' : ' disabled'}>
@@ -1274,8 +1276,8 @@ function openVersus() {
       <em class="stars">${w || l ? `W ${w} · L ${l}` : `First win <i class="coin"></i>${o.reward}`}</em>
       <em class="stake${o.stake > coins() ? ' short' : ''}">${o.stake ? `Stake <i class="coin"></i>${o.stake} · win ${o.stake * 2}` : 'Free to play'}</em></button>`;
   }).join('');
-  sheet('Vs Computer', `<div class="gear-top"><p id="vs-msg">Match play: you and your rival play each hole in turn, and the lower score wins the hole. Put up the stake to play: win the match and it pays back double; lose (or quit) and it's gone.</p><b class="wallet"><i class="coin"></i>${coins()}</b></div>
-    <div class="tabs">${chips}</div><div class="courses opps">${cards}</div>`);
+  sheet('Vs Computer', `<div class="gear-top"><p id="vs-msg">Play each hole in turn; the lower score wins it, and most holes wins the match. Win to double your stake; lose or quit and it's gone.</p><b class="wallet"><i class="coin"></i>${coins()}</b></div>
+    <div class="tabs chips">${chips}</div><div class="courses opps">${cards}</div>`);
   const body = $('sheet-body');
   body.querySelectorAll<HTMLButtonElement>('[data-vcourse]').forEach((b) => {
     b.onclick = () => { sfx.ui(); localSet('vs.course', b.dataset.vcourse!); body.querySelectorAll('[data-vcourse]').forEach((x) => x.classList.toggle('on', x === b)); };
@@ -1599,7 +1601,7 @@ function finishTrick() {
     : '<small>Already completed · no coins this time</small>';
   $('hole-card').innerHTML = '';
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
-  $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>WATCH IT IN SLOW MOTION';
+  $('btn-watch').innerHTML = '<svg><use href="#i-play"/></svg>SLOW-MO REPLAY';
   $('btn-replay').textContent = 'Try again';
   $('btn-replay').classList.remove('hidden');
   setLabel('btn-next', daily ? 'MENU' : 'TRICK SHOTS');
@@ -1956,16 +1958,17 @@ click('daily-card', () => startDaily());
 click('btn-watch', () => startReplay());
 click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slowmo').classList.toggle('on', replay.slow); } });
 click('btn-skip', () => endReplay());
-click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to fine-tune your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. To face another way, <b>swipe sideways</b> before pulling down: one swipe across the screen turns you all the way round. The <b>↻</b> button turns you to face straight behind.</p>
+click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to fine-tune your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. To face another way, <b>swipe sideways</b> before pulling down: one swipe across the screen turns you all the way round. The <b>↻</b> button turns you to face straight behind.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
-  <p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
+  <p>In the <b>whole-table view</b> (the TABLE button), drag anywhere to aim: the ball goes the opposite way to your drag. The <b>↻</b> button swings the view round to the other side of the table.</p>
+  <h3>The courses</h3><p>In the <b>Big Top Circus</b>, trampolines bounce the ball over anything in its way (faster in, further out) and cannons fire it across the tent the way the barrel points. Land outside the ring and it's <b>out of bounds</b>: +1 stroke and back to where you hit from.</p>
   <p>In <b>Pharaoh's Tomb</b>, roll into a teal scarab portal to come out of its violet partner; stone doors rise and sink on a timer; and quicksand grips the ball and drags it in: stop in it and it's swallowed (+1 stroke).</p>
   <p>In <b>Candy Land</b>, roll off the open edge of a cake layer to drop to the level below (edges with an icing rim are solid). Roll onto a <b>ladder</b>'s glowing foot to climb up a layer, and into a <b>chute</b>'s swirl to slide down one. Some chutes are shortcuts; some send you back to the start! Chocolate costs a stroke.</p>
   <p>Every course has <b>raised levels</b>. Look for the way up: a geyser in the canyon, a launch rocket on the moon, the cannon or a ladder in the circus, stairs or a portal in the tomb, and a ski lift in the Arctic. Watch out for a toboggan run behind the cup!</p>
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
-  <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
+  <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
   <p><b>Challenge a friend</b>: after a practice hole or a full round, tap <b>Challenge a friend</b> to send a link. They play the same hole or course with your score to beat (in the app or a browser), and can send theirs back.</p>
