@@ -128,7 +128,7 @@ function syncSettingsUi() {
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
   $('set-arrows').setAttribute('aria-pressed', String(settings.arrows));
   $('view-label').textContent = view3d.isOverview ? 'BALL' : 'TABLE';
-  $('btn-turn').style.display = view3d.isOverview ? 'none' : '';
+  $('btn-turn').setAttribute('aria-label', view3d.isOverview ? 'View the table from the other side' : 'Turn around');
   // The speaker on the title screen mutes everything: it shows muted only when sound and music are both off
   const t = $('btn-title-sound'), on = settings.sound || settings.music;
   t.querySelector('use')!.setAttribute('href', on ? '#i-sound' : '#i-mute');
@@ -798,7 +798,10 @@ function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.
 function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
 click('btn-view', toggleView);
-click('btn-turn', () => { if (canAim() && !view3d.isOverview) view3d.turnAround(); });
+click('btn-turn', () => {
+  if (view3d.isOverview) view3d.flipTable(); // whole-table view: see it from the other side
+  else if (canAim()) view3d.turnAround();
+});
 click('btn-restart', () => { if (phase === 'play' && (practice || trick)) { if (trick) loadTrick(trick, false); else loadHole(holeIdx); } });
 click('btn-pause-restart', () => { if (!practice && !trick) return; if (trick) loadTrick(trick, false); else loadHole(holeIdx); });
 click('btn-replay', () => { if (match || (!practice && !trick)) return; if (trick) { loadTrick(trick, false); return; } scores[holeIdx] = null; loadHole(holeIdx); });

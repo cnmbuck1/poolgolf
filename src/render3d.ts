@@ -367,6 +367,9 @@ export class Renderer3D {
 
   /** Whole-hole view instead of the shot camera. */
   setOverview(on: boolean) { this.overview = on; }
+  /** The whole-table view from the other side (0 or π): a half turn keeps the hole framed the same way. */
+  private tableYaw = 0;
+  flipTable() { this.tableYaw = this.tableYaw ? 0 : Math.PI; }
   get isOverview() { return this.overview; }
 
   /**
@@ -495,7 +498,7 @@ export class Renderer3D {
       this.fitCamera();
     }
 
-    let yawT = 0, distT = 1;
+    let yawT = this.tableYaw, distT = 1;
     const focusT = this.centre.clone();
     if (this.mode === 'title') {
       // Hole framed to the right of the menu, slowly drifting

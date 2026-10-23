@@ -57,6 +57,7 @@ Character limits are Apple's.
 | Support URL | https://cnmbuck1.github.io/poolgolf/support.html |
 | Marketing URL (optional) | https://cnmbuck1.github.io/poolgolf/ |
 | Privacy Policy URL | https://cnmbuck1.github.io/poolgolf/privacy.html |
+| Support email (App Review contact) | cnmbuckstudios@gmail.com |
 
 ## General
 
