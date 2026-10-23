@@ -26,6 +26,9 @@ const tester = get('poolgolf.tester') ?? (() => { const id = rid().slice(0, 8); 
 const session = rid().slice(0, 8);
 export const testerName = () => get('poolgolf.testerName') ?? '';
 export const setTesterName = (n: string) => put('poolgolf.testerName', n.trim().slice(0, 40));
+/** Whether finished holes are sent off the device (Settings → Share anonymous play stats). Feedback is always sent: the player chose to. */
+export const sharing = () => get('poolgolf.share') !== '0';
+export const setSharing = (on: boolean) => put('poolgolf.share', on ? '1' : '0');
 
 function device() {
   const ua = navigator.userAgent;
@@ -42,6 +45,7 @@ export function track(rec: HoleRecord | FeedbackRecord) {
   const local = readLocal(KEY);
   local.push(full);
   put(KEY, JSON.stringify(local.slice(-500)));
+  if (rec.type === 'hole' && !sharing()) return;
   if (PLAYTEST_URL) { const out = readLocal(OUTBOX); out.push(full); put(OUTBOX, JSON.stringify(out.slice(-200))); void flush(); }
   void toArtifact(full);
 }

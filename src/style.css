@@ -529,8 +529,6 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .coins-earned .unlock { padding: 2px 10px; border-radius: 8px; background: rgba(246, 189, 71, 0.18); color: var(--gold-hi); font-weight: 700; font-size: 13px; }
 @media (max-width: 600px) { .gear-balls { grid-template-columns: repeat(4, 1fr); } .gear-cues { grid-template-columns: 1fr; } }
 
-.soon { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; text-align: center; }
-.soon svg { width: 44px; height: 44px; color: var(--gold); }
 
 .settings { display: grid; gap: 6px; text-align: left; }
 /* The pause menu lays its switches out in two columns so Resume stays on screen */
@@ -696,6 +694,9 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .trophy .bar { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
 .trophy .bar i { display: block; height: 100%; background: var(--gold); }
 @media (max-width: 560px) { .trophies { grid-template-columns: repeat(2, 1fr); } }
+
+.about { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; }
+.about a { color: var(--gold-hi); }
 
 /* Main menu: Career leads, then the other ways to play */
 .btn-career { justify-content: flex-start; gap: 12px; padding-left: 18px; text-align: left; }

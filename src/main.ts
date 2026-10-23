@@ -20,9 +20,13 @@ import { sha256 } from './sha256';
 import { tipsFor } from './tips';
 import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
-import { BUILD, flush, loadRecords, PlaytestRecord, setTesterName, summarize, testerName, track } from './telemetry';
+import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
+declare const __VERSION__: string;
+const APP_VERSION = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '';
+/** The game's web home: privacy policy and support pages. */
+const SITE = 'https://cnmbuck1.github.io/poolgolf/';
 /** Aim turn per pixel of sideways drag on the shot camera (radians). */
 const AIM_TURN = 0.004;
 const native = Capacitor.isNativePlatform();
@@ -813,12 +817,16 @@ function openSettings() {
     <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
     <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Camera follows ball</span><em></em></button>
-    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button></div>
-    <button class="btn" id="btn-playtest">Playtest results</button>`);
+    <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button>
+    <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button></div>
+    <button class="btn" id="btn-playtest">Playtest results</button>
+    <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
+      <a href="${SITE}privacy.html" target="_blank" rel="noopener">Privacy policy</a> · <a href="${SITE}support.html" target="_blank" rel="noopener">Support</a></p>`);
   $('btn-playtest').onclick = () => void openPlaytest();
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
+      if (b.dataset.set === 'share') { setSharing(!sharing()); b.setAttribute('aria-pressed', String(sharing())); return; }
       const k = b.dataset.set as 'sound' | 'music' | 'vibrate' | 'guide' | 'follow' | 'top' | 'arrows';
       if (k === 'sound') toggleSound();
       if (k === 'music') toggleMusic();
@@ -1492,10 +1500,6 @@ function stepReplay(dt: number) {
   }
 }
 
-function comingSoon(title: string, icon: string, what: string) {
-  sheet(title, `<div class="soon"><svg><use href="#${icon}"/></svg><p>${what}</p><p><b>Not in this prototype yet.</b></p></div>`);
-}
-
 click('btn-courses', () => openCourses());
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
@@ -1676,8 +1680,6 @@ click('daily-card', () => startDaily());
 click('btn-watch', () => startReplay());
 click('btn-slowmo', () => { if (replay) { replay.slow = !replay.slow; $('btn-slowmo').classList.toggle('on', replay.slow); } });
 click('btn-skip', () => endReplay());
-click('btn-friends', () => comingSoon('Friends', 'i-friends', 'Challenge friends and compare scorecards.'));
-click('btn-shop', () => comingSoon('Shop', 'i-cart', 'Course packs and cosmetics.'));
 click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to draw the cue back (further for more power) and drag <b>sideways</b> to fine-tune your aim (hold near the screen edge to keep turning), then <b>release</b> to shoot. To face another way, <b>swipe sideways</b> before pulling down: one swipe across the screen turns you all the way round. The <b>↻</b> button turns you to face straight behind.</p>
   <p>The dotted guide shows your path through the first two banks. It doesn't bend for slopes: the drifting arrows on the turf show which way the ground falls, so aim a little uphill of your target. Water costs a stroke and puts the ball back. Sand slows it down. A hole ends after 10 strokes.</p>
   <p><b>Spin:</b> drag the red dot on the cue-ball pad (above the power bar) to strike off-centre. Left or right swerves the ball and kicks it off walls; top spin rolls on further, backspin bites and pulls back off a wall. Tap the middle to clear it.</p>
