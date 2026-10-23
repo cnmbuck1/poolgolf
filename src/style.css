@@ -770,3 +770,7 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 }
 #btn-party-go { margin-top: 4px; }
 @media (max-width: 560px) { .pp-rows { grid-template-columns: 1fr; } }
+
+/* Beat my score */
+.verdict { display: block; font-family: var(--display); font-size: 18px; letter-spacing: 0.04em; }
+.verdict.won { color: var(--gold-hi); } .verdict.tie { color: var(--ink); } .verdict.lost { color: #ff9a8a; }

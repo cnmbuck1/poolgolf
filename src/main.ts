@@ -21,6 +21,7 @@ import { tipsFor } from './tips';
 import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
+import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -77,6 +78,8 @@ let match: { opp: Opponent; ai: (number | null)[]; stake: number } | null = null
 /** Pass-and-play: friends sharing this phone take turns on each hole. */
 interface PartyPlayer { name: string; ball: string }
 let party: { players: PartyPlayer[]; cur: number; scores: (number | null)[][] } | null = null;
+/** A friend's "beat my score" challenge being played, from a link. */
+let challenge: Challenge | null = null;
 let turn: 'player' | 'ai' = 'player'; // whose turn it is on the hole, in a match
 let pendingPickedUp = false; // the player picked up on this hole of a match (no record, no hole coins)
 let pendingBanked = false; // the player's sinking shot was a bank shot (paid when the hole result shows)
@@ -588,6 +591,7 @@ function finishHole(score: number, pickedUp = false) {
       + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')}</span>` : '')
     : practice && !pickedUp ? `<small>Beat your best here (${prevBest}) to earn coins in practice</small>` : '';
   // Replay: the whole hole, with a hole in one finishing in slow motion
+  setupShare(score, pickedUp, last);
   const ace = recorder.shots.some((x) => x.ace);
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
   $('btn-watch').innerHTML = `<svg><use href="#i-play"/></svg>${ace ? 'WATCH YOUR HOLE IN ONE IN SLOW MOTION' : `WATCH REPLAY${recorder.shots.length > 1 ? ` · ${recorder.shots.length} SHOTS` : ''}`}`;
@@ -803,6 +807,7 @@ click('btn-quit', toTitle);
 function toTitle() {
   if (demo) { endDemo(); return; } // endDemo comes back here once the demo is cleared
   endParty();
+  challenge = null;
   shootout = null;
   shootoutPending = false;
   cue.visible = false; strike = null; aim.active = false; aim.power = 0; aiShot = null;
@@ -1029,6 +1034,49 @@ function openGear() {
       body.querySelectorAll(`[data-item^="${k[0]}:"]`).forEach((x) => x.classList.toggle('on', x === b));
     };
   });
+}
+
+// ---------- Beat my score ----------
+/** On a finished practice hole or round: the challenge verdict (when playing one) and the share button. */
+function setupShare(score: number, pickedUp: boolean, last: boolean) {
+  const round = !practice && last;
+  const ok = !pickedUp && !daily && !trick && !match && !party && whereIs(world.level) && (practice || round);
+  $('btn-share').classList.toggle('hidden', !ok);
+  if (!ok) return;
+  const total = round ? scores.reduce<number>((a, b) => a + (b ?? 0), 0) : score;
+  const ch = challenge && ((challenge.kind === 'hole' && practice && challenge.course === COURSE.id && challenge.hole === holeIdx)
+    || (challenge.kind === 'round' && round && challenge.course === COURSE.id)) ? challenge : null;
+  let verdict = '';
+  if (ch) {
+    verdict = total < ch.score ? `You beat ${ch.name}'s ${ch.score}!` : total === ch.score ? `Tied with ${ch.name} on ${ch.score}` : `${ch.name}'s ${ch.score} stands. Try again!`;
+    $('hole-detail').innerHTML = `<b class="verdict ${total < ch.score ? 'won' : total === ch.score ? 'tie' : 'lost'}">${esc(verdict)}</b> ${$('hole-detail').innerHTML}`;
+    if (total < ch.score) sfx.cheer(3);
+  }
+  $('btn-share').textContent = ch ? `Send ${ch.name} your score` : 'Challenge a friend';
+  $('btn-share').onclick = async () => {
+    sfx.ui();
+    // The name friends see: asked once, then remembered
+    let name = localGet('name') ?? '';
+    if (!name) {
+      name = (window.prompt('Your name, so your friend knows who to beat:', testerName()) ?? '').trim().slice(0, 20);
+      if (!name) return;
+      localSet('name', name);
+    }
+    const where = round ? `around ${COURSE.name}` : `on ${world.level.name} (${COURSE.name})`;
+    const text = ch && total < ch.score ? `Beat your ${ch.score}, ${ch.name}: I got ${total} ${where} in Rack & Roll. Your turn!`
+      : `I got ${total} ${where} in Rack & Roll. Can you beat it?`;
+    const url = challengeLink({ kind: round ? 'round' : 'hole', course: COURSE.id, hole: holeIdx, score: total, name });
+    const how = await shareChallenge(text, url);
+    if (how === 'copied') { $('btn-share').textContent = 'Link copied: paste it to a friend'; }
+  };
+}
+
+/** Start a friend's challenge from a link: the same hole or round, with their score to beat. */
+function startChallenge(ch: Challenge) {
+  chooseCourse(ch.course);
+  if (ch.kind === 'hole') playSingle(ch.hole); else startRound();
+  challenge = ch;
+  later(() => toast(`Beat ${ch.name}'s ${ch.score}${ch.kind === 'round' ? ' for the round' : ''}!`, 'good', 3200), 1200);
 }
 
 // ---------- Pass and play ----------
@@ -1870,7 +1918,11 @@ if (!native && !installed && !inFrame && touch) {
 
 // ---------- Tester code (web playtest builds) ----------
 /** The web version on a public host asks for the tester code once; the app, claude.ai and local runs don't. */
+/** A challenge link this page was opened with: friends it's sent to can play without a tester code. */
+const incoming = challengeFromUrl(COURSES);
+
 function testerGate() {
+  if (incoming) return;
   const local = /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname);
   const embedded = (() => { try { return window.top !== window.self; } catch { return true; } })();
   if (!TESTER_CODE_HASH || native || local || embedded) return;
@@ -1909,6 +1961,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
+  <p><b>Challenge a friend</b>: after a practice hole or a full round, tap <b>Challenge a friend</b> to send a link. They play the same hole or course with your score to beat (in the app or a browser), and can send theirs back.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>Stuck on a hole? Tap the <b>💡</b> in the scorecard for tips on what works best there and what to avoid. It pauses the game while you read.</p>
@@ -2219,6 +2272,7 @@ function start(data: unknown) {
     view3d.setMode('title');
     show('screen-title');
   }
+  if (incoming) { clearChallengeUrl(); startChallenge(incoming); }
   requestAnimationFrame(frame);
 }
 if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});
