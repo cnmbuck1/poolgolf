@@ -103,6 +103,14 @@ Players can switch play stats off (Settings → Share anonymous play stats).
 
 ## Screenshots and preview video
 
-Required: iPhone **6.9-inch** screenshots (2868 × 1320 landscape, or 1320 × 2868 portrait). Apple scales
-them for smaller iPhones. Up to 10; the first three matter most. Claude makes these from the game.
-An optional app preview video (15–30 s) can go first.
+Six iPhone **6.9-inch** screenshots (2868 × 1320, landscape) are in `docs/store-screenshots/`, in this order:
+
+1. `1-aim.png`: Mini golf with a pool cue
+2. `2-bank.png`: Bank it off the rails
+3. `3-worlds.png`: Six worlds · 36 holes
+4. `4-space.png`: Rockets, portals and cannons
+5. `5-friends.png`: Play with friends
+6. `6-ace.png`: Stars, trophies and 30 designs
+
+In App Store Connect, open the version page, pick the **6.9" Display** (iPhone) box and drag them in, in that order.
+Apple scales them for smaller iPhones. An app preview video (15–30 s) is optional and can be added later.
