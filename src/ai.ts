@@ -58,8 +58,9 @@ function trial(world: World, sim: World, at: number, x: number, y: number, deg: 
   sim.spinners.forEach((s, i) => (s.angle = world.spinners[i].angle + s.speed * (at - world.time)));
   const a = (deg * Math.PI) / 180, sp = shotSpeed(power);
   sim.shoot(Math.cos(a) * sp, Math.sin(a) * sp);
-  for (let k = 0; k < 240 && sim.moving; k++) {
-    const ev = sim.step(1 / 40);
+  // Same step as the game (main.ts), so a planned sink really sinks
+  for (let k = 0; k < 360 && sim.moving; k++) {
+    const ev = sim.step(1 / 60);
     if (ev.some((e) => e.type === 'sink')) return -600 + power * 10; // prefer the gentler of two sinks
     if (ev.some((e) => e.type === 'water' || e.type === 'oob' || e.type === 'quicksand')) return routeDistance(world, x, y) + 400; // a stroke and back to here
   }

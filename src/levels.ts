@@ -603,7 +603,7 @@ const CIRCUS: LevelDef[] = [
   {
     // A carousel turns in the middle of the ring between two elephants. Find the gap.
     name: 'Carousel',
-    par: 3,
+    par: 4,
     tee: [120, 250],
     cup: [880, 250],
     outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
@@ -616,7 +616,7 @@ const CIRCUS: LevelDef[] = [
     // The finale: a swinging cannon to the raised green, trampolines on the flanks, a clown on patrol
     // and a dunk tank in the middle for anyone rolling the long way.
     name: 'Grand Finale',
-    par: 4,
+    par: 3,
     tee: [100, 250],
     cup: [905, 250],
     outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
@@ -633,7 +633,7 @@ const TOMB: LevelDef[] = [
   {
     // A wall seals the temple floor from side to side. The only way through is the scarab portal.
     name: 'Scarab Gate',
-    par: 3,
+    par: 2,
     tee: [110, 250],
     cup: [880, 250],
     outline: [[40, 170], [180, 70], [820, 70], [960, 170], [960, 330], [820, 430], [180, 430], [40, 330]],
@@ -645,7 +645,7 @@ const TOMB: LevelDef[] = [
   {
     // An S-bend between two temple walls, with quicksand narrowing each gap. Stop in it and it swallows the ball.
     name: 'Quicksand Flats',
-    par: 4,
+    par: 5,
     tee: [100, 400],
     cup: [880, 110],
     outline: [[40, 60], [960, 60], [960, 460], [40, 460]],
@@ -703,7 +703,7 @@ const TOMB: LevelDef[] = [
     // stairs or roll into the scarab portal, which transports the ball up onto the far end of the dais. A second door
     // guards the cup, with quicksand either side and a mummy on patrol.
     name: "Pharaoh's Chamber",
-    par: 4,
+    par: 3,
     tee: [100, 250],
     cup: [905, 250],
     outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
@@ -799,7 +799,7 @@ const ARCTIC: LevelDef[] = [
     // The finale under the northern lights: an ice wall sealed by an igloo. Go through the tunnel or
     // fly the wall off the ski jump, then hold the slippery raised green.
     name: 'Northern Lights',
-    par: 4,
+    par: 3,
     tee: [100, 250],
     cup: [905, 250],
     outline: [[40, 150], [160, 50], [840, 50], [960, 150], [960, 350], [840, 450], [160, 450], [40, 350]],
@@ -881,7 +881,7 @@ const CANDY: LevelDef[] = [
       { pts: [[380, 140], [620, 140], [620, 360], [380, 360]], h: 36, open: [1, 3] },
       { pts: [[290, 195], [380, 195], [380, 305], [290, 305]], h: 36, move: { period: 5 } },
     ],
-    gingerbread: [{ a: [500, 52], b: [500, 128], speed: 30 }, { a: [520, 448], b: [520, 372], speed: 34, phase: 0.5 }],
+    gingerbread: [{ a: [500, 52], b: [500, 98], speed: 30 }, { a: [520, 448], b: [520, 402], speed: 34, phase: 0.5 }],
     spinners: [{ x: 760, y: 250, len: 50, speed: 0.7, style: 'turnstile', arms: 1 }],
     bumpers: [gumdrop(200, 120, 2), gumdrop(200, 380, 5)],
     sand: [blob(880, 130, 50, 30, 6, 0.2)],

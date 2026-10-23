@@ -1453,7 +1453,11 @@ function shootoutSpot(L: LevelDef): [number, number] {
   for (const r of [300, 260, 340, 220]) for (let a = 0; a < Math.PI * 2; a += Math.PI / 18) {
     const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
     let open = true;
-    for (let d = 30; d <= r && open; d += 10) open = Number.isFinite(routeDistance(w, cx + Math.cos(a) * d, cy + Math.sin(a) * d));
+    for (let d = 30; d <= r && open; d += 10) {
+      const px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d;
+      // Routes may cross quicksand now, but the shootout line should be clear of it
+      open = Number.isFinite(routeDistance(w, px, py)) && !(L.quicksand ?? []).some((z) => inZone(z, px, py));
+    }
     if (!open || (L.sand ?? []).some((z) => inZone(z, x, y)) || (L.quicksand ?? []).some((z) => inZone(z, x, y))) continue;
     // Prefer a line that faces the cup the way the hole is played, and the nearer radius
     const score = Math.abs(Math.atan2(Math.sin(a - toTee), Math.cos(a - toTee))) + Math.abs(r - 300) / 200;
@@ -1993,6 +1997,9 @@ syncSettingsUi();
 
 // ---------- Loop ----------
 let prev = performance.now();
+/** Length of one game step (s), and the time not yet stepped. */
+const STEP = 1 / 60;
+let stepAcc = 0;
 function frame(now: number) {
   const dt = Math.min(1 / 30, (now - prev) / 1000);
   prev = now;
@@ -2000,12 +2007,16 @@ function frame(now: number) {
   time += dt;
 
   if (demo) updateDemo(dt);
-  if (phase === 'play' || phase === 'title') tick(dt);
-  if (phase === 'play' && match && turn === 'ai') {
-    stepAi();
+  // The game runs in fixed steps whatever the screen's refresh rate (60 or 120 Hz), so a shot plays out
+  // the same on every phone: challenges and the daily are fair, and the computer's planned shots land
+  stepAcc = Math.min(stepAcc + dt, 4 * STEP);
+  while (stepAcc >= STEP) {
+    stepAcc -= STEP;
+    if (phase === 'play' || phase === 'title') tick(STEP);
     // FAST plays the computer's turn at triple speed
-    if (fastAi) for (let k = 0; k < 2 && phase === 'play' && turn === 'ai'; k++) { tick(dt); stepAi(); }
+    if (phase === 'play' && match && turn === 'ai' && fastAi) for (let k = 0; k < 2 && phase === 'play' && turn === 'ai'; k++) { tick(STEP); stepAi(); }
   }
+  if (phase === 'play' && match && turn === 'ai') stepAi();
   if (phase === 'replay' && replay) stepReplay(dt);
   if (phase === 'play') edgeTurn(dt);
   updateCue(phase === 'play' ? dt : 0);

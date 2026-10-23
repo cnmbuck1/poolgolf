@@ -546,7 +546,12 @@ export class World {
   private ledgeSolid(s: Seg, x: number, y: number, bh: number) {
     const reach = BALL_R + s.r;
     if (x < Math.min(s.ax, s.bx) - reach || x > Math.max(s.ax, s.bx) + reach || y < Math.min(s.ay, s.by) - reach || y > Math.max(s.ay, s.by) + reach) return false;
-    const p = closestOnSeg(s, x, y), o = LEDGE_R + 2;
+    const q = closestOnSeg(s, x, y), o = LEDGE_R + 2;
+    // Sample the step a little way in from the segment's ends: at a corner the closest point is the vertex,
+    // which sits on the neighbouring edge's line, where inPoly can't tell inside from outside.
+    const sl = Math.hypot(s.bx - s.ax, s.by - s.ay) || 1, ux = (s.bx - s.ax) / sl, uy = (s.by - s.ay) / sl;
+    const along = Math.max(Math.min(o, sl / 2), Math.min(sl - Math.min(o, sl / 2), (q.x - s.ax) * ux + (q.y - s.ay) * uy));
+    const p = { x: s.ax + ux * along, y: s.ay + uy * along };
     const hIn = heightNow(this.level, p.x - s.nx! * o, p.y - s.ny! * o, this.time), hOut = heightNow(this.level, p.x + s.nx! * o, p.y + s.ny! * o, this.time);
     if (Math.abs(hIn - hOut) < STEP_H) return false;
     return !(s.open && bh >= (hIn + hOut) / 2);
@@ -804,7 +809,6 @@ function routeField(world: World) {
     || (L.elephants ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + (b.r ?? ELEPHANT_R))
     || (L.pillars ?? []).some((b) => Math.hypot(x - b.x, y - b.y) < BALL_R + b.r)
     || (L.igloos ?? []).some((ig) => Math.hypot(x - (ig.a[0] + ig.b[0]) / 2, y - (ig.a[1] + ig.b[1]) / 2) < BALL_R + iglooDome(ig))
-    || (L.quicksand ?? []).some((z) => inZone(z, x, y))
     || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
     || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
     || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));
@@ -827,6 +831,18 @@ function routeField(world: World) {
     const a = c.path[0], b = c.path[c.path.length - 1], e = cell(b[0], b[1]);
     rides.set(e, [...(rides.get(e) ?? []), { from: cell(a[0], a[1]), cost: G }]);
   }
+  // Portals, igloo tunnels, seals, ramps and fixed cannons carry the ball from their mouth to where it comes out
+  const hop = (ax: number, ay: number, bx: number, by: number, cost = G) => {
+    const e = cell(bx, by);
+    rides.set(e, [...(rides.get(e) ?? []), { from: cell(ax, ay), cost }]);
+  };
+  for (const p of L.portals ?? []) { const a = ((p.exit ?? 0) * Math.PI) / 180; hop(p.a[0], p.a[1], p.b[0] + Math.cos(a) * (PORTAL_R + 2 + G), p.b[1] + Math.sin(a) * (PORTAL_R + 2 + G)); }
+  for (const ig of L.igloos ?? []) { const a = Math.atan2(ig.b[1] - ig.a[1], ig.b[0] - ig.a[0]); hop(ig.a[0], ig.a[1], ig.b[0] + Math.cos(a) * (IGLOO_DOOR + 4 + G), ig.b[1] + Math.sin(a) * (IGLOO_DOOR + 4 + G)); }
+  for (const sl of L.seals ?? []) { const a = (sl.angle * Math.PI) / 180; hop(sl.x, sl.y, sl.x + Math.cos(a) * (26 + sl.dist), sl.y + Math.sin(a) * (26 + sl.dist)); }
+  for (const rp of L.ramps ?? []) { const a = (rp.angle * Math.PI) / 180, l = (rp.len ?? RAMP_LEN) / 2; hop(rp.x, rp.y, rp.x + Math.cos(a) * (l + 250), rp.y + Math.sin(a) * (l + 250), 4 * G); }
+  for (const c of L.cannons ?? []) if (!c.sweep) { const a = ((c.angle ?? 0) * Math.PI) / 180; hop(c.x, c.y, c.x + Math.cos(a) * (34 + c.dist), c.y + Math.sin(a) * (34 + c.dist)); }
+  // Quicksand only swallows a ball that stops in it: rolling across is allowed, at a price
+  const sink = (x: number, y: number) => ((L.quicksand ?? []).some((z) => inZone(z, x, y)) ? 2 * G : 0);
   const heap = new MinHeap();
   d[start] = 0; heap.push(start, 0);
   while (heap.size) {
@@ -839,7 +855,7 @@ function routeField(world: World) {
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const n = nx + ny * W;
       if (d[n] <= dc + G || (tierH[c] > tierH[n] + 0.5 && !moving[n] && !moving[c]) || blocked(nx * G + G / 2 - O, ny * G + G / 2 - O)) continue;
-      relax(n, dc + G);
+      relax(n, dc + G + sink(nx * G + G / 2 - O, ny * G + G / 2 - O));
     }
     for (const r of rides.get(c) ?? []) relax(r.from, dc + r.cost);
   }
