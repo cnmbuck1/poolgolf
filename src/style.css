@@ -755,3 +755,18 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .panel.intro b { color: var(--gold-hi); }
 .panel.intro .btn-gold { width: auto; padding-left: 28px; padding-right: 22px; }
 @media (max-height: 400px) { .intro-icon { font-size: 32px; } .panel.intro ul { font-size: 14px; gap: 4px; } }
+
+/* Pass and play setup */
+.pp-count { display: flex; align-items: center; gap: 8px; }
+.pp-count span { font-family: var(--display); font-weight: 800; letter-spacing: 0.1em; color: var(--muted); margin-right: 4px; }
+.pp-count .tab { width: 44px; flex: none; }
+.pp-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pp-row { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 12px; border: 1px solid var(--edge); background: rgba(255, 255, 255, 0.04); }
+.pp-ball { flex: none; width: 44px; height: 44px; border-radius: 50%; padding: 0; }
+.pp-ball img { width: 44px; height: 44px; display: block; }
+.pp-name {
+  flex: 1; min-width: 0; height: 40px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--edge);
+  background: rgba(0, 0, 0, 0.25); color: var(--ink); font: 700 17px var(--display); letter-spacing: 0.04em;
+}
+#btn-party-go { margin-top: 4px; }
+@media (max-width: 560px) { .pp-rows { grid-template-columns: 1fr; } }

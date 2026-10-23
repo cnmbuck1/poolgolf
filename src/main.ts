@@ -38,6 +38,7 @@ const native = Capacitor.isNativePlatform();
 const canVibrate = native || ('vibrate' in navigator && (() => { try { return window.top === window.self || window.top!.location.origin === location.origin; } catch { return false; } })());
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
 const canvas = $<HTMLCanvasElement>('game');
 const view3d = new Renderer3D(canvas);
 
@@ -72,6 +73,9 @@ let attempts = 0; // tries at the current trick shot
 let daily: Daily | null = null; // today's daily challenge, while it's being played
 /** A match against a computer opponent: both players' scores per hole. */
 let match: { opp: Opponent; ai: (number | null)[]; stake: number } | null = null;
+/** Pass-and-play: friends sharing this phone take turns on each hole. */
+interface PartyPlayer { name: string; ball: string }
+let party: { players: PartyPlayer[]; cur: number; scores: (number | null)[][] } | null = null;
 let turn: 'player' | 'ai' = 'player'; // whose turn it is on the hole, in a match
 let pendingBanked = false; // the player's sinking shot was a bank shot (paid when the hole result shows)
 /** The computer's current shot: planning, then lining up until `fireAt` (world time). */
@@ -287,7 +291,7 @@ function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
 }
 
 function banner() {
-  $('banner-hole').innerHTML = daily ? 'DAILY CHALLENGE' : trick ? 'TRICK SHOT' : `HOLE <b>${holeIdx + 1}</b>`;
+  $('banner-hole').innerHTML = daily ? 'DAILY CHALLENGE' : trick ? 'TRICK SHOT' : party ? `HOLE <b>${holeIdx + 1}</b> · ${esc(party.players[party.cur].name.toUpperCase())}'S TURN` : `HOLE <b>${holeIdx + 1}</b>`;
   $('banner-name').textContent = world.level.name;
   $('banner-par').textContent = `Par ${world.level.par}`;
   fitTopSlot();
@@ -364,6 +368,7 @@ function loadHole(i: number) {
 
 /** Start a trick shot in its own little arena. */
 function loadTrick(t: Trick) {
+  endParty();
   trick = t;
   match = null;
   practice = false;
@@ -404,6 +409,7 @@ function enterLevel(L: LevelDef) {
 }
 
 function startRound(ev: CareerEvent | null = null) {
+  endParty();
   practice = false;
   careerEvent = ev;
   daily = null;
@@ -414,6 +420,7 @@ function startRound(ev: CareerEvent | null = null) {
 }
 
 function playSingle(i: number) {
+  endParty();
   practice = true;
   careerEvent = null;
   daily = null;
@@ -432,6 +439,7 @@ function whereIs(L: LevelDef) {
 function holeOut(score: number, pickedUp = false) {
   if (demo) { demo.sunkAt ??= demo.t; return; } // the demo's shot: no score, no stats
   const at = whereIs(world.level);
+  if (party) { partyHoleOut(score, pickedUp); return; }
   if (at && !shootout && !(match && turn === 'ai')) {
     const mode = daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round';
     track({ type: 'hole', ...at, name: world.level.name, par: world.level.par, strokes: score, mode, seconds: Math.round((performance.now() - holeStartedAt) / 1000), pickedUp });
@@ -446,7 +454,7 @@ function holeOut(score: number, pickedUp = false) {
 /** The golden 8-ball still hidden on this hole, if any (never in the demo or trick shots). */
 let eight: { course: string; hole: string; x: number; y: number } | null = null;
 function placeEight(L: LevelDef) {
-  const at = demo ? null : whereIs(L);
+  const at = demo || party ? null : whereIs(L);
   const p = at && !P.eightFound(at.course, L.name) ? P.eightAt(at.course, L.name) : null;
   eight = at && p ? { course: at.course, hole: L.name, x: p[0], y: p[1] } : null;
   view3d.setEight(eight?.x ?? null, eight?.y);
@@ -781,6 +789,7 @@ click('btn-replay', () => { if (match || (!practice && !trick)) return; if (tric
 click('btn-quit', toTitle);
 
 function toTitle() {
+  endParty();
   phase = 'title';
   endAiTurnUi();
   practice = false;
@@ -913,7 +922,6 @@ async function openPlaytest() {
   if ($('sheet-title').textContent !== 'Playtest') return; // closed meanwhile
   const { holes, testers } = summarize(records);
   const name = (id: string) => COURSES.find((c) => c.id === id)?.name ?? id;
-  const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
   const rows = holes.sort((a, b) => b.diff - a.diff).map((h) =>
     `<tr><td>${esc(name(h.course))} ${h.hole}</td><td>${esc(h.name)}</td><td class="num">${h.n}</td><td class="num">${h.par}</td><td class="num">${h.avg.toFixed(1)}</td><td class="num ${h.diff > 0.75 ? 'hard' : h.diff < -0.5 ? 'easy' : ''}">${h.diff >= 0 ? '+' : ''}${h.diff.toFixed(1)}</td></tr>`).join('');
   const fb = records.filter((r): r is PlaytestRecord & { type: 'feedback' } => r.type === 'feedback').sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 40);
@@ -1002,6 +1010,133 @@ function openGear() {
       body.querySelectorAll(`[data-item^="${k[0]}:"]`).forEach((x) => x.classList.toggle('on', x === b));
     };
   });
+}
+
+// ---------- Pass and play ----------
+/** Balls friends can pick from in pass-and-play (any design, owned or not: it's their ball for the game). */
+const PARTY_BALLS = ['cue', 'eight', 'beach', 'watermelon', 'tennis', 'basketball', 'smiley', 'tiedye'];
+
+/** Set up a pass-and-play game: 2–4 players with names and balls, and a course. */
+function openParty() {
+  const saved: PartyPlayer[] = (() => { try { return JSON.parse(localGet('party.players') ?? '[]'); } catch { return []; } })();
+  const players: PartyPlayer[] = [0, 1, 2, 3].map((i) => ({ name: saved[i]?.name ?? `Player ${i + 1}`, ball: saved[i]?.ball ?? PARTY_BALLS[i] }));
+  let count = Math.min(4, Math.max(2, Number(localGet('party.count') ?? 2)));
+  let courseId = localGet('party.course') ?? COURSE.id;
+  const draw = () => {
+    const rows = players.slice(0, count).map((p, i) => `<div class="pp-row">
+        <button class="pp-ball" data-ball="${i}" aria-label="Change ${esc(p.name)}'s ball"><img alt="" src="${preview(`b:${p.ball}`, () => ballPreview(p.ball))}"></button>
+        <input class="pp-name" data-name="${i}" maxlength="14" value="${esc(p.name)}" aria-label="Player ${i + 1} name"></div>`).join('');
+    const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-pcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
+    sheet('Play with friends', `<p>Pass the phone: everyone plays each hole in turn, and the lowest total wins. Tap a ball to change it.</p>
+      <div class="pp-count"><span>Players</span>${[2, 3, 4].map((n) => `<button class="tab${n === count ? ' on' : ''}" data-count="${n}">${n}</button>`).join('')}</div>
+      <div class="pp-rows">${rows}</div><div class="tabs">${chips}</div>
+      <button class="btn-gold" id="btn-party-go">TEE OFF<svg><use href="#i-chev"/></svg></button>`);
+    const body = $('sheet-body');
+    body.querySelectorAll<HTMLInputElement>('[data-name]').forEach((inp) => { inp.oninput = () => { players[Number(inp.dataset.name)].name = inp.value; }; });
+    body.querySelectorAll<HTMLButtonElement>('[data-ball]').forEach((b) => {
+      b.onclick = () => {
+        sfx.ui();
+        const p = players[Number(b.dataset.ball)];
+        const taken = new Set(players.slice(0, count).filter((q) => q !== p).map((q) => q.ball));
+        let k = PARTY_BALLS.indexOf(p.ball);
+        do k = (k + 1) % PARTY_BALLS.length; while (taken.has(PARTY_BALLS[k]));
+        p.ball = PARTY_BALLS[k];
+        b.querySelector('img')!.src = preview(`b:${p.ball}`, () => ballPreview(p.ball));
+      };
+    });
+    body.querySelectorAll<HTMLButtonElement>('[data-count]').forEach((b) => { b.onclick = () => { sfx.ui(); count = Number(b.dataset.count); draw(); }; });
+    body.querySelectorAll<HTMLButtonElement>('[data-pcourse]').forEach((b) => { b.onclick = () => { sfx.ui(); courseId = b.dataset.pcourse!; draw(); }; });
+    $('btn-party-go').onclick = () => {
+      sfx.ui();
+      const list = players.slice(0, count).map((p, i) => ({ name: p.name.trim() || `Player ${i + 1}`, ball: p.ball }));
+      localSet('party.players', JSON.stringify(players));
+      localSet('party.count', String(count));
+      localSet('party.course', courseId);
+      startParty(list, courseId);
+    };
+  };
+  draw();
+}
+
+function startParty(players: PartyPlayer[], courseId: string) {
+  chooseCourse(courseId);
+  practice = false; careerEvent = null; daily = null; match = null; trick = null;
+  party = { players, cur: 0, scores: players.map(() => LEVELS.map(() => null)) };
+  scores = party.scores[0];
+  loadHole(0);
+  partyTurn();
+}
+
+/** The current player is up: their ball, their scorecard on the HUD, and a call to pass the phone. */
+function partyTurn() {
+  const pt = party!, p = pt.players[pt.cur];
+  scores = pt.scores[pt.cur];
+  view3d.setBall(p.ball);
+  banner();
+  updateHud();
+  toast(`${p.name}, you're up!`, 'good', 2000);
+}
+
+/** A player has finished the hole: the next player tees off, or everyone has and the hole's result shows. */
+function partyHoleOut(score: number, pickedUp: boolean) {
+  const pt = party!;
+  pt.scores[pt.cur][holeIdx] = score;
+  if (pickedUp) toast(`${pt.players[pt.cur].name} picks up`, 'bad', 1500);
+  if (pt.cur < pt.players.length - 1) {
+    pt.cur++;
+    enterLevel(LEVELS[holeIdx]);
+    partyTurn();
+    return;
+  }
+  phase = 'holeDone';
+  setRolling(0, false);
+  const last = holeIdx === LEVELS.length - 1;
+  const total = (i: number) => pt.scores[i].reduce<number>((a, b) => a + (b ?? 0), 0);
+  const hole = pt.players.map((_, i) => pt.scores[i][holeIdx]!);
+  const low = Math.min(...hole), winners = pt.players.filter((_, i) => hole[i] === low);
+  const best = Math.min(...pt.players.map((_, i) => total(i))), leaders = pt.players.filter((_, i) => total(i) === best);
+  const names = (list: PartyPlayer[]) => list.map((p) => esc(p.name)).join(' & ');
+  const h = $('hole-result');
+  if (last) {
+    $('hole-kicker').textContent = `${COURSE.name.toUpperCase()} · FINAL`;
+    h.innerHTML = leaders.length === 1 ? `${names(leaders)} wins!` : `${names(leaders)} tie!`;
+    h.className = 'ace';
+    $('hole-detail').textContent = `Lowest total: ${best}`;
+    sfx.cheer(3);
+  } else {
+    $('hole-kicker').textContent = `HOLE ${holeIdx + 1} · ${world.level.name.toUpperCase()}`;
+    h.innerHTML = winners.length === 1 ? `${names(winners)} takes the hole` : winners.length === pt.players.length ? 'Hole halved' : `${names(winners)} share the hole`;
+    h.className = 'under';
+    $('hole-detail').innerHTML = leaders.length === 1 ? `${names(leaders)} leads on ${best}` : `${names(leaders)} lead on ${best}`;
+    sfx.result(-1, low === 1);
+  }
+  $('hole-coins').innerHTML = '';
+  const head = LEVELS.map((_, i) => `<td class="${i === holeIdx ? 'cur' : ''}">${i + 1}</td>`).join('');
+  const rows = pt.players.map((p, pi) => `<tr><th>${esc(p.name.slice(0, 8).toUpperCase())}</th>${LEVELS.map((l, i) => {
+    const s = pt.scores[pi][i];
+    return `<td class="${s == null ? '' : s < l.par ? 'under' : s > l.par ? 'over' : ''}">${s ?? '–'}</td>`;
+  }).join('')}<td class="total">${total(pi)}</td></tr>`).join('');
+  $('hole-card').innerHTML = `<table class="card"><tr><th>HOLE</th>${head}<th>TOT</th></tr>
+    <tr><th>PAR</th>${LEVELS.map((l) => `<td>${l.par}</td>`).join('')}<td>${LEVELS.reduce((a, l) => a + l.par, 0)}</td></tr>${rows}</table>`;
+  $('btn-replay').classList.add('hidden');
+  $('btn-watch').classList.add('hidden');
+  setLabel('btn-next', last ? 'MENU' : 'NEXT HOLE');
+  show('screen-hole');
+}
+
+function partyNext() {
+  const pt = party!;
+  if (holeIdx === LEVELS.length - 1) { toTitle(); return; }
+  pt.cur = 0;
+  loadHole(holeIdx + 1);
+  partyTurn();
+}
+
+/** Leave pass-and-play: back to this phone's own ball. */
+function endParty() {
+  if (!party) return;
+  party = null;
+  view3d.setBall(localGet('ball') ?? 'cue');
 }
 
 // ---------- Spin pad ----------
@@ -1560,6 +1695,7 @@ function stepReplay(dt: number) {
 }
 
 click('btn-courses', () => openCourses());
+click('btn-party', openParty);
 click('btn-coach-skip', () => { setCoachStep(COACH_STEPS.length); updateCoach(); });
 click('btn-intro-ok', () => { sfx.ui(); $('screen-intro').classList.add('hidden'); });
 click('btn-settings', openSettings);
@@ -1752,12 +1888,14 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
+  <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>Stuck on a hole? Tap the <b>💡</b> in the scorecard for tips on what works best there and what to avoid. It pauses the game while you read.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', toggleMute);
 click('btn-next', () => {
+  if (party) { partyNext(); return; }
   if (match) {
     if (shootoutPending) { startShootout(); return; }
     if (holeIdx === LEVELS.length - 1) { match = null; toTitle(); openVersus(); } else loadHole(holeIdx + 1);
