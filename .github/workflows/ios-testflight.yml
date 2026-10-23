@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   testflight:
-    runs-on: macos-26
+    # macos-15 machines are the most available and carry the Xcode 26 releases (picked below)
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -48,9 +49,13 @@ jobs:
 
       - name: Use the newest Xcode
         run: |
-          XC=$(ls -d /Applications/Xcode*.app | grep -v beta | sort -V | tail -1)
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode_*.app | grep -iv beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
+          # App Store uploads need the iOS 26 SDK
+          major=$(xcodebuild -version | head -1 | sed 's/Xcode \([0-9]*\).*/\1/')
+          if [ "$major" -lt 26 ]; then echo "::error::Xcode $major is too old for App Store uploads; change runs-on to a newer macOS image."; exit 1; fi
 
       - name: Build the game
         run: |
