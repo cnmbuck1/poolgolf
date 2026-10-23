@@ -230,6 +230,10 @@ function closeTips() {
 
 function updateHud() {
   $('btn-tips').classList.toggle('hidden', !currentTips());
+  // Starting a hole over is for practice and trick shots; in a round, career event or match it would be a free mulligan
+  const canRestart = practice || !!trick;
+  $('btn-restart').classList.toggle('hidden', !canRestart);
+  $('btn-pause-restart').classList.toggle('hidden', !canRestart);
   $('hud-hole').textContent = trick ? '★' : String(holeIdx + 1);
   $('hud-par').textContent = String(world.level.par);
   $('hud-strokes').textContent = String(trick ? attempts : strokes);
@@ -455,6 +459,7 @@ const starsHtml = (n: number | null) => (n == null ? '' : `<span class="hole-sta
 function finishHole(score: number, pickedUp = false) {
   scores[holeIdx] = score;
   phase = 'holeDone';
+  const prevBest = localGet(ck(`hole${holeIdx}`));
   if (!pickedUp) recordHole(holeIdx, score);
   setRolling(0, false);
   const last = holeIdx === LEVELS.length - 1;
@@ -467,7 +472,8 @@ function finishHole(score: number, pickedUp = false) {
   $('hole-card').innerHTML = scorecardHtml();
   setLabel('btn-next', daily ? 'MENU' : practice ? 'COURSES' : last && careerEvent ? 'CAREER' : last ? 'PLAY AGAIN' : 'NEXT HOLE');
   $('btn-replay').textContent = daily ? 'Try again' : 'Replay hole';
-  $('btn-replay').classList.remove('hidden');
+  $('btn-replay').classList.toggle('hidden', !practice); // a round's holes count once
+
   if (!pickedUp) sfx.result(score - par, score === 1);
   if (last && !practice) {
     localSet('rounds', String(stat('rounds') + 1));
@@ -481,7 +487,9 @@ function finishHole(score: number, pickedUp = false) {
     if (total < best) { localSet(ck('best'), String(total)); $('hole-detail').textContent += ' · New best round!'; }
   }
   // Coins: per hole, a round bonus, and designs unlocked by achievements
-  const lines = pickedUp ? [] : holeReward(score, par, sinkBanked);
+  // Practice (and daily retries) pay hole coins only for a new best on that hole, so one easy hole can't be farmed
+  const paysHole = !pickedUp && (!practice || prevBest == null || score < Number(prevBest));
+  const lines = paysHole ? holeReward(score, par, sinkBanked) : [];
   const unlocked: string[] = [];
   if (!pickedUp && score === 1) unlocked.push(earn('ace') ?? '');
   if (last && !practice) {
@@ -523,7 +531,7 @@ function finishHole(score: number, pickedUp = false) {
   $('hole-coins').innerHTML = earned
     ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
       + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')}</span>` : '')
-    : '';
+    : practice && !pickedUp ? `<small>Beat your best here (${prevBest}) to earn coins in practice</small>` : '';
   // Replay: the whole hole, with a hole in one finishing in slow motion
   const ace = recorder.shots.some((x) => x.ace);
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
@@ -730,9 +738,9 @@ function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArr
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
 click('btn-view', toggleView);
 click('btn-turn', () => { if (canAim() && !view3d.isOverview) view3d.turnAround(); });
-click('btn-restart', () => { if (phase === 'play') { if (trick) loadTrick(trick); else loadHole(holeIdx); } });
-click('btn-pause-restart', () => { if (trick) loadTrick(trick); else loadHole(holeIdx); });
-click('btn-replay', () => { if (match) return; if (trick) { loadTrick(trick); return; } scores[holeIdx] = null; loadHole(holeIdx); });
+click('btn-restart', () => { if (phase === 'play' && (practice || trick)) { if (trick) loadTrick(trick); else loadHole(holeIdx); } });
+click('btn-pause-restart', () => { if (!practice && !trick) return; if (trick) loadTrick(trick); else loadHole(holeIdx); });
+click('btn-replay', () => { if (match || (!practice && !trick)) return; if (trick) { loadTrick(trick); return; } scores[holeIdx] = null; loadHole(holeIdx); });
 click('btn-quit', toTitle);
 
 function toTitle() {
@@ -800,7 +808,7 @@ function openCourseHoles(id: string) {
   }).join('');
   sheet(c.name, `<div class="course-head"><div><button class="back-link" id="btn-courses-back">‹ All courses</button><small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''} · ★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></div>
       <button class="btn-gold small" id="btn-course-round">PLAY ROUND</button></div>
-    <p>Tap a hole to practise it. Earn up to three stars a hole (par, birdie, hole in one) and hunt for the golden 8-ball hidden on each.</p><div class="courses">${cards}</div>`);
+    <p>Tap a hole to practise it (practice pays coins when you beat your best on that hole). Earn up to three stars a hole (par, birdie, hole in one) and hunt for the golden 8-ball hidden on each.</p><div class="courses">${cards}</div>`);
   const body = $('sheet-body');
   body.querySelectorAll<HTMLButtonElement>('[data-hole]').forEach((b) => {
     b.onclick = () => { sfx.ui(); chooseCourse(c.id); playSingle(Number(b.dataset.hole)); };
