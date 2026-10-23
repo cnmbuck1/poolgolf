@@ -134,6 +134,7 @@ export class World {
       });
     });
     const outline = fairwayOutline(level);
+    this.bounds = { kind: 'poly', pts: outline };
     outline.forEach(([ax, ay], i) => {
       const [bx, by] = outline[(i + 1) % outline.length];
       this.segs.push({ ax, ay, bx, by, r: EDGE_R, kind: 'rail' });
@@ -154,6 +155,8 @@ export class World {
 
   /** Seconds the ball has spent crawling along almost stopped (see the rest check in step). */
   private crawl = 0;
+  /** The fairway's edge, for the out-of-bounds safety net. */
+  private bounds: Zone = { kind: 'poly', pts: [] };
 
   shoot(vx: number, vy: number, spin: Spin = { side: 0, vert: 0 }) {
     this.crawl = 0;
@@ -202,7 +205,7 @@ export class World {
         this.air = null;
         b.vx = a.vx; b.vy = a.vy;
         this.launchCool = 0.3;
-        if (!inZone({ kind: 'poly', pts: fairwayOutline(this.level) }, b.x, b.y)) {
+        if (!inZone(this.bounds, b.x, b.y)) {
           events.push({ type: 'oob' });
           this.moving = false;
           b.vx = b.vy = 0;
@@ -355,6 +358,15 @@ export class World {
       this.collideMovers(events);
       this.collideSpinners(events, h);
 
+      // Safety net: a ball that has got past the edge of the course on the ground (squeezed through a rail
+      // at a corner, say) is out of bounds, so it goes back rather than being left stranded off the course
+      if (!inZone(this.bounds, b.x, b.y)) {
+        events.push({ type: 'oob' });
+        this.moving = false;
+        b.vx = b.vy = 0;
+        return events;
+      }
+
       // Stop when slow, unless the slope is steep enough to beat the surface's friction and keep it
       // rolling (sand grips much harder, so a ball resting on a bunker's dished edge stays put).
       // As a safety net, a ball that has crawled along barely moving for a while also comes to rest.
@@ -430,7 +442,7 @@ export class World {
     const b = this.ball;
     for (const [list, ladder] of [[this.level.chutes, false], [this.level.ladders, true]] as const) {
       for (const c of list ?? []) {
-        if (Math.hypot(b.x - c.path[0][0], b.y - c.path[0][1]) > CHUTE_CATCH) continue;
+        if (Math.hypot(b.x - c.path[0][0], b.y - c.path[0][1]) > RIDE_CATCH) continue;
         const track = chuteTrack(this.level, c, ladder);
         this.ride = { track, s: 0, speed: ladder ? LADDER_SPEED : Math.max(CHUTE_START, Math.hypot(b.vx, b.vy) * 0.7), ladder };
         this.spin = { side: 0, vert: 0 };
@@ -577,8 +589,10 @@ export class World {
     const [cx, cy] = this.level.cup;
     while (travelled < maxLen) {
       const nx = x + dx * step, ny = y + dy * step;
-      const hit = this.staticNormal(nx, ny);
-      if (hit) {
+      // Ledges are judged from the height the ball is rolling at now (so rolling off an open edge isn't a
+      // wall), and anything the guide is already moving away from doesn't bounce it back
+      const hit = this.staticNormal(nx, ny, heightNow(this.level, x, y, this.time));
+      if (hit && dx * hit.x + dy * hit.y < 0) {
         pts.push({ x, y });
         if (bounces++ >= maxBounces) return { pts, contacts: bounces, cup: false };
         const dot = dx * hit.x + dy * hit.y;
@@ -596,9 +610,9 @@ export class World {
     return { pts, contacts: bounces, cup: false };
   }
 
-  private staticNormal(x: number, y: number): { x: number; y: number; e: number } | null {
+  private staticNormal(x: number, y: number, bh = heightNow(this.level, x, y, this.time)): { x: number; y: number; e: number } | null {
     for (const s of this.segs) {
-      if (s.kind === 'ledge' && !this.ledgeSolid(s, x, y, heightNow(this.level, x, y, this.time))) continue;
+      if (s.kind === 'ledge' && !this.ledgeSolid(s, x, y, bh)) continue;
       const reach = BALL_R + s.r;
       if (x < Math.min(s.ax, s.bx) - reach || x > Math.max(s.ax, s.bx) + reach || y < Math.min(s.ay, s.by) - reach || y > Math.max(s.ay, s.by) + reach) continue;
       const p = closestOnSeg(s, x, y);
@@ -1172,6 +1186,8 @@ const STEP_H = 6;
 /** A ball creeping over an open edge tips off at least this fast, so it clears the face. */
 const DROP_MIN_SPEED = 90;
 export const CHUTE_CATCH = 24;
+/** A ball is taken by a chute or ladder once it's mostly over the mouth (its centre within the drawn swirl and rim). */
+const RIDE_CATCH = CHUTE_CATCH + BALL_R * 0.75;
 export const LIFT_CATCH = 22;
 const CHUTE_START = 160, CHUTE_G = 900, CHUTE_MAX = 620, CHUTE_EXIT = 180;
 export const LADDER_SPEED = 130, LADDER_EXIT = 150, LADDER_RUNG = 14;
