@@ -12,7 +12,7 @@ import { HoleRecorder, sampleShot, Shot } from './replay';
 import { execute, hasMovers, Opponent, OPPONENTS, Planner } from './ai';
 import { bestToday, Daily, dailyCourse, dailyFor, dailyName, dateLabel, isDoneToday, recordDaily, streak, today, untilTomorrow } from './daily';
 import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
-import { ACHIEVEMENTS, addCoins, buy, coins, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward } from './wallet';
+import { ACHIEVEMENTS, addCoins, buy, coins, dailyTopUp, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward, TOP_UP } from './wallet';
 import { setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
 import { playMusic } from './music';
 import { PLAYTEST_URL, TESTER_CODE_HASH } from './playtest.config';
@@ -70,7 +70,7 @@ let trick: Trick | null = null; // the trick shot being attempted, if any
 let attempts = 0; // tries at the current trick shot
 let daily: Daily | null = null; // today's daily challenge, while it's being played
 /** A match against a computer opponent: both players' scores per hole. */
-let match: { opp: Opponent; ai: (number | null)[] } | null = null;
+let match: { opp: Opponent; ai: (number | null)[]; stake: number } | null = null;
 let turn: 'player' | 'ai' = 'player'; // whose turn it is on the hole, in a match
 let pendingBanked = false; // the player's sinking shot was a bank shot (paid when the hole result shows)
 /** The computer's current shot: planning, then lining up until `fireAt` (world time). */
@@ -558,9 +558,10 @@ function scorecardHtml() {
 
 function refreshTitle() {
   refreshDaily();
+  const topped = dailyTopUp(today());
   $('menu-coins').innerHTML = `<i class="coin"></i>${coins()}`;
   const best = localGet(ck('best'));
-  $('best').textContent = best ? `${COURSE.name} best round: ${best}` : '';
+  $('best').textContent = topped ? `Daily top-up: +${topped} coins` : best ? `${COURSE.name} best round: ${best}` : '';
 }
 
 /** Switch course; the menu background moves to its first hole. */
@@ -1029,25 +1030,38 @@ function openVersus() {
     return `<button class="course opp${open ? '' : ' locked'}" data-opp="${o.id}"${open ? '' : ' disabled'}>
       <span class="avatar" style="background:${o.color}">${o.emoji}</span>
       <span>${o.name}</span><small>${open ? o.blurb : `Beat ${OPPONENTS[i - 1].name} to unlock`}</small>
-      <em class="stars">${w || l ? `W ${w} · L ${l}` : `<i class="coin"></i> ${o.reward}`}</em></button>`;
+      <em class="stars">${w || l ? `W ${w} · L ${l}` : `First win <i class="coin"></i>${o.reward}`}</em>
+      <em class="stake${o.stake > coins() ? ' short' : ''}">${o.stake ? `Stake <i class="coin"></i>${o.stake} · win ${o.stake * 2}` : 'Free to play'}</em></button>`;
   }).join('');
-  sheet('Vs Computer', `<p>Match play: you and your rival play each hole in turn, and the lower score wins the hole. Win the most holes to win the match.</p>
+  sheet('Vs Computer', `<div class="gear-top"><p id="vs-msg">Match play: you and your rival play each hole in turn, and the lower score wins the hole. Put up the stake to play: win the match and it pays back double; lose (or quit) and it's gone.</p><b class="wallet"><i class="coin"></i>${coins()}</b></div>
     <div class="tabs">${chips}</div><div class="courses opps">${cards}</div>`);
   const body = $('sheet-body');
   body.querySelectorAll<HTMLButtonElement>('[data-vcourse]').forEach((b) => {
     b.onclick = () => { sfx.ui(); localSet('vs.course', b.dataset.vcourse!); body.querySelectorAll('[data-vcourse]').forEach((x) => x.classList.toggle('on', x === b)); };
   });
   body.querySelectorAll<HTMLButtonElement>('[data-opp]').forEach((b) => {
-    b.onclick = () => { sfx.ui(); startMatch(OPPONENTS.find((o) => o.id === b.dataset.opp)!, localGet('vs.course') ?? COURSE.id); };
+    b.onclick = () => {
+      sfx.ui();
+      const opp = OPPONENTS.find((o) => o.id === b.dataset.opp)!;
+      if (opp.stake > coins()) {
+        const m = $('vs-msg');
+        m.innerHTML = `${opp.name}'s stake is ${opp.stake} coins; you have ${coins()}. Earn more by playing a course, the daily challenge or trick shots, or play Rookie Ricky for free.`
+          + (coins() < TOP_UP ? ` Running low? You're topped up to ${TOP_UP} coins once a day.` : '');
+        m.classList.add('bad');
+        return;
+      }
+      startMatch(opp, localGet('vs.course') ?? COURSE.id);
+    };
   });
 }
 
 function startMatch(opp: Opponent, courseId: string) {
   chooseCourse(courseId);
   startRound();
-  match = { opp, ai: LEVELS.map(() => null) };
+  match = { opp, ai: LEVELS.map(() => null), stake: Math.min(opp.stake, coins()) };
+  addCoins(-match.stake);
   updateHud();
-  toast(`${opp.emoji} ${opp.name} · you're up first`, 'good', 2400);
+  toast(`${opp.emoji} ${opp.name} · ${match.stake ? `${match.stake} coins at stake · ` : ''}you're up first`, 'good', 2400);
 }
 
 /** The player has holed out: the computer plays the same hole from the tee. */
@@ -1183,7 +1197,8 @@ function concludeMatch(win: boolean, detail: string, lines: [string, number][], 
   $('hole-kicker').textContent = `MATCH COMPLETE · VS ${m.opp.name.toUpperCase()}`;
   h.textContent = win ? 'You win the match!' : `${m.opp.name} wins`;
   h.className = win ? 'ace' : 'over';
-  $('hole-detail').textContent = detail;
+  $('hole-detail').textContent = detail + (!win && m.stake ? ` · Stake of ${m.stake} lost` : '');
+  if (win && m.stake) lines.push(['Stake ×2', m.stake * 2]);
   if (win) lines.push([firstWin ? 'Match won' : 'Rematch won', firstWin ? m.opp.reward : Math.round(m.opp.reward / 5)]);
   const next = OPPONENTS[OPPONENTS.indexOf(m.opp) + 1];
   if (firstWin && next) unlocked.push(`${next.name} challenges you`);
@@ -1697,7 +1712,7 @@ click('btn-more', () => sheet('How to play', `<p><b>Pull down</b> anywhere to dr
   <p>Every course has <b>raised levels</b>. Look for the way up: a geyser in the canyon, a launch rocket on the moon, the cannon or a ladder in the circus, stairs or a portal in the tomb, and a ski lift in the Arctic. Watch out for a toboggan run behind the cup!</p>
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
-  <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
+  <p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>

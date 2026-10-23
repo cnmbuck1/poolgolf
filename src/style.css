@@ -727,3 +727,8 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 }
 .back-link { display: block; padding: 0 0 2px; font-family: var(--display); font-weight: 800; font-size: 15px; color: var(--gold-hi); }
 @media (max-width: 560px) { .ctiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* Vs Computer stakes */
+.opp .stake { font-style: normal; font-size: 12px; color: var(--gold-hi); }
+.opp .stake .coin { vertical-align: -2px; }
+.opp .stake.short { color: #ff8a7a; }

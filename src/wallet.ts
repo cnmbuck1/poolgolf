@@ -46,6 +46,17 @@ if (get('economy') !== ECONOMY) {
 }
 
 export const coins = () => Number(get('coins') ?? STARTING_COINS);
+
+/** Once a day, a player under this many coins is topped back up to it, so nobody is ever stuck. */
+export const TOP_UP = 50;
+/** The daily top-up: the coins added (0 if not due or not needed). */
+export function dailyTopUp(day: number) {
+  if (coins() >= TOP_UP || get('topup') === String(day)) return 0;
+  const add = TOP_UP - coins();
+  set('topup', String(day));
+  addCoins(add);
+  return add;
+}
 export function addCoins(n: number) { set('coins', String(coins() + n)); }
 export const isOwned = (k: ItemKey) => owned.has(k);
 function own(k: ItemKey) { owned.add(k); set('owned', JSON.stringify([...owned])); }
