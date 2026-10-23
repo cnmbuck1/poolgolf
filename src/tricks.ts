@@ -93,7 +93,7 @@ export const TRICKS: Trick[] = [
   },
 ];
 
-export const courseName = (t: Trick) => COURSES.find((c) => c.theme === t.level.theme)?.name ?? '';
+export const courseName = (t: Trick) => COURSES.find((c) => c.theme === t.level.theme)?.name ?? 'Practice green';
 
 const key = (id: string) => `poolgolf.trick.${id}`;
 export function isDone(t: Trick) { try { return localStorage.getItem(key(t.id)) === '1'; } catch { return false; } }

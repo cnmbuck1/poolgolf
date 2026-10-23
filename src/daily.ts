@@ -44,7 +44,7 @@ export function dailyFor(day: number): Daily {
 }
 
 export const dailyName = (d: Daily) => (d.kind === 'trick' ? d.trick.name : d.level.name);
-export const dailyCourse = (d: Daily) => COURSES.find((c) => c.theme === (d.kind === 'trick' ? d.trick.level.theme : d.level.theme))?.name ?? '';
+export const dailyCourse = (d: Daily) => COURSES.find((c) => c.theme === (d.kind === 'trick' ? d.trick.level.theme : d.level.theme))?.name ?? 'Practice green';
 
 const key = (k: string) => `poolgolf.daily.${k}`;
 function get(k: string) { try { return localStorage.getItem(key(k)); } catch { return null; } }

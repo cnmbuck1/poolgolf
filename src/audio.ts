@@ -43,6 +43,13 @@ export function unlockAudio() {
   if (ctx.state === 'suspended') void ctx.resume();
 }
 
+/** Silence everything while the game is in the background (and pick up again on return). */
+export function setAudioPaused(paused: boolean) {
+  if (!ctx) return;
+  if (paused) void ctx.suspend();
+  else void ctx.resume();
+}
+
 const now = () => ctx!.currentTime;
 
 function env(g: GainNode, t: number, peak: number, attack: number, decay: number) {

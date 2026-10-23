@@ -28,7 +28,11 @@ export const testerName = () => get('poolgolf.testerName') ?? '';
 export const setTesterName = (n: string) => put('poolgolf.testerName', n.trim().slice(0, 40));
 /** Whether finished holes are sent off the device (Settings → Share anonymous play stats). Feedback is always sent: the player chose to. */
 export const sharing = () => get('poolgolf.share') !== '0';
-export const setSharing = (on: boolean) => put('poolgolf.share', on ? '1' : '0');
+export function setSharing(on: boolean) {
+  put('poolgolf.share', on ? '1' : '0');
+  // Turning it off also drops finished holes still waiting to be sent (feedback the player wrote still goes)
+  if (!on) put(OUTBOX, JSON.stringify(readLocal(OUTBOX).filter((r) => r.type !== 'hole')));
+}
 
 function device() {
   const ua = navigator.userAgent;
