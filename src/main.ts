@@ -2010,6 +2010,11 @@ const reportError = watchErrors(() => {
   return { course: at?.course ?? (phase === 'title' ? 'menu' : world.level.theme ?? ''), hole: at?.hole ?? 0, name: world.level.name, phase, mode };
 });
 canvas.addEventListener('webglcontextlost', () => reportError('WebGL context lost'));
+// ?testerror in the address sends one test error, to check the playtest sheet's Errors tab is set up
+if (new URLSearchParams(location.search).has('testerror')) {
+  reportError(`Test error (sent on purpose with ?testerror) ${new Date().toISOString()}`, 'no stack: this is a test');
+  setTimeout(() => toast('Test error sent to the playtest sheet', 'good', 3000), 1500);
+}
 
 /** Length of one game step (s), and the time not yet stepped. */
 const STEP = 1 / 60;
