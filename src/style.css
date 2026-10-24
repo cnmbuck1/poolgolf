@@ -817,3 +817,4 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 }
 .btn.reset { color: #ff9a8a; }
 .btn.reset.confirm { border-color: #ff8a7a; background: rgba(255, 110, 90, 0.16); }
+.intro-buttons { display: flex; gap: 10px; justify-content: center; align-items: center; }

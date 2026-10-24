@@ -340,9 +340,28 @@ function maybeIntro(L: LevelDef) {
   const intro = at && COURSE_INTROS[at.course];
   if (!at || !intro || localGet(`intro.${at.course}`)) return;
   localSet(`intro.${at.course}`, '1');
+  $('intro-kicker').textContent = 'NEW COURSE';
+  $('btn-intro-alt').classList.add('hidden');
   $('intro-icon').textContent = intro.icon;
   $('intro-title').textContent = COURSES.find((c) => c.id === at.course)!.name;
   $('intro-points').innerHTML = intro.points.map((p) => `<li>${p}</li>`).join('');
+  $('screen-intro').classList.remove('hidden');
+}
+
+/** The very first time the game opens: what it is, where to start, and the demo. */
+function maybeWelcome() {
+  if (localGet('welcomed')) return;
+  localSet('welcomed', '1');
+  if (localGet('tutorial') === '1') return; // played before this card existed
+  $('intro-kicker').textContent = 'WELCOME';
+  $('intro-icon').textContent = '🎱';
+  $('intro-title').textContent = 'Rack & Roll';
+  $('intro-points').innerHTML = [
+    'Mini golf played with a pool cue: <b>pull back</b> anywhere to draw the cue, and <b>let go</b> to shoot.',
+    '<b>Six worlds</b> and 36 holes. Start with <b>Career</b>, or pick any course.',
+    'Earn coins and stars, hunt the hidden <b>golden 8-balls</b>, and unlock new balls and cues.',
+  ].map((p) => `<li>${p}</li>`).join('');
+  $('btn-intro-alt').classList.remove('hidden');
   $('screen-intro').classList.remove('hidden');
 }
 
@@ -1801,6 +1820,7 @@ click('btn-courses', () => openCourses());
 click('btn-party', openParty);
 click('btn-coach-skip', () => { setCoachStep(COACH_STEPS.length); updateCoach(); });
 click('btn-intro-ok', () => { sfx.ui(); $('screen-intro').classList.add('hidden'); });
+click('btn-intro-alt', () => { $('screen-intro').classList.add('hidden'); startDemo(); });
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
 click('btn-demo', () => startDemo());
@@ -2334,7 +2354,7 @@ function start(data: unknown) {
     view3d.setMode('title');
     show('screen-title');
   }
-  if (incoming) { clearChallengeUrl(); startChallenge(incoming); }
+  if (incoming) { clearChallengeUrl(); startChallenge(incoming); } else maybeWelcome();
   requestAnimationFrame(frame);
 }
 if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});
