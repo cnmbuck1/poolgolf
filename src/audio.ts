@@ -287,6 +287,11 @@ export const sfx = {
   },
   /** Off a ski jump: a rising whoosh. */
   whoosh: () => noise(0.5, 0.3, 'bandpass', 600, { sweepTo: 3000, q: 1.5, attack: 0.05 }),
+  /** A witch's broom: a rush of air and a quick cackle. */
+  broom: () => {
+    noise(0.8, 0.3, 'bandpass', 500, { sweepTo: 2600, q: 1.4, attack: 0.08 });
+    [0, 0.11, 0.22, 0.33].forEach((at, i) => tone(880 - i * 60, 0.09, 'square', 0.05, { at: 0.1 + at, slideTo: 620 - i * 40 }));
+  },
   /** Into a hole in the ice: a heavy plunk and a crackle of ice. */
   icewater: () => {
     noise(0.12, 0.45, 'bandpass', 1500, { q: 0.8 });

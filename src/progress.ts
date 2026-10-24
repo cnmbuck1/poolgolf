@@ -1,12 +1,20 @@
 // Reasons to come back: hole stars (par, birdie, ace), a hidden golden 8-ball on every hole, and a trophy
 // room of achievements that pay coins (two of them also win designs that can't be bought). Saved on this
 // device only, separately from coins, so an economy reset keeps it.
-import { COURSES, Pt } from './levels';
+import { ALL_COURSES, COURSES, Pt } from './levels';
 import { Achievement } from './wallet';
 import { streak } from './daily';
 
 /** Where each hole's golden 8-ball hides, by course and hole name (picked to be reachable from the tee). */
 export const EIGHTS: Record<string, Record<string, Pt>> = {
+  halloween: {
+    'Pumpkin Patch': [575, 125],
+    'Graveyard Shift': [565, 365],
+    "Witch's Flight": [655, 85],
+    'Cauldron Bubble': [575, 385],
+    'Bat Cave': [615, 155],
+    'Haunted Mansion': [505, 115],
+  },
   candy: {
     'Sugar Rush': [585, 155],
     'Candy Cane Ladder': [675, 415],
@@ -84,7 +92,7 @@ export const EIGHT_TOTAL = ALL_HOLES.filter((h) => { const [c, n] = h.split('/')
 /** Stars a score is worth: ⭐ par, ⭐⭐ birdie or better, ⭐⭐⭐ hole in one. */
 export const starsFor = (score: number, par: number) => (score === 1 ? 3 : score < par ? 2 : score === par ? 1 : 0);
 export const starsOf = (course: string, hole: string) => s.stars[id(course, hole)] ?? 0;
-export const courseStars = (course: string) => COURSES.find((c) => c.id === course)!.holes.reduce((a, l) => a + starsOf(course, l.name), 0);
+export const courseStars = (course: string) => ALL_COURSES.find((c) => c.id === course)!.holes.reduce((a, l) => a + starsOf(course, l.name), 0);
 export const totalStars = () => Object.values(s.stars).reduce((a, n) => a + n, 0);
 /** Star row for a hole, e.g. ★★☆. */
 export const starRow = (n: number) => '★'.repeat(n) + '☆'.repeat(3 - n);
@@ -98,7 +106,8 @@ export function recordStars(course: string, hole: string, score: number, par: nu
 
 export const eightAt = (course: string, hole: string): Pt | null => EIGHTS[course]?.[hole] ?? null;
 export const eightFound = (course: string, hole: string) => s.eights.includes(id(course, hole));
-export const eightsFound = (course?: string) => (course ? s.eights.filter((e) => e.startsWith(`${course}/`)).length : s.eights.length);
+/** Golden 8-balls found on one course, or on the six regular courses (holiday ones don't count toward the 36). */
+export const eightsFound = (course?: string) => (course ? s.eights.filter((e) => e.startsWith(`${course}/`)).length : s.eights.filter((e) => COURSES.some((c) => e.startsWith(`${c.id}/`))).length);
 /** Pick up a hole's golden 8-ball; returns how many have been found. */
 export function takeEight(course: string, hole: string) {
   if (!eightFound(course, hole)) { s.eights.push(id(course, hole)); save(); }
@@ -137,7 +146,7 @@ export const TROPHIES: Trophy[] = [
   { id: 'eight1', name: 'Lucky eight', desc: 'Find a golden 8-ball', coins: 15, progress: () => [Math.min(1, eightsFound()), 1] },
   { id: 'eight12', name: 'Treasure hunter', desc: 'Find 12 golden 8-balls', coins: 100, progress: () => [Math.min(12, eightsFound()), 12] },
   { id: 'eightAll', name: 'Golden touch', desc: `Find all ${EIGHT_TOTAL} golden 8-balls`, coins: 300, item: 'allEights', progress: () => [eightsFound(), EIGHT_TOTAL] },
-  { id: 'globe', name: 'Globetrotter', desc: 'Finish a round on every course', coins: 150, progress: () => [s.rounds.length, COURSES.length] },
+  { id: 'globe', name: 'Globetrotter', desc: 'Finish a round on every course', coins: 150, progress: () => [s.rounds.filter((c) => COURSES.some((k) => k.id === c)).length, COURSES.length] },
   { id: 'flyer', name: 'Frequent flyer', desc: 'Get launched by a ramp, trampoline, cannon, seal, rocket and geyser', coins: 150,
     progress: () => [LAUNCH_KINDS.filter((k) => s.launches.includes(k)).length, LAUNCH_KINDS.length] },
   { id: 'chutes', name: 'Snakes & ladders', desc: 'Ride 20 chutes, slides, ladders or lifts', coins: 60, progress: () => [Math.min(20, count('chutes') + count('ladders')), 20] },

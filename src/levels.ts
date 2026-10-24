@@ -104,8 +104,13 @@ export interface Chute { path: Pt[] }
  * onto it is caught (any speed) and lands gently at `to`, rolling on the way it flew. A launch rocket on the
  * moon, a geyser in the canyon.
  */
-export interface Lift { x: number; y: number; to: Pt; kind: 'rocket' | 'geyser' }
-export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy';
+export interface Lift { x: number; y: number; to: Pt; kind: 'rocket' | 'geyser' | 'broom' }
+/**
+ * A ghost drifting back and forth between a and b. It fades out for part of every `period` seconds
+ * (`gone`, 0..1, the fraction of the cycle it's invisible) and the ball passes straight through it then.
+ */
+export interface Ghost { a: Pt; b: Pt; speed: number; period?: number; gone?: number; phase?: number; r?: number }
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy' | 'halloween';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -167,6 +172,9 @@ export interface LevelDef {
   lifts?: Lift[];
   /** Gingerbread men strolling between two points (same motion as an astronaut). */
   gingerbread?: Astronaut[];
+  /** Halloween: ghosts that fade in and out, and bats flitting in circles (solid, bouncy). */
+  ghosts?: Ghost[];
+  bats?: Alien[];
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -814,7 +822,104 @@ const ARCTIC: LevelDef[] = [
   },
 ];
 
-export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[] }
+/** Haunted Hollow (Halloween): pumpkins, gravestones, ghosts that fade in and out, bats, bubbling slime and witches' brooms that fly the ball across the hole. */
+const pumpkin = (x: number, y: number, r = 20) => ball(5, x, y, r);
+const HALLOWEEN: LevelDef[] = [
+  {
+    // A warm-up through the pumpkin patch, with a bat flitting round the cup
+    name: 'Pumpkin Patch',
+    par: 3,
+    tee: [110, 250],
+    cup: [880, 250],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    bumpers: [pumpkin(360, 170), pumpkin(360, 330), pumpkin(540, 250, 22), pumpkin(700, 150), pumpkin(700, 350)],
+    rocks: [{ x: 250, y: 110, r: 16 }, { x: 250, y: 390, r: 16 }, { x: 880, y: 105, r: 16 }],
+    bats: [{ x: 790, y: 250, orbit: 55, speed: 1.6 }],
+    sand: [blob(620, 430, 60, 22, 4, 0.2)],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+  },
+  {
+    // Rows of gravestones, and two ghosts drifting across: they're solid until they fade away
+    name: 'Graveyard Shift',
+    par: 3,
+    tee: [100, 400],
+    cup: [870, 110],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    ghosts: [{ a: [380, 90], b: [380, 420], speed: 70, period: 6, gone: 0.35 }, { a: [620, 420], b: [620, 80], speed: 60, period: 7, gone: 0.35, phase: 0.45 }],
+    rocks: [{ x: 250, y: 150, r: 16 }, { x: 250, y: 260, r: 16 }, { x: 500, y: 330, r: 16 }, { x: 500, y: 180, r: 16 }, { x: 760, y: 270, r: 16 }, { x: 760, y: 400, r: 16 }],
+    palms: [{ x: 140, y: 120 }],
+    slopes: [{ kind: 'hill', x: 870, y: 110, r: 55, h: -2.5 }],
+  },
+  {
+    // The cup is up on the witch's hill. Roll onto her broom and she flies the ball up there (or climb the ladder the long way round)
+    name: "Witch's Flight",
+    par: 4,
+    tee: [110, 400],
+    cup: [830, 140],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    tiers: [{ pts: [[620, 40], [880, 40], [960, 120], [960, 270], [620, 270]], h: 36 }],
+    lifts: [{ x: 420, y: 390, to: [720, 170], kind: 'broom' }],
+    ladders: [{ path: [[900, 350], [900, 236]] }],
+    water: [blob(620, 385, 70, 42, 2, 0.15)],
+    bats: [{ x: 300, y: 200, orbit: 70, speed: 1.3 }],
+    bumpers: [pumpkin(220, 120, 18)],
+    rocks: [{ x: 760, y: 400, r: 16 }],
+    slopes: [{ kind: 'hill', x: 830, y: 140, r: 55, h: -2.5 }],
+  },
+  {
+    // A bubbling cauldron of slime with a plank across, and a ghost that wanders onto it
+    name: 'Cauldron Bubble',
+    par: 3,
+    tee: [100, 250],
+    cup: [890, 250],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    water: [blob(500, 250, 125, 150, 3, 0.12)],
+    bridges: [{ x: 500, y: 250, len: 300, width: 56, angle: 0 }],
+    ghosts: [{ a: [500, 205], b: [500, 295], speed: 35, period: 5, gone: 0.45 }],
+    sand: [blob(500, 72, 90, 22, 5, 0.2), blob(500, 428, 90, 22, 6, 0.2)],
+    bumpers: [pumpkin(760, 160, 18), pumpkin(760, 340, 18)],
+    rocks: [{ x: 240, y: 120, r: 16 }, { x: 240, y: 380, r: 16 }],
+    slopes: [{ kind: 'hill', x: 890, y: 250, r: 55, h: -2.5 }],
+  },
+  {
+    // A zig-zag through the bat cave; a witch at the bottom flies you past two bends if you can reach her
+    name: 'Bat Cave',
+    par: 4,
+    tee: [100, 100],
+    cup: [880, 400],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    bars: [{ x: 330, y: 180, len: 280, angle: 90 }, { x: 650, y: 320, len: 280, angle: 90 }],
+    bats: [{ x: 200, y: 330, orbit: 45, speed: 1.8 }, { x: 490, y: 200, orbit: 60, speed: -1.5 }, { x: 810, y: 260, orbit: 50, speed: 1.7, phase: 0.3 }],
+    lifts: [{ x: 210, y: 415, to: [800, 110], kind: 'broom' }],
+    rocks: [{ x: 490, y: 420, r: 16 }],
+    sand: [blob(850, 300, 50, 22, 7, 0.2)],
+    slopes: [{ kind: 'hill', x: 880, y: 400, r: 55, h: -2.5 }],
+  },
+  {
+    // Up to the haunted mansion: the witch flies you to the porch, the stairs climb to the attic, and the cup waits up there with the bats
+    name: 'Haunted Mansion',
+    par: 4,
+    tee: [100, 400],
+    cup: [860, 120],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [
+      { pts: [[420, 40], [900, 40], [960, 100], [960, 300], [420, 300]], h: 36 },
+      { pts: [[720, 40], [900, 40], [960, 100], [960, 200], [720, 200]], h: 36 },
+    ],
+    lifts: [{ x: 300, y: 380, to: [540, 200], kind: 'broom' }],
+    ladders: [{ path: [[640, 120], [744, 120]] }],
+    ghosts: [{ a: [570, 70], b: [570, 280], speed: 50, period: 6, gone: 0.4 }],
+    bats: [{ x: 850, y: 125, orbit: 48, speed: 1.4 }],
+    water: [blob(250, 170, 80, 60, 8, 0.15)],
+    bumpers: [pumpkin(180, 300, 18), pumpkin(640, 250, 16)],
+    rocks: [{ x: 500, y: 410, r: 16 }, { x: 700, y: 400, r: 16 }],
+    palms: [{ x: 90, y: 140 }],
+    slopes: [{ kind: 'hill', x: 860, y: 120, r: 50, h: -2.5 }],
+  },
+];
+
+/** `season`: a holiday course, open only between these dates each year ([month, day], inclusive). */
+export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[]; season?: { from: [number, number]; to: [number, number] } }
 
 /** A regular polygon around (cx, cy): vertex k at angle `rot` + k·360/n degrees (edge k runs from vertex k to k+1). */
 const ngon = (cx: number, cy: number, r: number, n: number, rot = 0): Pt[] =>
@@ -936,12 +1041,30 @@ export const COURSES: CourseDef[] = [
   { id: 'tomb', name: "Pharaoh's Tomb", theme: 'tomb', holes: TOMB },
   { id: 'arctic', name: 'Arctic Peaks', theme: 'arctic', holes: ARCTIC },
 ];
-for (const c of COURSES) for (const h of c.holes) h.theme = c.theme;
+/**
+ * Holiday courses: playable only in their season, and kept out of Career, the daily challenge and the
+ * all-course trophies so nobody is locked out of those the rest of the year.
+ */
+export const SEASONAL: CourseDef[] = [
+  { id: 'halloween', name: 'Haunted Hollow', theme: 'halloween', holes: HALLOWEEN, season: { from: [10, 1], to: [11, 7] } },
+];
+/** Every course, regular and holiday, for looking one up by id. */
+export const ALL_COURSES: CourseDef[] = [...COURSES, ...SEASONAL];
+for (const c of ALL_COURSES) for (const h of c.holes) h.theme = c.theme;
+
+/** Whether a course is open on this date (regular courses always are). `?season=open` forces holiday courses open, for testing. */
+export function inSeason(c: CourseDef, date = new Date()) {
+  if (!c.season) return true;
+  try { if (new URLSearchParams(location.search).get('season') === 'open' || localStorage.getItem('poolgolf.seasonOpen') === '1') return true; } catch { /* no page */ }
+  const md = (date.getMonth() + 1) * 100 + date.getDate();
+  const from = c.season.from[0] * 100 + c.season.from[1], to = c.season.to[0] * 100 + c.season.to[1];
+  return from <= to ? md >= from && md <= to : md >= from || md <= to;
+}
 
 /** The holes of the course being played. Reassigned by setCourse (importers see the live binding). */
 export let LEVELS: LevelDef[] = CANDY;
 export let COURSE: CourseDef = COURSES[0];
 export function setCourse(id: string) {
-  COURSE = COURSES.find((c) => c.id === id) ?? COURSES[0];
+  COURSE = ALL_COURSES.find((c) => c.id === id) ?? COURSES[0];
   LEVELS = COURSE.holes;
 }

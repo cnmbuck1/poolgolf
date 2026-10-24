@@ -12,6 +12,7 @@ import { moonDustMaterial, moonKerb } from './space';
 import { feltMaterial } from './circus';
 import { sandstoneMaterial, templeKerb } from './tomb';
 import { snowMaterial } from './arctic';
+import { cryptSide, graveGrassMaterial } from './halloween';
 import { TURF_TILE } from './art';
 import { outlineDistance, resample } from './landscape';
 
@@ -258,6 +259,13 @@ export function levelLook(theme: string): LevelLook {
       drip: { mat: () => toon(0xd8f0ff), icicle: true },
       chute: { colors: [0xeaf8ff, 0xbfe6fa], lip: 0x2a6ad8, post: () => toon(0x8a6a4a), mouth: ['#14304e', '#bfe6fa'], ring: ring([0x6ad8ff, 0xffffff]) },
       ladder: { kind: 'lift', ring: 0x6ad8ff },
+    };
+    case 'halloween': return {
+      top: () => graveGrassMaterial(), tile: TURF_TILE,
+      side: () => cryptSide(),
+      rim: { kind: 'tube', mat: toon(0x2a1a30), r: 3.4 },
+      chute: { colors: [0x5a2a7a, 0xff8a1a], lip: 0x1a1420, post: () => toon(0x2a1a30), mouth: ['#14081c', '#b05aff'], ring: ring([0xb05aff, 0xff8a1a]) },
+      ladder: { kind: 'stairs', ring: 0xff8a1a },
     };
     default: return {
       top: (n) => tierTopMaterial(n), tile: 260,

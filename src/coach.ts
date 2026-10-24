@@ -38,6 +38,11 @@ export const COURSE_INTROS: Record<string, CourseIntro> = {
     '<b>Stone doors</b> rise and sink on a timer: wait for the gap.',
     'Stop in <b>quicksand</b> and it swallows the ball: +1 stroke.',
   ] },
+  halloween: { icon: '🎃', points: [
+    'Happy Halloween! <b>Haunted Hollow</b> is only open in October.',
+    '<b>Ghosts</b> are solid while you can see them, and fade away for a moment: time your shot to roll right through.',
+    "Roll onto a <b>witch's circle</b> and she flies the ball across the hole on her broom. Watch out for <b>bats</b> and the green <b>slime</b> (+1 stroke).",
+  ] },
   arctic: { icon: '❄️', points: [
     '<b>Ice</b> is slick: the ball glides much further, so hit softer.',
     '<b>Seals</b> flip the ball over obstacles, and <b>ski jumps</b> launch it over walls.',

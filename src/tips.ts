@@ -4,6 +4,34 @@
 export interface Tips { do: string[]; avoid: string[]; spin?: string }
 
 const T: Record<string, Record<string, Tips>> = {
+  halloween: {
+    'Pumpkin Patch': {
+      do: ['Thread the gap between the pumpkins: the middle one sits a little behind the first pair.', 'A bank off the top or bottom rail goes round the whole patch.'],
+      avoid: ['The jack-o\'-lanterns are bumpers: hit one hard and the ball flies off sideways.', 'The bat circling the cup can knock a slow putt away: wait until it\'s on the far side.'],
+      spin: 'Side spin curves the ball round the last pumpkin toward the cup.',
+    },
+    'Graveyard Shift': {
+      do: ['Watch the ghosts: when one fades to a faint shimmer, roll straight through where it is.', 'Aim between the gravestone rows; there\'s a clear lane up the middle.'],
+      avoid: ['A ghost you can see is solid and stops the ball dead.', 'Gravestones bounce the ball back hard.'],
+    },
+    "Witch's Flight": {
+      do: ["Roll onto the witch's glowing purple circle: she flies the ball up onto the hill by the cup.", 'Missed the broom? Take the stairs at the far right, the long way round.'],
+      avoid: ['The hill\'s edge is a wall from below: you can\'t roll straight up it.', 'Don\'t roll past the circle into the slime (+1 stroke).'],
+    },
+    'Cauldron Bubble': {
+      do: ['Cross the cauldron on the plank, and time it so the ghost has faded or is at the far end.', 'A gentle shot is enough: the plank is long but straight.'],
+      avoid: ['Off the plank is green slime (+1 stroke).', 'The cobwebs above and below the cauldron grab the ball and slow it right down.'],
+    },
+    'Bat Cave': {
+      do: ['Shortcut: roll down to the witch at the bottom left; she flies you past two bends.', 'Otherwise zig-zag: down round the first wall, up round the second.'],
+      avoid: ['Bats bounce the ball off at speed: wait for a gap in their circle.'],
+      spin: 'Side spin helps the ball hook round the end of each wall.',
+    },
+    'Haunted Mansion': {
+      do: ["Ride the witch's broom from the left onto the porch, then take the stairs up to the attic and the cup.", 'Time the stairs for when the ghost on the porch has faded.'],
+      avoid: ['The porch and attic edges are walls from below.', 'The bat circles right round the cup: putt when it\'s on the far side.'],
+    },
+  },
   candy: {
     'Sugar Rush': {
       do: ['Roll straight off the open front edge of the cake: the drop keeps most of your speed.', 'Bank off the top rail to go round the chocolate pond and come down to the cup.'],

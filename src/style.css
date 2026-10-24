@@ -818,3 +818,6 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .btn.reset { color: #ff9a8a; }
 .btn.reset.confirm { border-color: #ff8a7a; background: rgba(255, 110, 90, 0.16); }
 .intro-buttons { display: flex; gap: 10px; justify-content: center; align-items: center; }
+.ctile.off { opacity: 0.6; filter: saturate(0.6); }
+.ctile-badge { position: absolute; top: 8px; right: 8px; z-index: 1; padding: 2px 8px; border-radius: 6px; background: #1a1030; color: #ffb04a; font: 800 10px var(--display); letter-spacing: 0.12em; font-style: normal; }
+#btn-courses.special { border-color: rgba(255, 138, 26, 0.7); box-shadow: inset 0 1px 0 var(--edge-hi), 0 0 14px rgba(255, 138, 26, 0.35); }

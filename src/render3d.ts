@@ -33,7 +33,7 @@ const C = {
 /** Aim guide colours: red on green, grey, white and sand; cyan on the orange canyon dirt and red circus felt; blue on candy pink and mint. */
 const AIM_COLORS: Record<Theme, number> = {
   garden: C.aim, space: C.aim, arctic: C.aim, tomb: C.aim,
-  jurassic: 0x18e8ff, circus: 0x18e8ff, candy: 0x1f5bff,
+  jurassic: 0x18e8ff, circus: 0x18e8ff, candy: 0x1f5bff, halloween: 0xffa424,
 };
 
 export type GuideMode = 'full' | 'short';
@@ -350,7 +350,7 @@ export class Renderer3D {
     this.renderer.toneMappingExposure = a.exposure;
     // Splash drops: water spray in the garden, embers over lava
     // (and violet sparkles where the ball drops into the void in space)
-    const fxc = { garden: [0xbfe6f0, 0x000000, 0xdcf0ff], jurassic: [0xff8a30, 0xff6a10, 0xffb060], space: [0xc8a8ff, 0x7a4aff, 0xc8a8ff], circus: [0xffd8a0, 0x000000, 0xffe0b0], tomb: [0xe8c890, 0x000000, 0xf0d8a8], arctic: [0xd8f0ff, 0x000000, 0xe8f8ff], candy: [0x6a3416, 0x000000, 0xa86a40] }[theme];
+    const fxc = { garden: [0xbfe6f0, 0x000000, 0xdcf0ff], jurassic: [0xff8a30, 0xff6a10, 0xffb060], space: [0xc8a8ff, 0x7a4aff, 0xc8a8ff], circus: [0xffd8a0, 0x000000, 0xffe0b0], tomb: [0xe8c890, 0x000000, 0xf0d8a8], arctic: [0xd8f0ff, 0x000000, 0xe8f8ff], candy: [0x6a3416, 0x000000, 0xa86a40], halloween: [0x6aff4a, 0x2a8a10, 0x9aff7a] }[theme];
     (this.drops.material as THREE.MeshStandardMaterial).color.setHex(fxc[0]);
     (this.drops.material as THREE.MeshStandardMaterial).emissive.setHex(fxc[1]);
     for (const r of this.rippleMeshes) (r.material as THREE.MeshBasicMaterial).color.setHex(fxc[2]);

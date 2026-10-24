@@ -26,7 +26,7 @@ interface Style {
   shimmer?: boolean;
 }
 
-const MAJOR = [0, 2, 4, 5, 7, 9, 11], MINOR_PENT = [0, 3, 5, 7, 10], LYDIAN = [0, 2, 4, 6, 7, 9, 11], HIJAZ = [0, 1, 4, 5, 7, 8, 10], MAJOR_PENT = [0, 2, 4, 7, 9];
+const MAJOR = [0, 2, 4, 5, 7, 9, 11], MINOR_PENT = [0, 3, 5, 7, 10], LYDIAN = [0, 2, 4, 6, 7, 9, 11], HIJAZ = [0, 1, 4, 5, 7, 8, 10], MAJOR_PENT = [0, 2, 4, 7, 9], HARMONIC_MINOR = [0, 2, 3, 5, 7, 8, 11];
 
 const STYLES: Record<string, Style> = {
   menu: { bpm: 90, steps: 16, root: 60, scale: MAJOR_PENT, chords: [0, 3, 4, 2], lead: 'triangle', leadVol: 0.1, pluck: 0.5, bass: 'sine', drums: 'soft', density: 0.35 },
@@ -36,6 +36,8 @@ const STYLES: Record<string, Style> = {
   circus: { bpm: 168, steps: 12, root: 60, scale: MAJOR, chords: [0, 4, 4, 0, 3, 0, 4, 0], lead: 'square', leadVol: 0.06, pluck: 0.2, bass: 'sawtooth', drums: 'oompah', density: 0.75 },
   candy: { bpm: 120, steps: 16, root: 72, scale: MAJOR, chords: [0, 3, 4, 0, 5, 3, 4, 4], lead: 'triangle', leadVol: 0.1, pluck: 0.25, bass: 'triangle', drums: 'soft', density: 0.6, swing: 0.18, shimmer: true },
   arctic: { bpm: 80, steps: 16, root: 67, scale: MAJOR_PENT, chords: [0, 3, 1, 4], lead: 'sine', leadVol: 0.12, pluck: 0.6, bass: 'sine', pad: 'triangle', arp: true, drums: 'soft', density: 0.4, shimmer: true },
+  // A spooky waltz in a harmonic minor, with a ghostly pad
+  halloween: { bpm: 126, steps: 12, root: 57, scale: HARMONIC_MINOR, chords: [0, 3, 4, 0, 5, 3, 4, 4], lead: 'triangle', leadVol: 0.11, pluck: 0.45, bass: 'triangle', pad: 'sawtooth', drums: 'soft', density: 0.5 },
   tomb: { bpm: 96, steps: 16, root: 62, scale: HIJAZ, chords: [0, 1, 0, 6], lead: 'sawtooth', leadVol: 0.06, pluck: 0.25, bass: 'triangle', drums: 'darbuka', density: 0.5 },
 };
 

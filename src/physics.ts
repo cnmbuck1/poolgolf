@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Cannon, Chute, Lift, Tier, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Chute, Ghost, Lift, Tier, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -66,7 +66,7 @@ export type Event =
   | { type: 'spinner'; speed: number }
   | { type: 'sink' }
   | { type: 'water' }
-  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' | 'rocket' | 'geyser' }
+  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' | 'rocket' | 'geyser' | 'broom' }
   | { type: 'land' }
   | { type: 'oob' }
   | { type: 'teleport'; via?: 'igloo' }
@@ -422,7 +422,8 @@ export class World {
       if (Math.hypot(b.x - lf.x, b.y - lf.y) > LIFT_CATCH) continue;
       // Up and away, high over everything, then down gently onto the target
       const d = Math.hypot(lf.to[0] - lf.x, lf.to[1] - lf.y), dx = (lf.to[0] - lf.x) / (d || 1), dy = (lf.to[1] - lf.y) / (d || 1);
-      this.fly(lf.x, lf.y, lf.to[0], lf.to[1], 1.1 + d / 900, lf.kind === 'rocket' ? 190 + d * 0.15 : 120 + d * 0.15, dx * 90, dy * 90, lf);
+      // A witch's broom swoops low and slow; rockets and geysers go high
+      this.fly(lf.x, lf.y, lf.to[0], lf.to[1], (lf.kind === 'broom' ? 1.6 : 1.1) + d / 900, lf.kind === 'rocket' ? 190 + d * 0.15 : lf.kind === 'broom' ? 90 + d * 0.1 : 120 + d * 0.15, dx * 90, dy * 90, lf);
       events.push({ type: 'launch', by: lf.kind });
       return true;
     }
@@ -1107,6 +1108,20 @@ export function alienAt(a: Alien, t: number) {
   return { x: a.x + Math.cos(th) * a.orbit, y: a.y + Math.sin(th) * a.orbit, vx: -Math.sin(th) * a.orbit * a.speed, vy: Math.cos(th) * a.orbit * a.speed, r: ALIEN_R };
 }
 export const ALIEN_R = 15;
+export const BAT_R = 10;
+
+/**
+ * A ghost's position at time t, and how solid it is: `alpha` 0..1 for drawing (it fades over half a
+ * second), `solid` while it's there at all.
+ */
+export function ghostAt(g: Ghost, t: number) {
+  const p = tumbleweedAt({ a: g.a, b: g.b, speed: g.speed, phase: g.phase, r: g.r ?? 18 }, t);
+  const period = g.period ?? 6, gone = g.gone ?? 0.35;
+  const u = (((t / period + (g.phase ?? 0)) % 1) + 1) % 1; // 0..1 through the cycle; invisible for the last `gone` of it
+  const fade = 0.5 / period;
+  const alpha = u < 1 - gone - fade ? 1 : u < 1 - gone ? (1 - gone - u) / fade : u > 1 - fade ? (u - (1 - fade)) / fade : 0;
+  return { ...p, alpha, solid: alpha > 0.5 };
+}
 
 /** An astronaut's position and velocity at time t (standing still when it has no b). */
 export function astronautAt(s: Astronaut, t: number) {
@@ -1169,6 +1184,8 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const s of level.mummies ?? []) circles.push({ ...astronautAt(s, t), e: 0.45, kind: 'wall' });
   for (const s of level.penguins ?? []) circles.push({ ...astronautAt(s, t), r: PENGUIN_R, e: 0.55, kind: 'wall' });
   for (const s of level.gingerbread ?? []) circles.push({ ...astronautAt(s, t), r: GINGER_R, e: 0.6, kind: 'wall' });
+  for (const g of level.ghosts ?? []) { const p = ghostAt(g, t); if (p.solid) circles.push({ x: p.x, y: p.y, r: p.r, vx: p.vx, vy: p.vy, e: 0.5, kind: 'wall' }); }
+  for (const b of level.bats ?? []) circles.push({ ...alienAt(b, t), r: BAT_R, e: 0.85, kind: 'rail' });
   for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });
   for (const m of level.meteors ?? []) { const p = meteorAt(m, t); if (p.grounded) circles.push({ x: m.x, y: m.y, r: p.r, vx: 0, vy: 0, e: 0.5, kind: 'wall' }); }
   for (const d of level.dinos ?? []) {

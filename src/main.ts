@@ -2,7 +2,7 @@ import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
-import { COURSE, COURSES, LevelDef, LEVELS, setCourse } from './levels';
+import { ALL_COURSES, COURSE, COURSES, inSeason, LevelDef, LEVELS, SEASONAL, setCourse } from './levels';
 import { alienAt, astronautAt, BALL_R, dinoPose, inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
@@ -50,7 +50,10 @@ let holeIdx = 0;
 let holeStartedAt = 0; // for playtest records: how long each hole took
 /** The last hole the player finished, so feedback sent from the main menu afterwards is tied to it. */
 let lastPlayed: { course: string; hole: number; name: string; strokes: number } | null = null;
-setCourse(localGet('course') ?? 'candy');
+/** The courses that can be played today: the regular six, plus any holiday course in its season. */
+function playable() { return [...COURSES, ...SEASONAL.filter((c) => inSeason(c))]; }
+// A holiday course chosen last season falls back to the first course once its season is over
+setCourse(playable().some((c) => c.id === localGet('course')) ? localGet('course')! : 'candy');
 let world = new World(LEVELS[0]);
 let strokes = 0;
 let scores: (number | null)[] = LEVELS.map(() => null);
@@ -343,7 +346,7 @@ function maybeIntro(L: LevelDef) {
   $('intro-kicker').textContent = 'NEW COURSE';
   $('btn-intro-alt').classList.add('hidden');
   $('intro-icon').textContent = intro.icon;
-  $('intro-title').textContent = COURSES.find((c) => c.id === at.course)!.name;
+  $('intro-title').textContent = ALL_COURSES.find((c) => c.id === at.course)!.name;
   $('intro-points').innerHTML = intro.points.map((p) => `<li>${p}</li>`).join('');
   $('screen-intro').classList.remove('hidden');
 }
@@ -461,7 +464,7 @@ function playSingle(i: number) {
 /** The ball is in (or the hole is given up): the player's hole, or the computer's in a match. */
 /** Which course and hole (1-based) a level is, for playtest records (trick shots aren't course holes). */
 function whereIs(L: LevelDef) {
-  const c = COURSES.find((k) => k.holes.includes(L));
+  const c = ALL_COURSES.find((k) => k.holes.includes(L));
   return c ? { course: c.id, hole: c.holes.indexOf(L) + 1 } : null;
 }
 
@@ -637,6 +640,10 @@ function scorecardHtml() {
 
 function refreshTitle() {
   refreshDaily();
+  // In season, the holiday course leads the course icons on the menu and the course row says so
+  const special = SEASONAL.filter((c) => inSeason(c));
+  document.querySelector('#btn-courses .course-icons')!.textContent = special.map((c) => COURSE_LOOK[c.id].icon).join('') + '🍭🦖🌙🎪🏺❄️';
+  $('btn-courses').classList.toggle('special', special.length > 0);
   const topped = dailyTopUp(today());
   $('menu-coins').innerHTML = `<i class="coin"></i>${coins()}`;
   const best = localGet(ck('best'));
@@ -862,6 +869,7 @@ const COURSE_LOOK: Record<string, { icon: string; bg: string }> = {
   jurassic: { icon: '🦖', bg: 'linear-gradient(160deg, #e8913f, #9a4516 60%, #4a2410)' },
   space: { icon: '🌙', bg: 'linear-gradient(160deg, #6a70b0, #2a2d5a 55%, #0e0f22)' },
   circus: { icon: '🎪', bg: 'linear-gradient(160deg, #f4c542, #d8303c 55%, #7a1420)' },
+  halloween: { icon: '🎃', bg: 'linear-gradient(160deg, #ff8a1a, #6a2a8a 55%, #1a1030)' },
   tomb: { icon: '🏺', bg: 'linear-gradient(160deg, #f0d08a, #c08a3a 55%, #6a4518)' },
   arctic: { icon: '❄️', bg: 'linear-gradient(160deg, #e6f4ff, #7ab4e4 55%, #2e5e94)' },
 };
@@ -869,17 +877,26 @@ const COURSE_LOOK: Record<string, { icon: string; bg: string }> = {
 /** Pick a course: a tile per course to play a round, or open its holes to practise one. */
 function openCourses(holesOf?: string) {
   if (holesOf) return openCourseHoles(holesOf);
-  const tiles = COURSES.map((c) => {
+  // Holiday courses come first in their season (with a badge), and show when they're back the rest of the year
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const seasonal = SEASONAL.map((c) => {
+    const look = COURSE_LOOK[c.id];
+    if (inSeason(c)) return null;
+    return `<div class="ctile off" style="background:${look.bg}"><div class="ctile-play"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
+      <small>Holiday special · back in ${months[c.season!.from[0] - 1]}</small></div></div>`;
+  }).filter(Boolean).join('');
+  const open = [...SEASONAL.filter((c) => inSeason(c)), ...COURSES];
+  const tiles = open.map((c) => {
     const best = localGet(ck('best', c.id));
     const par = c.holes.reduce((a, l) => a + l.par, 0);
     const look = COURSE_LOOK[c.id];
     return `<div class="ctile${c.id === COURSE.id ? ' cur' : ''}" style="background:${look.bg}">
-      <button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
+      ${c.season ? '<em class="ctile-badge">HALLOWEEN SPECIAL</em>' : ''}<button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
         <small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''}</small>
         <small class="ctile-prog">★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></button>
       <button class="ctile-holes" data-holes="${c.id}">HOLES ›</button></div>`;
   }).join('');
-  sheet('Pick a course', `<p>Tap a course to play a round, or <b>Holes</b> to practise one hole.</p><div class="ctiles">${tiles}</div>`);
+  sheet('Pick a course', `<p>Tap a course to play a round, or <b>Holes</b> to practise one hole.</p><div class="ctiles">${tiles}${seasonal}</div>`);
   const body = $('sheet-body');
   body.querySelectorAll<HTMLButtonElement>('[data-play]').forEach((b) => {
     b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.play!); startRound(); };
@@ -891,7 +908,7 @@ function openCourses(holesOf?: string) {
 
 /** One course's holes, to practise any of them. */
 function openCourseHoles(id: string) {
-  const c = COURSES.find((k) => k.id === id)!;
+  const c = ALL_COURSES.find((k) => k.id === id)!;
   const best = localGet(ck('best', c.id));
   const par = c.holes.reduce((a, l) => a + l.par, 0);
   const cards = c.holes.map((l, i) => {
@@ -978,7 +995,7 @@ function feedbackAbout() {
 function openFeedback() {
   sfx.ui();
   const fb = feedbackAbout();
-  const course = fb && COURSES.find((c) => c.id === fb.course)!.name;
+  const course = fb && ALL_COURSES.find((c) => c.id === fb.course)!.name;
   $('fb-context').textContent = !fb ? `Tell us anything: bugs, ideas, what you love. Build ${BUILD}.`
     : fb.playing ? `About hole ${fb.hole} · ${fb.name} (${course}), ${fb.strokes} stroke${fb.strokes === 1 ? '' : 's'} so far. Build ${BUILD}.`
     : `About the last hole you played: hole ${fb.hole} · ${fb.name} (${course}), finished in ${fb.strokes}. Build ${BUILD}.`;
@@ -992,7 +1009,7 @@ async function openPlaytest() {
   const { records, everyone } = await loadRecords();
   if ($('sheet-title').textContent !== 'Playtest') return; // closed meanwhile
   const { holes, testers } = summarize(records);
-  const name = (id: string) => COURSES.find((c) => c.id === id)?.name ?? id;
+  const name = (id: string) => ALL_COURSES.find((c) => c.id === id)?.name ?? id;
   const rows = holes.sort((a, b) => b.diff - a.diff).map((h) =>
     `<tr><td>${esc(name(h.course))} ${h.hole}</td><td>${esc(h.name)}</td><td class="num">${h.n}</td><td class="num">${h.par}</td><td class="num">${h.avg.toFixed(1)}</td><td class="num ${h.diff > 0.75 ? 'hard' : h.diff < -0.5 ? 'easy' : ''}">${h.diff >= 0 ? '+' : ''}${h.diff.toFixed(1)}</td></tr>`).join('');
   const fb = records.filter((r): r is PlaytestRecord & { type: 'feedback' } => r.type === 'feedback').sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 40);
@@ -1138,12 +1155,12 @@ function openParty() {
   const saved: PartyPlayer[] = (() => { try { return JSON.parse(localGet('party.players') ?? '[]'); } catch { return []; } })();
   const players: PartyPlayer[] = [0, 1, 2, 3].map((i) => ({ name: saved[i]?.name ?? `Player ${i + 1}`, ball: saved[i]?.ball ?? PARTY_BALLS[i] }));
   let count = Math.min(4, Math.max(2, Number(localGet('party.count') ?? 2)));
-  let courseId = localGet('party.course') ?? COURSE.id;
+  let courseId = playable().some((c) => c.id === localGet('party.course')) ? localGet('party.course')! : COURSE.id;
   const draw = () => {
     const rows = players.slice(0, count).map((p, i) => `<div class="pp-row">
         <button class="pp-ball" data-ball="${i}" aria-label="Change ${esc(p.name)}'s ball"><img alt="" src="${preview(`b:${p.ball}`, () => ballPreview(p.ball))}"></button>
         <input class="pp-name" data-name="${i}" maxlength="14" value="${esc(p.name)}" aria-label="Player ${i + 1} name"></div>`).join('');
-    const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-pcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
+    const chips = playable().map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-pcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
     sheet('Play with friends', `<p>Pass the phone: everyone plays each hole in turn, and the lowest total wins. Tap a ball to change it.</p>
       <div class="pp-count"><span>Players</span>${[2, 3, 4].map((n) => `<button class="tab${n === count ? ' on' : ''}" data-count="${n}">${n}</button>`).join('')}</div>
       <div class="pp-rows">${rows}</div><div class="tabs chips">${chips}</div>
@@ -1311,8 +1328,9 @@ function matchUp() {
 }
 
 function openVersus() {
-  const courseId = localGet('vs.course') ?? COURSE.id;
-  const chips = COURSES.map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-vcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
+  const saved = localGet('vs.course');
+  const courseId = saved && playable().some((c) => c.id === saved) ? saved : COURSE.id;
+  const chips = playable().map((c) => `<button class="tab${c.id === courseId ? ' on' : ''}" data-vcourse="${c.id}">${COURSE_LOOK[c.id].icon} ${c.name.toUpperCase()}</button>`).join('');
   const cards = OPPONENTS.map((o, i) => {
     const open = vsUnlocked(i), w = vsGet(`${o.id}.wins`), l = vsGet(`${o.id}.losses`);
     return `<button class="course opp${open ? '' : ' locked'}" data-opp="${o.id}"${open ? '' : ' disabled'}>
@@ -1338,7 +1356,8 @@ function openVersus() {
         m.classList.add('bad');
         return;
       }
-      startMatch(opp, localGet('vs.course') ?? COURSE.id);
+      const vc = localGet('vs.course');
+      startMatch(opp, vc && playable().some((c) => c.id === vc) ? vc : COURSE.id);
     };
   });
 }
@@ -1781,7 +1800,7 @@ function stepReplay(dt: number) {
     if (ev.type === 'wall' || ev.type === 'rail' || ev.type === 'bumper' || ev.type === 'spinner') {
       sfx[ev.type](ev.speed);
       view3d.bounceBall(ev.speed);
-    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing, rocket: sfx.rocket, geyser: sfx.geyser })[ev.by]();
+    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing, rocket: sfx.rocket, geyser: sfx.geyser, broom: sfx.broom })[ev.by]();
     else if (ev.type === 'teleport') (ev.via === 'igloo' ? sfx.igloo : sfx.portal)();
     else if (ev.type === 'chute') sfx.slide();
     else if (ev.type === 'ladder') sfx.ladder();
@@ -1974,7 +1993,7 @@ if (!native && !installed && !inFrame && touch) {
 // ---------- Tester code (web playtest builds) ----------
 /** The web version on a public host asks for the tester code once; the app, claude.ai and local runs don't. */
 /** A challenge link this page was opened with: friends it's sent to can play without a tester code. */
-const incoming = challengeFromUrl(COURSES);
+const incoming = challengeFromUrl(playable());
 
 function testerGate() {
   if (incoming) return;
@@ -2014,6 +2033,7 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <p>Every course has <b>raised levels</b>. Look for the way up: a geyser in the canyon, a launch rocket on the moon, the cannon or a ladder in the circus, stairs or a portal in the tomb, and a ski lift in the Arctic. Watch out for a toboggan run behind the cup!</p>
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
+  <p>Every October, <b>Haunted Hollow</b> 🎃 opens for Halloween: ghosts that are solid only while you can see them, bats, green slime, and witches whose brooms fly the ball across the hole.</p>
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
@@ -2210,7 +2230,7 @@ function tick(dt: number) {
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke', halloween: 'Slimed! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
         updateHud();
         break;
       case 'launch':
@@ -2219,6 +2239,7 @@ function tick(dt: number) {
         else if (ev.by === 'seal') { sfx.seal(); buzz(ImpactStyle.Medium); toast('Flipped!', 'good', 700); }
         else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
         else if (ev.by === 'rocket') { sfx.rocket(); view3d.shake(3); buzz(ImpactStyle.Heavy); toast('Blast off!', 'good', 900); }
+        else if (ev.by === 'broom') { sfx.broom(); buzz(ImpactStyle.Medium); toast("Hop on! The witch's broom", 'good', 1100); }
         else if (ev.by === 'geyser') { sfx.geyser(); view3d.shake(2); buzz(ImpactStyle.Heavy); toast('Geyser!', 'good', 900); }
         else { sfx.boing(); buzz(ImpactStyle.Medium); toast('Boing!', 'good', 600); }
         break;
