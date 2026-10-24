@@ -2350,7 +2350,7 @@ if (import.meta.env.DEV) {
     place: (x: number, y: number) => { world.ball.x = x; world.ball.y = y; },
     cam: (x: number, y: number, dist: number, yaw: number) => view3d.debugView(x, y, dist, yaw),
     aim: () => ({ ...aim }),
-    state: () => ({ phase, holeIdx, strokes, ball: { ...world.ball }, moving: world.moving, dt: lastFrameDt }),
+    state: () => ({ phase, holeIdx, strokes, ball: { ...world.ball }, moving: world.moving, dt: lastFrameDt, busy: busyTimer, rest: { ...lastRest }, splash: !!fx.splash }),
   };
 }
 
