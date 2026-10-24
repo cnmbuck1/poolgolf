@@ -20,7 +20,7 @@ const T: Record<string, Record<string, Tips>> = {
     },
     'Cauldron Bubble': {
       do: ['Cross the cauldron on the plank, timing it for when the ghost has faded or is at the far end.', 'A gentle, straight shot is enough: the plank is long but level.'],
-      avoid: ['Off the plank is green slime (+1 stroke).', 'Webs wait on both sides of the far end, and a bat circles in front of the cup.'],
+      avoid: ['Off the plank is green slime (+1 stroke).', 'Two webs sit out toward the cup, above and below the line, and a bat circles in front of it: keep it straight.'],
     },
     'Bat Cave': {
       do: ['Shortcut: roll into the green coffin in the bottom-left corner and you come out of the purple one by the last bend.', 'Otherwise zig-zag: down round the first wall, up round the second.'],
