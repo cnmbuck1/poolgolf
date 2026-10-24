@@ -10,7 +10,7 @@ import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosa
 import { candyKerb, candyLandscape, chuteMesh, frostingMaterial, gingerbreadMan, gumdrop, ladderMesh, levelLook, lollipop, sugarGroundMaterial, tierMesh } from './candy';
 import { arcticLandscape, iceKerb, iceMaterial, igloo, penguin, polarBear, seal, skiRamp, snowfieldMaterial, snowMaterial } from './arctic';
 import { desertMaterial, mummy, pillar, portal, quicksandPatch, sandstoneMaterial, stoneDoor, templeKerb, tombLandscape } from './tomb';
-import { bat, cobwebMaterial, deadTree, ghost, graveGrassMaterial, gravestone, HALLOWEEN_INK, hauntedKerb, hauntedLandscape, hollowGroundMaterial, jackOLantern, slimeMaterial, witchBroom } from './halloween';
+import { bat, cobwebMaterial, coffin, deadTree, pumpkinCatapult, spiderWeb, ghost, graveGrassMaterial, gravestone, HALLOWEEN_INK, hauntedKerb, hauntedLandscape, hollowGroundMaterial, jackOLantern, slimeMaterial, witchBroom } from './halloween';
 import { cannon, circusLandscape, clown, elephant, feltMaterial, sawdustMaterial, stripedKerb, trampoline } from './circus';
 import { alien, asteroid, astronaut, fallingMeteor, landingRocket, launchRocket, moonDustMaterial, moonTree, moonKerb, moonRockSwap, regolithMaterial, SPACE_INK, spaceBridgeMaterials, spaceLandscape, voidMaterial } from './space';
 import { BALL_R, bridgeEdge, closestOnSeg, CUP_R, fairwayOutline, groundAt, heightAt, tierLift, inZone, onBridge, palmR, zoneCentre, slopeAt, SPINNER_R, WALL_R, World, zoneDepth } from './physics';
@@ -277,7 +277,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const rp of L.ramps ?? []) add(skiRamp(rp, L, to3));
   for (const ig of L.igloos ?? []) add(igloo(ig, L, to3));
   for (const pg of L.penguins ?? []) { const a = penguin(pg, world, L, to3); add(a.group); anims.push(a); }
-  for (const p of L.portals ?? []) { const a = portal(p, L, to3); add(a.group); anims.push(a); }
+  for (const p of L.portals ?? []) { const a = hw ? coffin(p, L, to3) : portal(p, L, to3); add(a.group); anims.push(a); }
   for (const d of L.doors ?? []) { const a = stoneDoor(d, world, L, to3); add(a.group); anims.push(a); }
   for (const m of L.mummies ?? []) { const a = mummy(m, world, L, to3); add(a.group); anims.push(a); }
   (L.pillars ?? []).forEach((pl, i) => {
@@ -297,7 +297,8 @@ export function buildCourse(world: World, models: Models | null): Course {
     const a = quicksandPatch(z, geo); add(a.group); anims.push(a);
   });
   for (const tp of L.trampolines ?? []) { const a = trampoline(tp, world, L, to3); add(a.group); anims.push(a); }
-  for (const c of L.cannons ?? []) { const a = cannon(c, world, L, to3); add(a.group); anims.push(a); }
+  for (const c of L.cannons ?? []) { const a = hw ? pumpkinCatapult(c, world, L, to3) : cannon(c, world, L, to3); add(a.group); anims.push(a); }
+  for (const z of L.webs ?? []) { const a = spiderWeb(z, world, L, to3); add(a.group); anims.push(a); }
   for (const c of L.clowns ?? []) { const a = clown(c, world, L, to3); add(a.group); anims.push(a); }
   for (const el of L.elephants ?? []) {
     const a = arctic ? polarBear(el, L, to3) : elephant(el, L, to3); add(a.group); anims.push(a);

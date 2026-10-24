@@ -66,6 +66,7 @@ export type Event =
   | { type: 'spinner'; speed: number }
   | { type: 'sink' }
   | { type: 'water' }
+  | { type: 'web' }
   | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' | 'rocket' | 'geyser' | 'broom' }
   | { type: 'land' }
   | { type: 'oob' }
@@ -331,6 +332,14 @@ export class World {
         const pull = 1400 * h;
         b.vx += (dcx / (dc || 1)) * pull;
         b.vy += (dcy / (dc || 1)) * pull;
+      }
+
+      // Caught in a spider web
+      if (!falling && (this.level.webs ?? []).some((z) => inZone(z, b.x, b.y))) {
+        events.push({ type: 'web' });
+        this.moving = false;
+        b.vx = b.vy = 0;
+        return events;
       }
 
       // Water (unless the ball is on a bridge deck)
@@ -812,6 +821,7 @@ function routeField(world: World) {
     || (L.igloos ?? []).some((ig) => Math.hypot(x - (ig.a[0] + ig.b[0]) / 2, y - (ig.a[1] + ig.b[1]) / 2) < BALL_R + iglooDome(ig))
     || (L.volcanoes ?? []).some((v) => Math.hypot(x - v.x, y - v.y) < BALL_R + volcanoCore(v.r))
     || movers(L, 0).arms.some((a) => a.omega === 0 && (() => { const p = closestOnSeg(a.seg, x, y); return Math.hypot(x - p.x, y - p.y) < BALL_R + a.seg.r; })())
+    || (L.webs ?? []).some((z) => inZone(z, x, y))
     || ((L.water ?? []).some((z) => inZone(z, x, y)) && !(L.bridges ?? []).some((br) => onBridge(br, x, y)));
   const d = new Float64Array(W * H).fill(Infinity);
   const cell = (x: number, y: number) => Math.floor((x + O) / G) + Math.floor((y + O) / G) * W;
@@ -1035,7 +1045,7 @@ export function spinPath(level: LevelDef, x: number, y: number, dx: number, dy: 
     }
     pts.push({ x: b.x, y: b.y });
     seg.push(w.contacts);
-    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'oob' || e.type === 'sink' || e.type === 'launch' || e.type === 'teleport' || e.type === 'quicksand')) break;
+    if (len > maxLen || ev.some((e) => e.type === 'water' || e.type === 'web' || e.type === 'oob' || e.type === 'sink' || e.type === 'launch' || e.type === 'teleport' || e.type === 'quicksand')) break;
   }
   return { pts, seg, hits };
 }

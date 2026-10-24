@@ -1779,7 +1779,7 @@ function stepReplay(dt: number) {
     if (fx.sink) fx.sink.t += (dt * r.speed) / 0.45;
     if (fx.splash) fx.splash.t += dt * r.speed;
     for (const rp of fx.ripples) rp.t += dt * 1.5;
-    if (r.post > (shot.end === 'sink' ? 1.6 : shot.end === 'water' || shot.end === 'oob' || shot.end === 'quicksand' ? 1.1 : 0.6)) {
+    if (r.post > (shot.end === 'sink' ? 1.6 : shot.end === 'water' || shot.end === 'web' || shot.end === 'oob' || shot.end === 'quicksand' ? 1.1 : 0.6)) {
       r.i++;
       r.pre = 0; r.clock = 0; r.idx = 0; r.post = -1;
       fx.sink = fx.splash = undefined;
@@ -1821,6 +1821,9 @@ function stepReplay(dt: number) {
     fx.sink = { t: 0 };
     view3d.setMode('sink');
     if (shot.ace) toast(trick ? 'TRICK SHOT!' : 'HOLE IN ONE!', 'good', 1800);
+  } else if (shot.end === 'web') {
+    sfx.web();
+    fx.splash = { x: p.x, y: p.y, t: 0, stuck: true };
   } else if (shot.end === 'quicksand') {
     sfx.quicksand();
     fx.splash = { x: p.x, y: p.y, t: 0 };
@@ -2033,7 +2036,7 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <p>Every course has <b>raised levels</b>. Look for the way up: a geyser in the canyon, a launch rocket on the moon, the cannon or a ladder in the circus, stairs or a portal in the tomb, and a ski lift in the Arctic. Watch out for a toboggan run behind the cup!</p>
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
-  <p>Every October, <b>Haunted Hollow</b> 🎃 opens for Halloween: ghosts that are solid only while you can see them, bats, green slime, and witches whose brooms fly the ball across the hole.</p>
+  <p>Every October, <b>Haunted Hollow</b> 🎃 opens for Halloween: ghosts that are solid only while you can see them, bats, spider webs that catch the ball, green slime, coffins you roll into and out of, pumpkin catapults, and witches whose brooms fly the ball across the hole.</p>
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
@@ -2235,7 +2238,7 @@ function tick(dt: number) {
         break;
       case 'launch':
         if (turn === 'player' && !demo) P.noteLaunch(ev.by);
-        if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast('BOOM!', 'good', 700); }
+        if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast(world.level.theme === 'halloween' ? 'Pumpkin launch!' : 'BOOM!', 'good', 800); }
         else if (ev.by === 'seal') { sfx.seal(); buzz(ImpactStyle.Medium); toast('Flipped!', 'good', 700); }
         else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
         else if (ev.by === 'rocket') { sfx.rocket(); view3d.shake(3); buzz(ImpactStyle.Heavy); toast('Blast off!', 'good', 900); }
@@ -2249,7 +2252,7 @@ function tick(dt: number) {
         break;
       case 'teleport':
         if (turn === 'player' && !demo) P.bump('portals');
-        if (ev.via === 'igloo') sfx.igloo(); else sfx.portal();
+        if (ev.via === 'igloo') sfx.igloo(); else if (world.level.theme === 'halloween') { sfx.creak(); toast('Into the coffin…', 'good', 900); } else sfx.portal();
         buzz(ImpactStyle.Light);
         break;
       case 'chute': {
@@ -2272,6 +2275,17 @@ function tick(dt: number) {
         break;
       case 'drop':
         sfx.drop();
+        break;
+      case 'web':
+        // Caught in a spider web: a stroke, and back to where it was hit from (the ball stays stuck in view)
+        sfx.web();
+        if (turn === 'player') sfx.groan();
+        buzz(ImpactStyle.Heavy);
+        fx.splash = { x: b.x, y: b.y, t: 0, stuck: true };
+        strokes++;
+        busyTimer = 1.1;
+        toast('Caught in a spider web! +1 stroke', 'bad');
+        updateHud();
         break;
       case 'quicksand':
         // Came to rest in quicksand: swallowed, a stroke, back to where it was hit from

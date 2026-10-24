@@ -4,8 +4,8 @@
 // positions come from physics.ts.
 import * as THREE from 'three';
 import { Animated } from './art';
-import { Alien, Bumper, Ghost, LevelDef, Lift, Palm, Pt, Rock } from './levels';
-import { alienAt, BALL_R, ghostAt, heightAt, LIFT_CATCH, World } from './physics';
+import { Alien, Bumper, Cannon, Ghost, LevelDef, Lift, Palm, Portal, Pt, Rock, Zone } from './levels';
+import { alienAt, BALL_R, CANNON_CATCH, cannonAngle, ghostAt, heightAt, LIFT_CATCH, PORTAL_R, World, zoneCentre } from './physics';
 import { blob, cached, canvasTex, organic, part, place, rng, shared, toon, toonRamp, V } from './jurassic';
 import { outlineDistance, resample } from './landscape';
 
@@ -395,6 +395,151 @@ export function witchBroom(lf: Lift, world: World, L: LevelDef, toScene: ToScene
         rider.position.set(Math.cos(a) * 26, 34 + Math.sin(t * 2) * 4, Math.sin(a) * 26);
         rider.rotation.set(0, -a - Math.PI / 2, 0.08 * Math.sin(t * 2));
       }
+    },
+  };
+}
+
+// ---------- spider webs (hazards) ----------
+
+const webTex = () => cached('t:spiderweb', () => canvasTex(256, 256, (g) => {
+  g.clearRect(0, 0, 256, 256);
+  g.strokeStyle = 'rgba(245,245,255,0.95)'; g.lineWidth = 2.2;
+  const c = 128, R = 124;
+  for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; g.beginPath(); g.moveTo(c, c); g.lineTo(c + Math.cos(a) * R, c + Math.sin(a) * R); g.stroke(); }
+  g.lineWidth = 1.6;
+  for (let ring = 1; ring <= 7; ring++) {
+    const rr = (R * ring) / 7.4;
+    g.beginPath();
+    for (let k = 0; k <= 12; k++) {
+      const a = (k / 12) * Math.PI * 2, x = c + Math.cos(a) * rr, y = c + Math.sin(a) * rr;
+      if (k) { const m = a - Math.PI / 12; g.quadraticCurveTo(c + Math.cos(m) * rr * 0.9, c + Math.sin(m) * rr * 0.9, x, y); } else g.moveTo(x, y);
+    }
+    g.stroke();
+  }
+}));
+
+/** A big spider web on the ground with its spider waiting in the middle: roll into it and you're caught. */
+export function spiderWeb(z: Zone, world: World, L: LevelDef, toScene: ToScene): Animated {
+  const root = new THREE.Group();
+  const [cx, cy] = zoneCentre(z);
+  const r = z.kind === 'circle' ? z.r : z.kind === 'rect' ? Math.min(z.w, z.h) / 2 : 30;
+  root.position.copy(toScene(cx, cy)).setY(heightAt(L, cx, cy));
+  const dark = new THREE.Mesh(new THREE.CircleGeometry(r, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x0a0610, transparent: true, opacity: 0.4, depthWrite: false }));
+  dark.position.y = 0.5;
+  root.add(dark);
+  const web = new THREE.Mesh(new THREE.CircleGeometry(r * 1.02, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: webTex(), transparent: true, depthWrite: false, toneMapped: false }));
+  web.position.y = 0.9;
+  root.add(web);
+  // Anchor posts round the rim, as if the web were strung between twigs
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + 0.4;
+    place(root, part(new THREE.CylinderGeometry(1.2, 1.6, 10, 5).translate(0, 5, 0), toon(0x3a2e2a), 0.4), Math.cos(a) * r, 0, Math.sin(a) * r);
+  }
+  // The spider: a fat black body, a red hourglass and eight jointed legs
+  const spider = new THREE.Group();
+  root.add(spider);
+  spider.add(part(new THREE.SphereGeometry(5.5, 14, 10).scale(1, 0.8, 1.2), toon(0x14101a), 0.6));
+  place(spider, part(new THREE.SphereGeometry(3.4, 12, 8), toon(0x14101a), 0.5), 0, 0, 6);
+  place(spider, new THREE.Mesh(new THREE.SphereGeometry(1.8, 8, 6).scale(1, 0.4, 1.4), glow(0xd8202e)), 0, 4.2, -1);
+  for (const sx of [-1, 1]) place(spider, new THREE.Mesh(new THREE.SphereGeometry(0.9, 6, 5), glow(0xff3a2a)), sx * 1.3, 1.6, 8.8);
+  const legs: THREE.Object3D[] = [];
+  for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) {
+    const leg = part(organic([V(0, 0, 0), V(sx * 7, 5, 0), V(sx * 13, -3, 0)], [1, 0.8, 0.5], 5, 6), toon(0x14101a), 0.3);
+    leg.position.set(sx * 3, 0, -3 + k * 3);
+    leg.rotation.y = sx * (-0.5 + k * 0.33);
+    spider.add(leg);
+    legs.push(leg);
+  }
+  const seed = cx * 0.01;
+  return {
+    group: root,
+    update(_a, t) {
+      spider.position.y = 4 + Math.sin(t * 2.4 + seed) * 1.2;
+      spider.rotation.y = Math.sin(t * 0.7 + seed) * 0.6;
+      legs.forEach((l, i) => { l.rotation.z = Math.sin(t * 6 + i) * 0.12; });
+      // The web shimmers a little in the moonlight
+      (web.material as THREE.MeshBasicMaterial).opacity = 0.85 + 0.15 * Math.sin(t * 1.5 + seed);
+    },
+  };
+}
+
+// ---------- coffins (portals) ----------
+
+/** A coffin lying in the grass with its lid pushed aside; roll in at one, out of the other. */
+function coffinAt(x: number, y: number, L: LevelDef, toScene: ToScene, inside: number, exit: boolean, yaw: number) {
+  const root = new THREE.Group();
+  root.position.copy(toScene(x, y)).setY(heightAt(L, x, y));
+  root.rotation.y = yaw;
+  const len = PORTAL_R * 2.6, wid = PORTAL_R * 1.7;
+  const s = new THREE.Shape();
+  s.moveTo(-len / 2, 0); s.lineTo(-len * 0.18, -wid / 2); s.lineTo(len / 2, -wid * 0.32); s.lineTo(len / 2, wid * 0.32); s.lineTo(-len * 0.18, wid / 2); s.closePath();
+  const hole = new THREE.Path();
+  const k = 0.82;
+  hole.moveTo(-len / 2 * k, 0); hole.lineTo(-len * 0.18 * k, -wid / 2 * k); hole.lineTo(len / 2 * k, -wid * 0.32 * k); hole.lineTo(len / 2 * k, wid * 0.32 * k); hole.lineTo(-len * 0.18 * k, wid / 2 * k); hole.closePath();
+  s.holes.push(hole);
+  const box = part(new THREE.ExtrudeGeometry(s, { depth: 7, bevelEnabled: false }).rotateX(-Math.PI / 2), toon(0x4a2e22), 1);
+  root.add(box);
+  // A glowing pool inside, swirling
+  const inner = new THREE.Shape();
+  inner.moveTo(-len / 2 * k, 0); inner.lineTo(-len * 0.18 * k, -wid / 2 * k); inner.lineTo(len / 2 * k, -wid * 0.32 * k); inner.lineTo(len / 2 * k, wid * 0.32 * k); inner.lineTo(-len * 0.18 * k, wid / 2 * k); inner.closePath();
+  const pool = new THREE.Mesh(new THREE.ShapeGeometry(inner).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: inside, toneMapped: false }));
+  pool.position.y = 1.5;
+  root.add(pool);
+  // The lid, slid half off and leaning on the edge, with a cross on it
+  const lid = part(new THREE.ExtrudeGeometry(s.clone(), { depth: 3, bevelEnabled: false }).rotateX(-Math.PI / 2), toon(0x5a3a2a), 0.8);
+  lid.position.set(4, 9, wid * 0.65);
+  lid.rotation.x = -0.35;
+  root.add(lid);
+  place(lid, part(new THREE.BoxGeometry(14, 1.5, 3), toon(0xc8a050), 0, false), -2, 3.6, 0);
+  place(lid, part(new THREE.BoxGeometry(3, 1.5, 10), toon(0xc8a050), 0, false), -5, 3.6, 0);
+  if (exit) {
+    const arrow = new THREE.Mesh(new THREE.ConeGeometry(5, 12, 3).rotateZ(-Math.PI / 2), glow(0xb05aff));
+    arrow.position.set(len / 2 + 12, 3, 0);
+    root.add(arrow);
+  }
+  return { root, pool };
+}
+
+export function coffin(p: Portal, L: LevelDef, toScene: ToScene): Animated {
+  const g = new THREE.Group();
+  const exitYaw = p.exit != null ? (-p.exit * Math.PI) / 180 : -Math.atan2(p.b[1] - p.a[1], p.b[0] - p.a[0]);
+  const a = coffinAt(p.a[0], p.a[1], L, toScene, 0x6aff4a, false, -Math.atan2(p.b[1] - p.a[1], p.b[0] - p.a[0]));
+  const b = coffinAt(p.b[0], p.b[1], L, toScene, 0xb05aff, true, exitYaw);
+  g.add(a.root, b.root);
+  return {
+    group: g,
+    update(_x, t) {
+      (a.pool.material as THREE.MeshBasicMaterial).color.setHSL(0.3, 0.9, 0.45 + 0.12 * Math.sin(t * 3));
+      (b.pool.material as THREE.MeshBasicMaterial).color.setHSL(0.78, 0.9, 0.5 + 0.12 * Math.sin(t * 3 + 1));
+    },
+  };
+}
+
+// ---------- pumpkin catapults (cannons) ----------
+
+/** A giant jack-o'-lantern with a wide open mouth: roll in and it spits the ball across the hole the way it faces. */
+export function pumpkinCatapult(c: Cannon, world: World, L: LevelDef, toScene: ToScene): Animated {
+  const root = new THREE.Group();
+  root.position.copy(toScene(c.x, c.y)).setY(heightAt(L, c.x, c.y));
+  // The mouth the ball rolls into: a dark, glowing ring on the ground
+  const mouth = new THREE.Mesh(new THREE.CircleGeometry(CANNON_CATCH, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1a0a04 }));
+  mouth.position.y = 0.6;
+  root.add(mouth);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(CANNON_CATCH + 1, 2, 8, 28).rotateX(Math.PI / 2), glow(0xffb02a));
+  rim.position.y = 1.4;
+  root.add(rim);
+  const swing = new THREE.Group();
+  root.add(swing);
+  const head = pumpkinBody(26, 7);
+  head.position.set(-30, 22, 0);
+  head.rotation.y = Math.PI / 2; // face looks along +x, the launch direction
+  swing.add(head);
+  return {
+    group: root,
+    update(_a, t) {
+      swing.rotation.y = -cannonAngle(c, world.time);
+      head.scale.setScalar(1 + 0.03 * Math.sin(t * 4));
+      (rim.material as THREE.MeshBasicMaterial).color.setHSL(0.09, 1, 0.5 + 0.12 * Math.sin(t * 5));
     },
   };
 }

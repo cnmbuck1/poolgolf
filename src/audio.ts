@@ -287,6 +287,13 @@ export const sfx = {
   },
   /** Off a ski jump: a rising whoosh. */
   whoosh: () => noise(0.5, 0.3, 'bandpass', 600, { sweepTo: 3000, q: 1.5, attack: 0.05 }),
+  /** Caught in a spider web: a sticky twang and a skitter of little legs. */
+  web: () => {
+    tone(220, 0.35, 'sawtooth', 0.12, { slideTo: 140 });
+    for (let k = 0; k < 6; k++) noise(0.03, 0.12, 'highpass', 3000, { at: 0.12 + k * 0.05 });
+  },
+  /** A coffin lid creaking open. */
+  creak: () => { tone(160, 0.5, 'sawtooth', 0.08, { slideTo: 230 }); tone(240, 0.4, 'triangle', 0.05, { at: 0.15, slideTo: 180 }); },
   /** A witch's broom: a rush of air and a quick cackle. */
   broom: () => {
     noise(0.8, 0.3, 'bandpass', 500, { sweepTo: 2600, q: 1.4, attack: 0.08 });

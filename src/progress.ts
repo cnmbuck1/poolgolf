@@ -8,12 +8,12 @@ import { streak } from './daily';
 /** Where each hole's golden 8-ball hides, by course and hole name (picked to be reachable from the tee). */
 export const EIGHTS: Record<string, Record<string, Pt>> = {
   halloween: {
-    'Pumpkin Patch': [575, 125],
-    'Graveyard Shift': [565, 365],
+    'Pumpkin Patch': [565, 125],
+    'Graveyard Shift': [645, 325],
     "Witch's Flight": [655, 85],
-    'Cauldron Bubble': [575, 385],
+    'Cauldron Bubble': [595, 385],
     'Bat Cave': [615, 155],
-    'Haunted Mansion': [505, 115],
+    'Haunted Mansion': [515, 105],
   },
   candy: {
     'Sugar Rush': [585, 155],

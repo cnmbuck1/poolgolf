@@ -175,6 +175,9 @@ export interface LevelDef {
   /** Halloween: ghosts that fade in and out, and bats flitting in circles (solid, bouncy). */
   ghosts?: Ghost[];
   bats?: Alien[];
+  /** Spider webs: a ball that rolls into one is caught (+1 stroke, back to where it was hit from). Flights pass over. */
+  webs?: Zone[];
+  /** Coffins (Halloween) are drawn for `portals`; pumpkin catapults for `cannons`. */
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -824,97 +827,103 @@ const ARCTIC: LevelDef[] = [
 
 /** Haunted Hollow (Halloween): pumpkins, gravestones, ghosts that fade in and out, bats, bubbling slime and witches' brooms that fly the ball across the hole. */
 const pumpkin = (x: number, y: number, r = 20) => ball(5, x, y, r);
+const web = (x: number, y: number, r = 30): Zone => ({ kind: 'circle', x, y, r });
 const HALLOWEEN: LevelDef[] = [
   {
-    // A warm-up through the pumpkin patch, with a bat flitting round the cup
+    // Through the pumpkin patch: the jack-o'-lanterns funnel in toward the cup, spider webs wait for lazy banks, and a bat guards the hole
     name: 'Pumpkin Patch',
     par: 3,
     tee: [110, 250],
     cup: [880, 250],
     outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
-    bumpers: [pumpkin(360, 170), pumpkin(360, 330), pumpkin(540, 250, 22), pumpkin(700, 150), pumpkin(700, 350)],
-    rocks: [{ x: 250, y: 110, r: 16 }, { x: 250, y: 390, r: 16 }, { x: 880, y: 105, r: 16 }],
-    bats: [{ x: 790, y: 250, orbit: 55, speed: 1.6 }],
-    sand: [blob(620, 430, 60, 22, 4, 0.2)],
-    slopes: [{ kind: 'hill', x: 880, y: 250, r: 60, h: -2.5 }],
+    bumpers: [pumpkin(330, 170), pumpkin(330, 330), pumpkin(470, 250, 24), pumpkin(610, 150), pumpkin(610, 350), pumpkin(760, 195, 18), pumpkin(760, 305, 18)],
+    webs: [web(470, 105, 32), web(470, 395, 32)],
+    rocks: [{ x: 220, y: 110, r: 16 }, { x: 220, y: 390, r: 16 }],
+    bats: [{ x: 880, y: 250, orbit: 55, speed: 1.5 }],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 50, h: -2.5 }],
   },
   {
-    // Rows of gravestones, and two ghosts drifting across: they're solid until they fade away
+    // Rows of gravestones and three ghosts drifting across: they're solid until they fade, and the last one floats right in front of the cup
     name: 'Graveyard Shift',
     par: 3,
     tee: [100, 400],
-    cup: [870, 110],
+    cup: [880, 95],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
-    ghosts: [{ a: [380, 90], b: [380, 420], speed: 70, period: 6, gone: 0.35 }, { a: [620, 420], b: [620, 80], speed: 60, period: 7, gone: 0.35, phase: 0.45 }],
-    rocks: [{ x: 250, y: 150, r: 16 }, { x: 250, y: 260, r: 16 }, { x: 500, y: 330, r: 16 }, { x: 500, y: 180, r: 16 }, { x: 760, y: 270, r: 16 }, { x: 760, y: 400, r: 16 }],
+    ghosts: [
+      { a: [360, 70], b: [360, 430], speed: 90, period: 6, gone: 0.25 },
+      { a: [590, 430], b: [590, 70], speed: 80, period: 7, gone: 0.25, phase: 0.45 },
+      { a: [790, 60], b: [790, 260], speed: 60, period: 5, gone: 0.3, phase: 0.2 },
+    ],
+    rocks: [{ x: 230, y: 150, r: 16 }, { x: 230, y: 270, r: 16 }, { x: 470, y: 340, r: 16 }, { x: 470, y: 200, r: 16 }, { x: 470, y: 80, r: 16 }, { x: 700, y: 300, r: 16 }, { x: 700, y: 420, r: 16 }, { x: 700, y: 170, r: 16 }],
+    webs: [web(880, 210, 32), web(600, 250, 26)],
     palms: [{ x: 140, y: 120 }],
-    slopes: [{ kind: 'hill', x: 870, y: 110, r: 55, h: -2.5 }],
   },
   {
-    // The cup is up on the witch's hill. Roll onto her broom and she flies the ball up there (or climb the ladder the long way round)
+    // The cup is up on the witch's hill. Her circle is boxed in by pumpkins with slime just past it; miss it and it's the long way round by the stairs
     name: "Witch's Flight",
     par: 4,
     tee: [110, 400],
-    cup: [830, 140],
+    cup: [850, 130],
     outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
     tiers: [{ pts: [[620, 40], [880, 40], [960, 120], [960, 270], [620, 270]], h: 36 }],
-    lifts: [{ x: 420, y: 390, to: [720, 170], kind: 'broom' }],
-    ladders: [{ path: [[900, 350], [900, 236]] }],
-    water: [blob(620, 385, 70, 42, 2, 0.15)],
-    bats: [{ x: 300, y: 200, orbit: 70, speed: 1.3 }],
-    bumpers: [pumpkin(220, 120, 18)],
-    rocks: [{ x: 760, y: 400, r: 16 }],
-    slopes: [{ kind: 'hill', x: 830, y: 140, r: 55, h: -2.5 }],
+    lifts: [{ x: 470, y: 405, to: [700, 200], kind: 'broom' }],
+    ladders: [{ path: [[915, 355], [915, 236]] }],
+    water: [blob(570, 400, 55, 40, 2, 0.15), blob(300, 200, 60, 45, 9, 0.15)],
+    bumpers: [pumpkin(420, 330, 18), pumpkin(530, 330, 18)],
+    bats: [{ x: 300, y: 330, orbit: 55, speed: 1.6 }, { x: 760, y: 165, orbit: 50, speed: -1.7 }],
+    webs: [web(720, 90, 28), web(800, 330, 30)],
+    rocks: [{ x: 760, y: 410, r: 16 }],
   },
   {
-    // A bubbling cauldron of slime with a plank across, and a ghost that wanders onto it
+    // A bubbling cauldron of slime with a narrow plank, a ghost that wanders onto it, and webs and a bat waiting on the far side
     name: 'Cauldron Bubble',
     par: 3,
     tee: [100, 250],
     cup: [890, 250],
     outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
-    water: [blob(500, 250, 125, 150, 3, 0.12)],
+    water: [blob(500, 250, 125, 160, 3, 0.12)],
     bridges: [{ x: 500, y: 250, len: 300, width: 56, angle: 0 }],
-    ghosts: [{ a: [500, 205], b: [500, 295], speed: 35, period: 5, gone: 0.45 }],
-    sand: [blob(500, 72, 90, 22, 5, 0.2), blob(500, 428, 90, 22, 6, 0.2)],
-    bumpers: [pumpkin(760, 160, 18), pumpkin(760, 340, 18)],
-    rocks: [{ x: 240, y: 120, r: 16 }, { x: 240, y: 380, r: 16 }],
-    slopes: [{ kind: 'hill', x: 890, y: 250, r: 55, h: -2.5 }],
+    ghosts: [{ a: [500, 210], b: [500, 290], speed: 35, period: 5, gone: 0.4 }],
+    webs: [web(720, 130, 30), web(720, 370, 30)],
+    bats: [{ x: 790, y: 250, orbit: 60, speed: 1.3 }],
+    rocks: [{ x: 240, y: 250, r: 14 }],
+    slopes: [{ kind: 'hill', x: 890, y: 250, r: 45, h: -2 }],
   },
   {
-    // A zig-zag through the bat cave; a witch at the bottom flies you past two bends if you can reach her
+    // A zig-zag through the bat cave. The coffin in the bottom corner is a way through to the last bend, if you can get the ball into it past the webs
     name: 'Bat Cave',
     par: 4,
     tee: [100, 100],
     cup: [880, 400],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
     bars: [{ x: 330, y: 180, len: 280, angle: 90 }, { x: 650, y: 320, len: 280, angle: 90 }],
-    bats: [{ x: 200, y: 330, orbit: 45, speed: 1.8 }, { x: 490, y: 200, orbit: 60, speed: -1.5 }, { x: 810, y: 260, orbit: 50, speed: 1.7, phase: 0.3 }],
-    lifts: [{ x: 210, y: 415, to: [800, 110], kind: 'broom' }],
-    rocks: [{ x: 490, y: 420, r: 16 }],
-    sand: [blob(850, 300, 50, 22, 7, 0.2)],
-    slopes: [{ kind: 'hill', x: 880, y: 400, r: 55, h: -2.5 }],
+    bats: [{ x: 200, y: 300, orbit: 45, speed: 2.1 }, { x: 490, y: 220, orbit: 65, speed: -1.8 }, { x: 810, y: 250, orbit: 55, speed: 2, phase: 0.3 }, { x: 860, y: 400, orbit: 40, speed: -1.6 }],
+    portals: [{ a: [250, 415], b: [800, 110], exit: 90 }],
+    webs: [web(170, 420, 28), web(490, 420, 30), web(490, 80, 30), web(720, 430, 26)],
+    rocks: [{ x: 600, y: 110, r: 16 }],
   },
   {
-    // Up to the haunted mansion: the witch flies you to the porch, the stairs climb to the attic, and the cup waits up there with the bats
+    // Up to the haunted mansion: the witch flies you to the porch, or the pumpkin catapult throws you up there if you catch it facing the right way.
+    // Then the stairs to the attic, past a web and a ghost, to the cup guarded by a bat
     name: 'Haunted Mansion',
     par: 4,
     tee: [100, 400],
-    cup: [860, 120],
+    cup: [870, 110],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
     tiers: [
       { pts: [[420, 40], [900, 40], [960, 100], [960, 300], [420, 300]], h: 36 },
       { pts: [[720, 40], [900, 40], [960, 100], [960, 200], [720, 200]], h: 36 },
     ],
-    lifts: [{ x: 300, y: 380, to: [540, 200], kind: 'broom' }],
-    ladders: [{ path: [[640, 120], [744, 120]] }],
-    ghosts: [{ a: [570, 70], b: [570, 280], speed: 50, period: 6, gone: 0.4 }],
-    bats: [{ x: 850, y: 125, orbit: 48, speed: 1.4 }],
-    water: [blob(250, 170, 80, 60, 8, 0.15)],
-    bumpers: [pumpkin(180, 300, 18), pumpkin(640, 250, 16)],
+    lifts: [{ x: 300, y: 400, to: [520, 230], kind: 'broom' }],
+    cannons: [{ x: 230, y: 250, angle: -10, sweep: 40, speed: 0.8, dist: 300 }],
+    ladders: [{ path: [[640, 130], [744, 130]] }],
+    ghosts: [{ a: [580, 70], b: [580, 280], speed: 60, period: 6, gone: 0.3 }],
+    bats: [{ x: 860, y: 115, orbit: 45, speed: 1.9 }],
+    webs: [web(660, 230, 28), web(800, 170, 22)],
+    water: [blob(200, 130, 70, 55, 8, 0.15)],
+    bumpers: [pumpkin(380, 330, 18)],
     rocks: [{ x: 500, y: 410, r: 16 }, { x: 700, y: 400, r: 16 }],
-    palms: [{ x: 90, y: 140 }],
-    slopes: [{ kind: 'hill', x: 860, y: 120, r: 50, h: -2.5 }],
+    palms: [{ x: 90, y: 250 }],
   },
 ];
 

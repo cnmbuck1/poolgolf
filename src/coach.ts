@@ -40,9 +40,10 @@ export const COURSE_INTROS: Record<string, CourseIntro> = {
   ] },
   halloween: { icon: '🎃', points: [
     'Happy Halloween! <b>Haunted Hollow</b> is only open in October.',
-    '<b>Ghosts</b> are solid while you can see them, and fade away for a moment: time your shot to roll right through.',
-    "Roll onto a <b>witch's circle</b> and she flies the ball across the hole on her broom. Watch out for <b>bats</b> and the green <b>slime</b> (+1 stroke).",
+    '<b>Ghosts</b> are solid while you can see them and fade away for a moment. <b>Spider webs</b> catch the ball (+1 stroke).',
+    "Get around on a <b>witch's broom</b> (roll onto her circle), through the <b>coffins</b>, or launched by a <b>pumpkin catapult</b>.",
   ] },
+
   arctic: { icon: '❄️', points: [
     '<b>Ice</b> is slick: the ball glides much further, so hit softer.',
     '<b>Seals</b> flip the ball over obstacles, and <b>ski jumps</b> launch it over walls.',

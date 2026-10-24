@@ -43,7 +43,8 @@ export interface CueState { visible: boolean; dx: number; dy: number; pull: numb
 
 export interface FX {
   sink?: { t: number };
-  splash?: { x: number; y: number; t: number };
+  /** `stuck`: caught (in a spider web): the ball stays in view instead of vanishing. */
+  splash?: { x: number; y: number; t: number; stuck?: boolean };
   ripples: { x: number; y: number; t: number }[];
 }
 
@@ -676,7 +677,7 @@ export class Renderer3D {
       bh = this.h(world.level.cup[0], world.level.cup[1]) + BALL_R - t * t * 36;
     }
     this.ball.position.copy(to3(bx, by)).setY(bh);
-    this.ball.visible = !fx.splash || fx.splash.t < 0.03;
+    this.ball.visible = !fx.splash || fx.splash.t < 0.03 || !!fx.splash.stuck;
     this.ballShadowFake.visible = this.ball.visible && !fx.sink;
     this.ballGhost.visible = this.ball.visible && !fx.sink;
     this.ballShadowFake.position.copy(to3(bx, by)).setY(ground + 0.6);
