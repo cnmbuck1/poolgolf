@@ -267,6 +267,19 @@ export function levelLook(theme: string): LevelLook {
       chute: { colors: [0x5a2a7a, 0xff8a1a], lip: 0x1a1420, post: () => toon(0x2a1a30), mouth: ['#14081c', '#b05aff'], ring: ring([0xb05aff, 0xff8a1a]) },
       ladder: { kind: 'stairs', ring: 0xff8a1a },
     };
+    case 'christmas': return {
+      top: () => snowMaterial(), tile: 260,
+      side: () => sideTex('christmas', (g, r) => {
+        g.fillStyle = '#f0e8e0'; g.fillRect(0, 0, 256, 128);
+        for (let y = 14; y < 128; y += 14) for (let x = (y / 14) % 2 ? -14 : 0; x < 256; x += 28) { g.fillStyle = ['#b8402e', '#a83426', '#c44a34'][Math.floor(r() * 3)]; g.fillRect(x + 1.5, y + 1.5, 25, 11); }
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 14);
+        for (let x = 0; x < 256; x += 20) { g.beginPath(); g.arc(x + 10, 14, 10, 0, Math.PI); g.fill(); }
+      }),
+      rim: { kind: 'beads', mat: toon(0xffffff), r: 5 },
+      drip: { mat: () => toon(0xd8f0ff), icicle: true },
+      chute: { colors: [0xd8202e, 0xffffff, 0x1f7a46, 0xffffff], lip: 0xffc83a, post: () => caneMaterial(), mouth: ['#14304e', '#ffd84a'], ring: ring([0xd8202e, 0x1f7a46]) },
+      ladder: { kind: 'cane', ring: 0xffd84a },
+    };
     default: return {
       top: (n) => tierTopMaterial(n), tile: 260,
       side: (n) => cakeSideMaterial(n),

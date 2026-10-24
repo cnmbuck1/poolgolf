@@ -43,6 +43,11 @@ export const COURSE_INTROS: Record<string, CourseIntro> = {
     '<b>Ghosts</b> are solid while you can see them and fade away for a moment. <b>Spider webs</b> catch the ball (+1 stroke).',
     "Get around on a <b>witch's broom</b> (roll onto her circle), through the <b>coffins</b>, or launched by a <b>pumpkin catapult</b>.",
   ] },
+  christmas: { icon: '🎄', points: [
+    'Merry Christmas! <b>North Pole Village</b> is only open from December 1 to January 6.',
+    'Roll onto <b>Santa\'s landing pad</b> and his sleigh flies the ball up to the rooftops. Drop down one <b>chimney</b> to pop out of the other.',
+    'Ride the <b>toy train</b> from its station. <b>Nutcrackers</b> and <b>snowballs</b> are on the move, and holes in the <b>ice</b> cost a stroke.',
+  ] },
 
   arctic: { icon: '❄️', points: [
     '<b>Ice</b> is slick: the ball glides much further, so hit softer.',

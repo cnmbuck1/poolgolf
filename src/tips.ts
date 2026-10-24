@@ -33,6 +33,35 @@ const T: Record<string, Record<string, Tips>> = {
     },
   },
 
+  christmas: {
+    'Jingle Bell Lane': {
+      do: ['Go straight up the middle: the big present sits a little behind the first pair, so aim just past it.', 'Time the last putt for when the nutcracker has marched out of the way.'],
+      avoid: ['The presents are bumpers: clip a corner hard and the ball flies off sideways.', 'Snowdrifts behind the cup soak up an overhit ball, but leave you a tricky chip back.'],
+      spin: 'Side spin curves the ball round the candy cane in front of the cup.',
+    },
+    'Snowball Alley': {
+      do: ['Watch the snowballs roll up and down: hit when the gap in each lane lines up.', 'Play it in two: up past the first snowmen, then across the top to the cup.'],
+      avoid: ['A rolling snowball knocks the ball right off its line.', 'The snowmen narrow every gap: a ball off line bounces back toward you.'],
+    },
+    "Santa's Sleigh Ride": {
+      do: ["Roll gently between the two presents onto Santa's glowing pad: the sleigh flies the ball up onto the roof.", 'Missed it? The candy-cane ladder at the far right climbs the roof the long way round.'],
+      avoid: ['The roof edge is a wall from below: you can\'t roll straight up it.', 'A nutcracker marches across the rooftop in front of the cup.'],
+    },
+    'Frozen Pond': {
+      do: ['Hit it softly: the ice barely slows the ball, so a quarter of your usual power goes a long way.', 'The straightest line runs just below the top hole in the ice and above the bottom one.'],
+      avoid: ['Holes in the ice cost a stroke (+1).', 'The candy cane in the middle of the pond blocks the dead-straight line.'],
+    },
+    'Chimney Drop': {
+      do: ['Shortcut: roll into the chimney on the left and you pop out of the one past the wall.', 'Otherwise go round the bottom end of the wall, timing it past the marching nutcrackers.'],
+      avoid: ['Three nutcrackers march across the bottom lane: a ball that meets one stops dead.', 'The snowdrift by the top-right corner catches a long chimney exit.'],
+      spin: 'Side spin hooks the ball round the bottom end of the wall.',
+    },
+    'Toy Train Express': {
+      do: ['Roll into the station by the tee: the toy train carries the ball over the lake, past the cup, to the end of the line in the corner. A short putt back does the rest.', 'On foot, go up the top lane: the fence closes the cup off from below.'],
+      avoid: ['The frozen lake has open water in the middle (+1 stroke).', 'Nutcrackers march across the top lane: time your shot past them.'],
+    },
+  },
+
   candy: {
     'Sugar Rush': {
       do: ['Roll straight off the open front edge of the cake: the drop keeps most of your speed.', 'Bank off the top rail to go round the chocolate pond and come down to the cup.'],

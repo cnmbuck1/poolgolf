@@ -67,7 +67,7 @@ export type Event =
   | { type: 'sink' }
   | { type: 'water' }
   | { type: 'web' }
-  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' | 'rocket' | 'geyser' | 'broom' }
+  | { type: 'launch'; by: 'trampoline' | 'cannon' | 'seal' | 'ramp' | 'rocket' | 'geyser' | 'broom' | 'sleigh' }
   | { type: 'land' }
   | { type: 'oob' }
   | { type: 'teleport'; via?: 'igloo' }
@@ -98,7 +98,7 @@ export class World {
   /** Falling off a ledge: still rolling across the level below (walls and all), dropping at `vz`. */
   drop: { vz: number } | null = null;
   /** Riding a chute or climbing a ladder: `s` units along its track, at `speed`. */
-  ride: { track: Track; s: number; speed: number; ladder: boolean } | null = null;
+  ride: { track: Track; s: number; speed: number; ladder: boolean; train?: boolean } | null = null;
   /** Seconds after landing before a trampoline or cannon can catch the ball again. */
   private launchCool = 0;
   /** Seconds after coming out of a portal before another can take the ball. */
@@ -219,7 +219,7 @@ export class World {
         // On a chute or ladder: carried along its track, then off the end
         const r = this.ride, tr = r.track;
         r.s += r.speed * h;
-        if (!r.ladder) r.speed = Math.min(CHUTE_MAX, r.speed + CHUTE_G * tr.fall * h);
+        if (!r.ladder && !r.train) r.speed = Math.min(CHUTE_MAX, r.speed + CHUTE_G * tr.fall * h);
         const p = trackAt(tr, r.s);
         b.x = p.x; b.y = p.y;
         b.z = p.z - heightAt(this.level, p.x, p.y);
@@ -228,7 +228,7 @@ export class World {
         if (r.s < tr.len) continue;
         b.z = 0;
         this.ride = null;
-        const out = r.ladder ? LADDER_EXIT : Math.max(CHUTE_EXIT, r.speed * 0.75);
+        const out = r.ladder ? LADDER_EXIT : r.train ? TRAIN_EXIT : Math.max(CHUTE_EXIT, r.speed * 0.75);
         b.vx = p.dx * out; b.vy = p.dy * out;
         this.portalCool = 0.4;
         continue;
@@ -431,8 +431,9 @@ export class World {
       if (Math.hypot(b.x - lf.x, b.y - lf.y) > LIFT_CATCH) continue;
       // Up and away, high over everything, then down gently onto the target
       const d = Math.hypot(lf.to[0] - lf.x, lf.to[1] - lf.y), dx = (lf.to[0] - lf.x) / (d || 1), dy = (lf.to[1] - lf.y) / (d || 1);
-      // A witch's broom swoops low and slow; rockets and geysers go high
-      this.fly(lf.x, lf.y, lf.to[0], lf.to[1], (lf.kind === 'broom' ? 1.6 : 1.1) + d / 900, lf.kind === 'rocket' ? 190 + d * 0.15 : lf.kind === 'broom' ? 90 + d * 0.1 : 120 + d * 0.15, dx * 90, dy * 90, lf);
+      // A witch's broom and Santa's sleigh swoop low and slow; rockets and geysers go high
+      const swoop = lf.kind === 'broom' || lf.kind === 'sleigh';
+      this.fly(lf.x, lf.y, lf.to[0], lf.to[1], (swoop ? 1.6 : 1.1) + d / 900, lf.kind === 'rocket' ? 190 + d * 0.15 : swoop ? 90 + d * 0.1 : 120 + d * 0.15, dx * 90, dy * 90, lf);
       events.push({ type: 'launch', by: lf.kind });
       return true;
     }
@@ -454,7 +455,9 @@ export class World {
       for (const c of list ?? []) {
         if (Math.hypot(b.x - c.path[0][0], b.y - c.path[0][1]) > RIDE_CATCH) continue;
         const track = chuteTrack(this.level, c, ladder);
-        this.ride = { track, s: 0, speed: ladder ? LADDER_SPEED : Math.max(CHUTE_START, Math.hypot(b.vx, b.vy) * 0.7), ladder };
+        // At Christmas the chutes are a toy train: it always runs at the same speed and lets the ball off gently at the end of the line
+        const train = !ladder && this.level.theme === 'christmas';
+        this.ride = { track, s: 0, speed: ladder ? LADDER_SPEED : train ? TRAIN_SPEED : Math.max(CHUTE_START, Math.hypot(b.vx, b.vy) * 0.7), ladder, train };
         this.spin = { side: 0, vert: 0 };
         events.push({ type: ladder ? 'ladder' : 'chute' });
         return true;
@@ -1148,6 +1151,7 @@ export function astronautAt(s: Astronaut, t: number) {
 export const ASTRONAUT_R = 17;
 export const PENGUIN_R = 14;
 export const GINGER_R = 14;
+export const NUTCRACKER_R = 14;
 
 /**
  * A landing rocket's cycle at time t: `h` is its height (1 = out of sight, 0 = on the pad), `u` the
@@ -1197,6 +1201,7 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const s of level.mummies ?? []) circles.push({ ...astronautAt(s, t), e: 0.45, kind: 'wall' });
   for (const s of level.penguins ?? []) circles.push({ ...astronautAt(s, t), r: PENGUIN_R, e: 0.55, kind: 'wall' });
   for (const s of level.gingerbread ?? []) circles.push({ ...astronautAt(s, t), r: GINGER_R, e: 0.6, kind: 'wall' });
+  for (const s of level.nutcrackers ?? []) circles.push({ ...astronautAt(s, t), r: NUTCRACKER_R, e: 0.6, kind: 'wall' });
   for (const g of level.ghosts ?? []) { const p = ghostAt(g, t); if (p.solid) circles.push({ x: p.x, y: p.y, r: p.r, vx: p.vx, vy: p.vy, e: 0.5, kind: 'wall' }); }
   for (const b of level.bats ?? []) circles.push({ ...alienAt(b, t), r: BAT_R, e: 0.85, kind: 'rail' });
   for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });
@@ -1236,6 +1241,7 @@ export const CHUTE_CATCH = 24;
 const RIDE_CATCH = CHUTE_CATCH + BALL_R * 0.75;
 export const LIFT_CATCH = 22;
 const CHUTE_START = 160, CHUTE_G = 900, CHUTE_MAX = 620, CHUTE_EXIT = 180;
+const TRAIN_SPEED = 220, TRAIN_EXIT = 80;
 export const LADDER_SPEED = 130, LADDER_EXIT = 150, LADDER_RUNG = 14;
 
 function inPoly(pts: Pt[], x: number, y: number) {

@@ -345,6 +345,20 @@ export const sfx = {
     warble(820, 0.1, 'square', 0.08, { slideTo: 1200, rate: 30, depth: 0.05, filter: 3000 });
     warble(1100, 0.14, 'square', 0.07, { at: 0.11, slideTo: 700, rate: 30, depth: 0.05, filter: 3000 });
   },
+  /** Santa's sleigh: a shake of sleigh bells and a jolly "ho ho". */
+  sleigh: () => {
+    for (let k = 0; k < 10; k++) { const at = k * 0.07; noise(0.05, 0.1, 'bandpass', 6500, { q: 6, at }); tone(2600 + (k % 3) * 340, 0.08, 'sine', 0.05, { at }); }
+    for (const at of [0.2, 0.45]) warble(150, 0.18, 'sawtooth', 0.16, { at, slideTo: 120, rate: 14, depth: 0.06, filter: 900, attack: 0.02 });
+  },
+  /** Down a chimney: a sooty whoomp and a puff. */
+  chimney: () => { tone(300, 0.45, 'sine', 0.2, { slideTo: 70 }); noise(0.4, 0.2, 'lowpass', 900, { sweepTo: 200, at: 0.05 }); },
+  /** All aboard the toy train: two toots of the whistle and the clack of the wheels. */
+  train: () => {
+    for (const at of [0, 0.3]) { tone(740, 0.22, 'triangle', 0.12, { at }); tone(932, 0.22, 'triangle', 0.08, { at }); }
+    for (let k = 0; k < 6; k++) noise(0.03, 0.12, 'bandpass', 1800, { q: 3, at: 0.6 + k * 0.12 });
+  },
+  /** A nutcracker soldier bonked: a hollow wooden clack. */
+  nutcracker: () => { tone(620, 0.06, 'square', 0.1, { slideTo: 420 }); tone(880, 0.05, 'triangle', 0.08, { at: 0.07 }); },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];

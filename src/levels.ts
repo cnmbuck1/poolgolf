@@ -104,13 +104,13 @@ export interface Chute { path: Pt[] }
  * onto it is caught (any speed) and lands gently at `to`, rolling on the way it flew. A launch rocket on the
  * moon, a geyser in the canyon.
  */
-export interface Lift { x: number; y: number; to: Pt; kind: 'rocket' | 'geyser' | 'broom' }
+export interface Lift { x: number; y: number; to: Pt; kind: 'rocket' | 'geyser' | 'broom' | 'sleigh' }
 /**
  * A ghost drifting back and forth between a and b. It fades out for part of every `period` seconds
  * (`gone`, 0..1, the fraction of the cycle it's invisible) and the ball passes straight through it then.
  */
 export interface Ghost { a: Pt; b: Pt; speed: number; period?: number; gone?: number; phase?: number; r?: number }
-export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy' | 'halloween';
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy' | 'halloween' | 'christmas';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -178,6 +178,13 @@ export interface LevelDef {
   /** Spider webs: a ball that rolls into one is caught (+1 stroke, back to where it was hit from). Flights pass over. */
   webs?: Zone[];
   /** Coffins (Halloween) are drawn for `portals`; pumpkin catapults for `cannons`. */
+  /** Christmas: nutcracker soldiers marching between two points (same motion as an astronaut). */
+  nutcrackers?: Astronaut[];
+  /**
+   * At Christmas the other pieces are dressed for the season: presents for `bumpers`, snowmen for `rocks`,
+   * rolling snowballs for `tumbleweeds`, candy-cane posts for `pillars`, fir trees for `palms`, snowdrifts
+   * for `sand`, chimneys for `portals` and a toy train for `chutes` (a flat track it rides along).
+   */
   /** Set from the course; decides the look (water is lava in the jurassic course and a starry void in space). */
   theme?: Theme;
   water?: Zone[];
@@ -927,6 +934,107 @@ const HALLOWEEN: LevelDef[] = [
   },
 ];
 
+/** North Pole Village (Christmas): presents, snowmen, nutcracker soldiers, rolling snowballs, a frozen pond, chimneys, a toy train and Santa's sleigh. */
+const present = (x: number, y: number, n: keyof typeof BALL = 3, r = 18) => ball(n, x, y, r);
+const CHRISTMAS: LevelDef[] = [
+  {
+    // Down the village lane between the presents and candy canes; a nutcracker marches back and forth in front of the cup
+    name: 'Jingle Bell Lane',
+    par: 3,
+    tee: [110, 250],
+    cup: [880, 250],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    bumpers: [present(320, 180, 3), present(320, 320, 6), present(480, 250, 1, 22), present(620, 140, 4), present(620, 360, 2)],
+    pillars: [{ x: 400, y: 90, r: 9 }, { x: 400, y: 410, r: 9 }, { x: 700, y: 250, r: 9 }],
+    nutcrackers: [{ a: [780, 160], b: [780, 340], speed: 50 }],
+    sand: [blob(890, 110, 45, 28, 4, 0.2), blob(890, 390, 45, 28, 8, 0.2)],
+    palms: [{ x: 200, y: 100 }, { x: 200, y: 400 }],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 50, h: -2.5 }],
+  },
+  {
+    // Snowballs come rolling down the alley across your path; the snowmen make the gaps narrower
+    name: 'Snowball Alley',
+    par: 3,
+    tee: [100, 400],
+    cup: [880, 100],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tumbleweeds: [
+      { a: [320, 60], b: [320, 440], speed: 120, r: 24 },
+      { a: [530, 440], b: [530, 60], speed: 105, r: 26, phase: 0.4 },
+      { a: [710, 60], b: [710, 320], speed: 90, r: 22, phase: 0.2 },
+    ],
+    rocks: [{ x: 230, y: 250, r: 20 }, { x: 430, y: 150, r: 20 }, { x: 430, y: 360, r: 20 }, { x: 630, y: 200, r: 20 }, { x: 830, y: 230, r: 18 }, { x: 790, y: 135, r: 18 }],
+    sand: [blob(880, 380, 50, 30, 3, 0.2)],
+    palms: [{ x: 140, y: 120 }],
+    slopes: [{ kind: 'hill', x: 880, y: 100, r: 50, h: -2.5 }],
+  },
+  {
+    // The cup is up on the rooftop. Roll onto Santa's landing pad and the sleigh flies you up there; miss and it's the long way round by the ladder
+    name: "Santa's Sleigh Ride",
+    par: 4,
+    tee: [110, 400],
+    cup: [850, 130],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    tiers: [{ pts: [[620, 40], [880, 40], [960, 120], [960, 270], [620, 270]], h: 36 }],
+    lifts: [{ x: 470, y: 400, to: [700, 200], kind: 'sleigh' }],
+    ladders: [{ path: [[915, 355], [915, 236]] }],
+    bumpers: [present(410, 330, 1), present(540, 330, 6)],
+    rocks: [{ x: 300, y: 200, r: 22 }, { x: 760, y: 400, r: 18 }],
+    nutcrackers: [{ a: [760, 80], b: [760, 240], speed: 40 }],
+    sand: [blob(300, 330, 50, 30, 5, 0.2)],
+    palms: [{ x: 200, y: 110 }, { x: 560, y: 90 }],
+  },
+  {
+    // A frozen pond: the ice barely slows the ball, and there are holes in it. Snowdrifts round the cup catch anything too fast
+    name: 'Frozen Pond',
+    par: 3,
+    tee: [100, 250],
+    cup: [880, 250],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    ice: [blob(500, 250, 270, 175, 2, 0.12)],
+    water: [{ kind: 'circle', x: 430, y: 170, r: 40 }, { kind: 'circle', x: 560, y: 330, r: 44 }, { kind: 'circle', x: 640, y: 175, r: 34 }],
+    sand: [blob(915, 140, 40, 50, 6, 0.2), blob(915, 360, 40, 50, 7, 0.2)],
+    rocks: [{ x: 800, y: 130, r: 18 }, { x: 800, y: 370, r: 18 }],
+    pillars: [{ x: 500, y: 250, r: 10 }],
+    slopes: [{ kind: 'hill', x: 880, y: 250, r: 55, h: -2.5 }],
+  },
+  {
+    // A row of houses splits the hole. Go down one chimney and you pop out of the other, past the wall; or go the long way round the bottom, past the marching nutcrackers
+    name: 'Chimney Drop',
+    par: 3,
+    tee: [100, 100],
+    cup: [880, 400],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    bars: [{ x: 520, y: 205, len: 330, angle: 90 }],
+    portals: [{ a: [400, 150], b: [650, 140], exit: 60 }],
+    nutcrackers: [{ a: [450, 330], b: [450, 440], speed: 45 }, { a: [600, 440], b: [600, 330], speed: 45, phase: 0.5 }, { a: [780, 300], b: [780, 440], speed: 40, phase: 0.25 }],
+    bumpers: [present(250, 250, 3), present(700, 260, 4), present(880, 280, 6, 16)],
+    rocks: [{ x: 300, y: 400, r: 18 }],
+    sand: [blob(850, 120, 50, 30, 9, 0.2)],
+    palms: [{ x: 160, y: 380 }],
+    slopes: [{ kind: 'hill', x: 880, y: 400, r: 50, h: -2.5 }],
+  },
+  {
+    // The finale: the toy train runs from the station by the tee, over the top of the frozen lake and past the cup to the end of the line in the corner.
+    // A fence closes the cup off from below, so on foot it's up the top lane past the nutcrackers
+    name: 'Toy Train Express',
+    par: 3,
+    tee: [100, 400],
+    cup: [870, 110],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    chutes: [{ path: [[200, 300], [250, 180], [380, 110], [540, 85], [700, 68], [820, 62], [905, 75], [930, 120]] }],
+    bars: [{ x: 830, y: 200, len: 260, angle: 0 }],
+    ice: [blob(520, 330, 190, 105, 4, 0.14)],
+    water: [blob(520, 335, 110, 60, 7, 0.18)],
+    nutcrackers: [{ a: [810, 180], b: [810, 60], speed: 45 }, { a: [560, 150], b: [560, 300], speed: 50, phase: 0.5 }],
+    bumpers: [present(380, 220, 2), present(650, 150, 5)],
+    rocks: [{ x: 740, y: 135, r: 18 }],
+    tumbleweeds: [{ a: [300, 440], b: [300, 360], speed: 50, r: 16 }],
+    palms: [{ x: 120, y: 120 }, { x: 900, y: 420 }],
+    slopes: [{ kind: 'hill', x: 870, y: 110, r: 50, h: -2.5 }],
+  },
+];
+
 /** `season`: a holiday course, open only between these dates each year ([month, day], inclusive). */
 export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[]; season?: { from: [number, number]; to: [number, number] } }
 
@@ -1056,6 +1164,7 @@ export const COURSES: CourseDef[] = [
  */
 export const SEASONAL: CourseDef[] = [
   { id: 'halloween', name: 'Haunted Hollow', theme: 'halloween', holes: HALLOWEEN, season: { from: [10, 1], to: [11, 7] } },
+  { id: 'christmas', name: 'North Pole Village', theme: 'christmas', holes: CHRISTMAS, season: { from: [12, 1], to: [1, 6] } },
 ];
 /** Every course, regular and holiday, for looking one up by id. */
 export const ALL_COURSES: CourseDef[] = [...COURSES, ...SEASONAL];

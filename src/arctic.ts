@@ -307,7 +307,7 @@ function aurora(centre: THREE.Vector3): Animated {
 }
 
 /** Snowflakes drifting down around the course. */
-function snowfall(centre: THREE.Vector3): Animated {
+export function snowfall(centre: THREE.Vector3): Animated {
   const n = 900, pos = new Float32Array(n * 3), r = rng(77);
   for (let i = 0; i < n; i++) { pos[i * 3] = (r() - 0.5) * 2400; pos[i * 3 + 1] = r() * 700; pos[i * 3 + 2] = (r() - 0.5) * 1600; }
   const geo = new THREE.BufferGeometry();

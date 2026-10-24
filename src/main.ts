@@ -171,6 +171,7 @@ function creatureHit() {
   if ((L.penguins ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.penguin);
   if ((L.seals ?? []).some((c) => near(c.x, c.y, 26))) return say(sfx.seal);
   if ((L.gingerbread ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.gingerbread);
+  if ((L.nutcrackers ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.nutcracker);
   if ((L.clowns ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.clown);
   if ((L.mummies ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.groanMummy);
   if ((L.astronauts ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.astronaut);
@@ -864,12 +865,13 @@ function sheet(title: string, html: string) {
 click('btn-sheet-close', () => { refreshTitle(); show('screen-title'); });
 
 /** Each course's badge and colours for the course picker. */
-const COURSE_LOOK: Record<string, { icon: string; bg: string }> = {
+const COURSE_LOOK: Record<string, { icon: string; bg: string; badge?: string }> = {
   candy: { icon: '🍭', bg: 'linear-gradient(160deg, #ff8fc8, #c35c9a 55%, #5fae8a)' },
   jurassic: { icon: '🦖', bg: 'linear-gradient(160deg, #e8913f, #9a4516 60%, #4a2410)' },
   space: { icon: '🌙', bg: 'linear-gradient(160deg, #6a70b0, #2a2d5a 55%, #0e0f22)' },
   circus: { icon: '🎪', bg: 'linear-gradient(160deg, #f4c542, #d8303c 55%, #7a1420)' },
-  halloween: { icon: '🎃', bg: 'linear-gradient(160deg, #ff8a1a, #6a2a8a 55%, #1a1030)' },
+  halloween: { icon: '🎃', bg: 'linear-gradient(160deg, #ff8a1a, #6a2a8a 55%, #1a1030)', badge: 'HALLOWEEN SPECIAL' },
+  christmas: { icon: '🎄', bg: 'linear-gradient(160deg, #e8f4ff, #d8303c 50%, #1f6a3e)', badge: 'CHRISTMAS SPECIAL' },
   tomb: { icon: '🏺', bg: 'linear-gradient(160deg, #f0d08a, #c08a3a 55%, #6a4518)' },
   arctic: { icon: '❄️', bg: 'linear-gradient(160deg, #e6f4ff, #7ab4e4 55%, #2e5e94)' },
 };
@@ -891,7 +893,7 @@ function openCourses(holesOf?: string) {
     const par = c.holes.reduce((a, l) => a + l.par, 0);
     const look = COURSE_LOOK[c.id];
     return `<div class="ctile${c.id === COURSE.id ? ' cur' : ''}" style="background:${look.bg}">
-      ${c.season ? '<em class="ctile-badge">HALLOWEEN SPECIAL</em>' : ''}<button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
+      ${look.badge ? `<em class="ctile-badge">${look.badge}</em>` : ''}<button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
         <small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''}</small>
         <small class="ctile-prog">★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></button>
       <button class="ctile-holes" data-holes="${c.id}">HOLES ›</button></div>`;
@@ -1806,7 +1808,7 @@ function stepReplay(dt: number) {
     if (ev.type === 'wall' || ev.type === 'rail' || ev.type === 'bumper' || ev.type === 'spinner') {
       sfx[ev.type](ev.speed);
       view3d.bounceBall(ev.speed);
-    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing, rocket: sfx.rocket, geyser: sfx.geyser, broom: sfx.broom })[ev.by]();
+    } else if (ev.type === 'launch') ({ cannon: sfx.cannon, seal: sfx.seal, ramp: sfx.whoosh, trampoline: sfx.boing, rocket: sfx.rocket, geyser: sfx.geyser, broom: sfx.broom, sleigh: sfx.sleigh })[ev.by]();
     else if (ev.type === 'teleport') (ev.via === 'igloo' ? sfx.igloo : sfx.portal)();
     else if (ev.type === 'chute') sfx.slide();
     else if (ev.type === 'ladder') sfx.ladder();
@@ -2043,6 +2045,7 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p>Every October, <b>Haunted Hollow</b> 🎃 opens for Halloween: ghosts that are solid only while you can see them, bats, spider webs that catch the ball, green slime, coffins you roll into and out of, pumpkin catapults, and witches whose brooms fly the ball across the hole.</p>
+  <p>From December 1 to January 6, <b>North Pole Village</b> 🎄 opens for Christmas: presents to bank off, snowmen, marching nutcracker soldiers, rolling snowballs, a frozen pond with holes in the ice, chimneys you drop down and pop out of, a toy train that carries the ball along its track, and Santa's sleigh, which flies it up onto the rooftops.</p>
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
@@ -2239,7 +2242,7 @@ function tick(dt: number) {
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke', halloween: 'Slimed! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke', halloween: 'Slimed! +1 stroke', christmas: 'Through the ice! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
         updateHud();
         break;
       case 'launch':
@@ -2249,6 +2252,7 @@ function tick(dt: number) {
         else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
         else if (ev.by === 'rocket') { sfx.rocket(); view3d.shake(3); buzz(ImpactStyle.Heavy); toast('Blast off!', 'good', 900); }
         else if (ev.by === 'broom') { sfx.broom(); buzz(ImpactStyle.Medium); toast("Hop on! The witch's broom", 'good', 1100); }
+        else if (ev.by === 'sleigh') { sfx.sleigh(); buzz(ImpactStyle.Medium); toast("Ho ho ho! Santa's sleigh", 'good', 1100); }
         else if (ev.by === 'geyser') { sfx.geyser(); view3d.shake(2); buzz(ImpactStyle.Heavy); toast('Geyser!', 'good', 900); }
         else { sfx.boing(); buzz(ImpactStyle.Medium); toast('Boing!', 'good', 600); }
         break;
@@ -2258,19 +2262,19 @@ function tick(dt: number) {
         break;
       case 'teleport':
         if (turn === 'player' && !demo) P.bump('portals');
-        if (ev.via === 'igloo') sfx.igloo(); else if (world.level.theme === 'halloween') { sfx.creak(); toast('Into the coffin…', 'good', 900); } else sfx.portal();
+        if (ev.via === 'igloo') sfx.igloo(); else if (world.level.theme === 'halloween') { sfx.creak(); toast('Into the coffin…', 'good', 900); } else if (world.level.theme === 'christmas') { sfx.chimney(); toast('Down the chimney!', 'good', 900); } else sfx.portal();
         buzz(ImpactStyle.Light);
         break;
       case 'chute': {
         if (turn === 'player' && !demo) P.bump('chutes');
-        sfx.slide();
+        if (world.level.theme === 'christmas') sfx.train(); else sfx.slide();
         buzz(ImpactStyle.Light);
         // A chute that ends further from the cup than it starts is a snake in the board game
         const c = (world.level.chutes ?? []).find((k) => Math.hypot(b.x - k.path[0][0], b.y - k.path[0][1]) < 30);
         const [cx, cy] = world.level.cup, end = c?.path[c.path.length - 1];
         const back = !!end && Math.hypot(end[0] - cx, end[1] - cy) > Math.hypot(b.x - cx, b.y - cy) + 150;
         const name = world.level.theme === 'arctic' ? 'toboggan' : world.level.theme === 'circus' ? 'slide' : 'chute';
-        toast(back ? `Down the ${name}! Back you go` : 'Wheee!', back ? 'bad' : 'good', 1000);
+        toast(world.level.theme === 'christmas' ? 'All aboard! Choo choo!' : back ? `Down the ${name}! Back you go` : 'Wheee!', back ? 'bad' : 'good', 1000);
         break;
       }
       case 'ladder':

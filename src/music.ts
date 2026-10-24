@@ -37,6 +37,7 @@ const STYLES: Record<string, Style> = {
   candy: { bpm: 120, steps: 16, root: 72, scale: MAJOR, chords: [0, 3, 4, 0, 5, 3, 4, 4], lead: 'triangle', leadVol: 0.1, pluck: 0.25, bass: 'triangle', drums: 'soft', density: 0.6, swing: 0.18, shimmer: true },
   arctic: { bpm: 80, steps: 16, root: 67, scale: MAJOR_PENT, chords: [0, 3, 1, 4], lead: 'sine', leadVol: 0.12, pluck: 0.6, bass: 'sine', pad: 'triangle', arp: true, drums: 'soft', density: 0.4, shimmer: true },
   // A spooky waltz in a harmonic minor, with a ghostly pad
+  christmas: { bpm: 132, steps: 16, root: 67, scale: MAJOR, chords: [0, 3, 4, 0, 0, 3, 1, 4], lead: 'triangle', leadVol: 0.11, pluck: 0.3, bass: 'triangle', drums: 'soft', density: 0.55, swing: 0.12, shimmer: true },
   halloween: { bpm: 126, steps: 12, root: 57, scale: HARMONIC_MINOR, chords: [0, 3, 4, 0, 5, 3, 4, 4], lead: 'triangle', leadVol: 0.11, pluck: 0.45, bass: 'triangle', pad: 'sawtooth', drums: 'soft', density: 0.5 },
   tomb: { bpm: 96, steps: 16, root: 62, scale: HIJAZ, chords: [0, 1, 0, 6], lead: 'sawtooth', leadVol: 0.06, pluck: 0.25, bass: 'triangle', drums: 'darbuka', density: 0.5 },
 };
