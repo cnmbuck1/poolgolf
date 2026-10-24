@@ -14,6 +14,16 @@ function canvas(w: number, h: number, paint: Paint) {
   return c;
 }
 
+/**
+ * Turn a canvas into an image URL and free it. iPhones cap the canvas memory a page can hold; scratch
+ * canvases left behind used up that cap and later previews came out blank.
+ */
+function toUrl(c: HTMLCanvasElement, ...scratch: HTMLCanvasElement[]) {
+  const url = c.toDataURL();
+  for (const s of [c, ...scratch]) { s.width = 0; s.height = 0; }
+  return url;
+}
+
 function texture(c: HTMLCanvasElement) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -274,7 +284,7 @@ const pebble: Paint = (g, w, h) => {
 export function ballPreview(id: string) {
   const d = BALLS.find((b) => b.id === id) ?? BALLS[0];
   const src = canvas(256, 128, d.paint);
-  return canvas(72, 72, (g) => {
+  return toUrl(canvas(72, 72, (g) => {
     g.save();
     g.beginPath(); g.arc(36, 36, 33, 0, Math.PI * 2); g.clip();
     g.drawImage(src, 32, 0, 128, 128, 3, 3, 66, 66);
@@ -285,7 +295,7 @@ export function ballPreview(id: string) {
     sh.addColorStop(1, 'rgba(0,0,0,0.45)');
     g.fillStyle = sh; g.fillRect(0, 0, 72, 72);
     g.restore();
-  }).toDataURL();
+  }), src);
 }
 
 // ---------- cues ----------
@@ -460,11 +470,13 @@ export function cuePreview(id: string) {
   const d = CUES.find((c) => c.id === id) ?? CUES[0];
   const shaft = canvas(128, 512, d.shaft), butt = canvas(128, 512, d.butt);
   const W = 240, H = 26;
-  return canvas(W, H, (g) => {
+  const scratch: HTMLCanvasElement[] = [shaft, butt];
+  return toUrl(canvas(W, H, (g) => {
     const cy = H / 2;
     // Turn each wrap so "along" runs left to right: butt end on the left, tip on the right
     const drawWrap = (src: HTMLCanvasElement, x0: number, x1: number, r0: number, r1: number) => {
       const rot = canvas(512, 128, (r) => { r.translate(512, 0); r.scale(-1, 1); r.translate(0, 128); r.rotate(-Math.PI / 2); r.drawImage(src, 0, 0); });
+      scratch.push(rot);
       g.save();
       g.beginPath(); g.moveTo(x0, cy - r0); g.lineTo(x1, cy - r1); g.lineTo(x1, cy + r1); g.lineTo(x0, cy + r0); g.closePath(); g.clip();
       g.drawImage(rot, 0, 32, 512, 64, x0, cy - r0, x1 - x0, 2 * r0);
@@ -478,5 +490,5 @@ export function cuePreview(id: string) {
     const sh = g.createLinearGradient(0, 0, 0, H);
     sh.addColorStop(0, 'rgba(255,255,255,0.25)'); sh.addColorStop(0.45, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.35)');
     g.globalCompositeOperation = 'source-atop'; g.fillStyle = sh; g.fillRect(0, 0, W, H);
-  }).toDataURL();
+  }), ...scratch);
 }

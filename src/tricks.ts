@@ -33,10 +33,10 @@ export const TRICKS: Trick[] = [
   },
   {
     id: 'drawback', name: 'Draw Back', reward: 40, rule: { banks: 1, spin: 'draw' },
-    tip: 'The cup is behind you. Hit the wall with backspin and the ball comes back.',
+    tip: 'The cup is behind you. Hit the wall firmly with backspin and the ball comes back.',
     level: lv('jurassic', 'Draw Back', {
       tee: [420, 250], cup: [170, 250], outline: arena(80, 120, 920, 380),
-      bars: [{ x: 780, y: 250, len: 170, angle: 90 }],
+      bars: [{ x: 640, y: 250, len: 170, angle: 90 }],
       rocks: [{ x: 600, y: 160, r: 18 }, { x: 600, y: 340, r: 18 }],
     }),
   },

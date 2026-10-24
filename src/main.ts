@@ -1055,7 +1055,13 @@ function openStats() {
 
 /** Previews are painted once per design, the first time the menu opens. */
 const previews = new Map<string, string>();
-const preview = (key: string, make: () => string) => previews.get(key) ?? (previews.set(key, make()), previews.get(key)!);
+const preview = (key: string, make: () => string) => {
+  const hit = previews.get(key);
+  if (hit) return hit;
+  const url = make();
+  if (url.length > 64) previews.set(key, url); // a failed (blank) drawing is tried again next time
+  return url;
+};
 
 /** Card for one design: equipped, owned, for sale (price), or earned through an achievement. */
 function gearCard(k: ItemKey, img: string, equipped: boolean) {

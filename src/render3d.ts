@@ -153,14 +153,14 @@ export class Renderer3D {
     );
     this.ball.castShadow = true;
     this.scene.add(this.ball);
-    // X-ray outline: drawn only where something (a palm, a dinosaur, a wall) is in front of the ball, so
-    // the ball never disappears from view
-    this.ballGhost = new THREE.Mesh(this.ball.geometry, new THREE.MeshBasicMaterial({
+    // X-ray outline, so the ball never disappears from view. Drawn only where something in front of it (a palm, a dinosaur, a wall) hides the ball. It's a shell a
+    // touch bigger than the ball, so the ball's own surface never counts as in front, and open underneath, so
+    // the turf the ball rests on doesn't either. It follows the ball without rolling with it.
+    this.ballGhost = new THREE.Mesh(new THREE.SphereGeometry(BALL_R * 1.06, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.72), new THREE.MeshBasicMaterial({
       color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, depthFunc: THREE.GreaterDepth, toneMapped: false,
     }));
-    this.ballGhost.scale.setScalar(0.9); // a touch smaller, so the turf it rests on doesn't count as in front
     this.ballGhost.renderOrder = 4;
-    this.ball.add(this.ballGhost);
+    this.scene.add(this.ballGhost);
     // Soft contact shadow so the ball sits on the turf even where the shadow map is blurry
     this.ballShadowFake = new THREE.Mesh(
       new THREE.CircleGeometry(BALL_R * 1.1, 24).rotateX(-Math.PI / 2),
@@ -680,6 +680,7 @@ export class Renderer3D {
     this.ball.visible = !fx.splash || fx.splash.t < 0.03 || !!fx.splash.stuck;
     this.ballShadowFake.visible = this.ball.visible && !fx.sink;
     this.ballGhost.visible = this.ball.visible && !fx.sink;
+    this.ballGhost.position.copy(this.ball.position);
     this.ballShadowFake.position.copy(to3(bx, by)).setY(ground + 0.6);
     const sh = 1 + (this.hop.y + (b.z ?? 0)) / 40;
     this.ballShadowFake.scale.set(sh, 1, sh);

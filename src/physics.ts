@@ -301,8 +301,8 @@ export class World {
       sn.side *= spinFade;
       sn.vert *= spinFade;
       if (sp > 0) {
-        // Topspin keeps it rolling; backspin bites; quicksand grips hardest of all
-        const vertGrip = sn.vert > 0 ? 1 - 0.3 * sn.vert : 1 - 0.2 * sn.vert;
+        // Topspin keeps it rolling; backspin bites and stops it noticeably sooner; quicksand grips hardest of all
+        const vertGrip = sn.vert > 0 ? 1 - 0.3 * sn.vert : 1 - 0.7 * sn.vert;
         const icy = (this.level.ice ?? []).some((z) => inZone(z, b.x, b.y));
         const sinking = quick ? QUICKSAND_FACTOR : sandy ? SAND_FACTOR : icy ? ICE_FACTOR : 1;
         const decel = (ROLL_DECEL + LIN_DAMP * sp) * sinking * vertGrip * h;
@@ -517,9 +517,12 @@ export class World {
     if (-vn > 30 && (Math.abs(sn.side) > 0.01 || Math.abs(sn.vert) > 0.01)) {
       // Spin takes effect on contact: follow/draw push along/against the incoming line, english
       // kicks sideways relative to it. Each hit uses up some of the spin.
+      // Backspin never adds speed: it pulls the ball back off the wall at its natural rebound, a little deader
       const sp = Math.hypot(rvx, rvy), dx = rvx / sp, dy = rvy / sp;
-      b.vx += dx * sn.vert * sp * 0.55 - dy * sn.side * sp * 0.3;
-      b.vy += dy * sn.vert * sp * 0.55 + dx * sn.side * sp * 0.3;
+      const follow = Math.max(0, sn.vert);
+      b.vx += dx * follow * sp * 0.55 - dy * sn.side * sp * 0.3;
+      b.vy += dy * follow * sp * 0.55 + dx * sn.side * sp * 0.3;
+      if (sn.vert < 0) { const k = 1 + 0.25 * sn.vert; b.vx = svx + (b.vx - svx) * k; b.vy = svy + (b.vy - svy) * k; }
       sn.vert *= 0.25;
       sn.side *= 0.5;
     }
