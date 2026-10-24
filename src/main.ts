@@ -903,9 +903,21 @@ function openSettings() {
     <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button>
     <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button></div>
     ${native ? '' : '<button class="btn" id="btn-playtest">Playtest results</button>'}
+    <button class="btn reset" id="btn-reset">Reset all progress</button>
     <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
       <a href="${SITE}privacy.html" target="_blank" rel="noopener">Privacy policy</a> · <a href="${SITE}support.html" target="_blank" rel="noopener">Support</a></p>`);
   if (!native) $('btn-playtest').onclick = () => void openPlaytest();
+  // Two taps: the first asks, the second wipes everything and starts the game again as a new player
+  $('btn-reset').onclick = () => {
+    sfx.ui();
+    const b = $('btn-reset');
+    if (!b.classList.contains('confirm')) {
+      b.classList.add('confirm');
+      b.textContent = 'Tap again to erase coins, designs, stars and scores';
+      return;
+    }
+    resetProgress();
+  };
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
@@ -921,6 +933,17 @@ function openSettings() {
       b.setAttribute('aria-pressed', String(settings[k]));
     };
   });
+}
+
+/** Erase this phone's progress (keeping the tester code and any stats still waiting to be sent) and restart as a brand-new player. */
+function resetProgress() {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; if (k.startsWith('poolgolf.') && k !== 'poolgolf.access' && k !== 'poolgolf.playtest.outbox') keys.push(k); }
+    keys.forEach((k) => localStorage.removeItem(k)); // in the app this also clears the kept copy (see boot.ts)
+  } catch { /* storage blocked: nothing to erase */ }
+  // Give the app storage a moment to catch up before starting again
+  setTimeout(() => location.reload(), 400);
 }
 
 /**

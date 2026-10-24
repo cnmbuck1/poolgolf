@@ -815,3 +815,5 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
   #fb-text { height: 70px; min-height: 0; }
   .pp-row { padding: 4px 8px 4px 4px; }
 }
+.btn.reset { color: #ff9a8a; }
+.btn.reset.confirm { border-color: #ff8a7a; background: rgba(255, 110, 90, 0.16); }
