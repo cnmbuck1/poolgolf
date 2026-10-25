@@ -1170,10 +1170,10 @@ export const SEASONAL: CourseDef[] = [
 export const ALL_COURSES: CourseDef[] = [...COURSES, ...SEASONAL];
 for (const c of ALL_COURSES) for (const h of c.holes) h.theme = c.theme;
 
-/** Whether a course is open on this date (regular courses always are). `?season=open` forces holiday courses open, for testing. */
-export function inSeason(c: CourseDef, date = new Date()) {
+/** Whether a course is open on this date (regular courses always are). `?season=open` (or a preview, see main.ts) forces holiday courses open, for testing; `real` ignores that. */
+export function inSeason(c: CourseDef, date = new Date(), real = false) {
   if (!c.season) return true;
-  try { if (new URLSearchParams(location.search).get('season') === 'open' || localStorage.getItem('poolgolf.seasonOpen') === '1') return true; } catch { /* no page */ }
+  try { if (!real && (new URLSearchParams(location.search).get('season') === 'open' || localStorage.getItem('poolgolf.seasonOpen') === '1')) return true; } catch { /* no page */ }
   const md = (date.getMonth() + 1) * 100 + date.getDate();
   const from = c.season.from[0] * 100 + c.season.from[1], to = c.season.to[0] * 100 + c.season.to[1];
   return from <= to ? md >= from && md <= to : md >= from || md <= to;

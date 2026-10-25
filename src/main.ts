@@ -884,7 +884,7 @@ function openCourses(holesOf?: string) {
   const seasonal = SEASONAL.map((c) => {
     const look = COURSE_LOOK[c.id];
     if (inSeason(c)) return null;
-    return `<div class="ctile off" style="background:${look.bg}"><div class="ctile-play"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
+    return `<div class="ctile off" data-off="${c.id}" style="background:${look.bg}"><div class="ctile-play"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
       <small>Holiday special · back in ${months[c.season!.from[0] - 1]}</small></div></div>`;
   }).filter(Boolean).join('');
   const open = [...SEASONAL.filter((c) => inSeason(c)), ...COURSES];
@@ -893,7 +893,7 @@ function openCourses(holesOf?: string) {
     const par = c.holes.reduce((a, l) => a + l.par, 0);
     const look = COURSE_LOOK[c.id];
     return `<div class="ctile${c.id === COURSE.id ? ' cur' : ''}" style="background:${look.bg}">
-      ${look.badge ? `<em class="ctile-badge">${look.badge}</em>` : ''}<button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
+      ${look.badge ? `<em class="ctile-badge"${c.season && !inSeason(c, new Date(), true) ? ` data-preview="${c.id}">PREVIEW · ${months[c.season.from[0] - 1].slice(0, 3).toUpperCase()} ${c.season.from[1]}` : `>${look.badge}`}</em>` : ''}<button class="ctile-play" data-play="${c.id}"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
         <small>${c.holes.length} holes · Par ${par}${best ? ` · Best ${best}` : ''}</small>
         <small class="ctile-prog">★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></button>
       <button class="ctile-holes" data-holes="${c.id}">HOLES ›</button></div>`;
@@ -906,6 +906,23 @@ function openCourses(holesOf?: string) {
   body.querySelectorAll<HTMLButtonElement>('[data-holes]').forEach((b) => {
     b.onclick = () => { sfx.ui(); openCourseHoles(b.dataset.holes!); };
   });
+  // Holiday preview, for trying a holiday course before it opens: tap its greyed-out tile five times in a row
+  // (and its PREVIEW badge five times to hide it again). Only on this device.
+  const taps = (el: Element, on: boolean) => {
+    let n = 0, last = 0;
+    (el as HTMLElement).onclick = (e) => {
+      e.stopPropagation();
+      const t = performance.now();
+      n = t - last < 1500 ? n + 1 : 1;
+      last = t;
+      if (n < 5) return;
+      try { if (on) localStorage.setItem('poolgolf.seasonOpen', '1'); else localStorage.removeItem('poolgolf.seasonOpen'); } catch { /* ignore */ }
+      sfx.collect();
+      openCourses();
+    };
+  };
+  body.querySelectorAll('[data-off]').forEach((el) => taps(el, true));
+  body.querySelectorAll('[data-preview]').forEach((el) => taps(el, false));
 }
 
 /** One course's holes, to practise any of them. */
