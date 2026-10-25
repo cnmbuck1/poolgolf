@@ -1015,22 +1015,23 @@ const CHRISTMAS: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 880, y: 400, r: 50, h: -2.5 }],
   },
   {
-    // The finale: the toy train runs from the station by the tee, over the top of the frozen lake and past the cup to the end of the line in the corner.
-    // A fence closes the cup off from below, so on foot it's up the top lane past the nutcrackers
+    // The finale: the toy train runs from the station up the left side, over the top of the frozen lake and past the cup to the end of the line in
+    // the corner. A big present stands between the tee and the station, so getting aboard takes a bank or some spin. A fence closes the cup off
+    // from below, so on foot it's up the top lane past the nutcrackers
     name: 'Toy Train Express',
     par: 3,
     tee: [100, 400],
     cup: [870, 110],
     outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
-    chutes: [{ path: [[200, 300], [250, 180], [380, 110], [540, 85], [700, 68], [820, 62], [905, 75], [930, 120]] }],
+    chutes: [{ path: [[130, 180], [230, 130], [380, 100], [540, 85], [700, 68], [820, 62], [905, 75], [930, 120]] }],
     bars: [{ x: 830, y: 200, len: 260, angle: 0 }],
     ice: [blob(520, 330, 190, 105, 4, 0.14)],
     water: [blob(520, 335, 110, 60, 7, 0.18)],
     nutcrackers: [{ a: [810, 180], b: [810, 60], speed: 45 }, { a: [560, 150], b: [560, 300], speed: 50, phase: 0.5 }],
-    bumpers: [present(380, 220, 2), present(650, 150, 5)],
+    bumpers: [present(115, 295, 3, 34), present(380, 220, 2), present(650, 150, 5)],
     rocks: [{ x: 740, y: 135, r: 18 }],
     tumbleweeds: [{ a: [300, 440], b: [300, 360], speed: 50, r: 16 }],
-    palms: [{ x: 120, y: 120 }, { x: 900, y: 420 }],
+    palms: [{ x: 330, y: 200 }, { x: 900, y: 420 }],
     slopes: [{ kind: 'hill', x: 870, y: 110, r: 50, h: -2.5 }],
   },
 ];

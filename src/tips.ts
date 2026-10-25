@@ -57,8 +57,9 @@ const T: Record<string, Record<string, Tips>> = {
       spin: 'Side spin hooks the ball round the bottom end of the wall.',
     },
     'Toy Train Express': {
-      do: ['Roll into the station by the tee: the toy train carries the ball over the lake, past the cup, to the end of the line in the corner. A short putt back does the rest.', 'On foot, go up the top lane: the fence closes the cup off from below.'],
+      do: ['The big present blocks the way to the station: bank off the left wall, squeezing past the present, or curve round its right side with spin.', 'Once aboard, the toy train carries the ball over the lake, past the cup, to the end of the line in the corner. A short putt back does the rest.', 'On foot, go up the top lane: the fence closes the cup off from below.'],
       avoid: ['The frozen lake has open water in the middle (+1 stroke).', 'Nutcrackers march across the top lane: time your shot past them.'],
+      spin: 'Side spin bends the ball round the big present and into the station.',
     },
   },
 
