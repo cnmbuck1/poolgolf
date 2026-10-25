@@ -44,7 +44,8 @@ const T: Record<string, Record<string, Tips>> = {
       avoid: ['A rolling snowball knocks the ball right off its line.', 'The snowmen narrow every gap: a ball off line bounces back toward you.'],
     },
     "Santa's Sleigh Ride": {
-      do: ["Roll gently between the two presents onto Santa's glowing pad: the sleigh flies the ball up onto the roof.", 'Missed it? The candy-cane ladder at the far right climbs the roof the long way round.'],
+      do: ["The big present blocks the straight line to Santa's pad: bank in off the bottom rail, under the present, or curve round it with spin.", "Arrive gently: roll onto the glowing pad and the sleigh flies the ball up onto the roof.", 'Missed it? The candy-cane ladder at the far right climbs the roof the long way round.'],
+      spin: "Side spin bends the ball round the big present and onto Santa's pad.",
       avoid: ['The roof edge is a wall from below: you can\'t roll straight up it.', 'A nutcracker marches across the rooftop in front of the cup.'],
     },
     'Frozen Pond': {

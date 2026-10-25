@@ -969,7 +969,8 @@ const CHRISTMAS: LevelDef[] = [
     slopes: [{ kind: 'hill', x: 880, y: 100, r: 50, h: -2.5 }],
   },
   {
-    // The cup is up on the rooftop. Roll onto Santa's landing pad and the sleigh flies you up there; miss and it's the long way round by the ladder
+    // The cup is up on the rooftop. Roll onto Santa's landing pad and the sleigh flies you up there; miss and it's the long way round by the ladder.
+    // A big present blocks the straight line from the tee to the pad: bank in off the bottom rail, or bend it round with spin
     name: "Santa's Sleigh Ride",
     par: 4,
     tee: [110, 400],
@@ -978,10 +979,10 @@ const CHRISTMAS: LevelDef[] = [
     tiers: [{ pts: [[620, 40], [880, 40], [960, 120], [960, 270], [620, 270]], h: 36 }],
     lifts: [{ x: 470, y: 400, to: [700, 200], kind: 'sleigh' }],
     ladders: [{ path: [[915, 355], [915, 236]] }],
-    bumpers: [present(410, 330, 1), present(540, 330, 6)],
+    bumpers: [present(300, 392, 4, 28), present(410, 330, 1), present(540, 330, 6)],
     rocks: [{ x: 300, y: 200, r: 22 }, { x: 760, y: 400, r: 18 }],
     nutcrackers: [{ a: [760, 80], b: [760, 240], speed: 40 }],
-    sand: [blob(300, 330, 50, 30, 5, 0.2)],
+    sand: [blob(220, 260, 50, 30, 5, 0.2)],
     palms: [{ x: 200, y: 110 }, { x: 560, y: 90 }],
   },
   {
