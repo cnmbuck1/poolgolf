@@ -9,7 +9,7 @@ Claude the IDs to paste in. About an hour, once your Apple developer account is 
 | Ad | When | Notes |
 |---|---|---|
 | **Rewarded video** (player's choice) | After a round, a match or a daily challenge: *Watch an ad to double your coins*. In the Cues & Balls shop and on Vs Computer: *Watch an ad for 50 coins*, up to 5 a day. | The reward is given only if the ad is watched through. |
-| **Interstitial** (full screen) | Only when leaving a finished round, match, daily challenge or practice hole, never between holes. | At most one every 3½ minutes, none in a player's first 3 app launches, and none at all after **Remove ads**. |
+| **Interstitial** (full screen) | Halfway through a course or match (after hole 3), and when leaving a finished round, match, daily challenge or practice hole. Never between the other holes, and never in pass-and-play. | At most one every 2 minutes, none in a player's first 3 app launches, and none at all after **Remove ads**. |
 | ~~Banner~~ | Not used | Earns little and gets in the way of the controls. |
 
 **Remove ads** ($2.99, Settings) turns off interstitials for good. Rewarded ads stay, since players opt into
@@ -70,7 +70,7 @@ helps what they bid. Paste the list to Claude and it'll go into `Info.plist`.
    - Reference name: `Remove ads`
    - Product ID: **`com.cnmbuckstudios.rackandroll.removeads`** (exactly this; the game looks for it)
    - Price: **$2.99** (tier 3)
-   - Display name: `Remove ads`. Description: `Turns off the ads between rounds for good.`
+   - Display name: `Remove ads`. Description: `Turns off the full-screen ads for good.`
    - Review screenshot: a screenshot of Settings with the Remove ads button (Claude can make one).
 3. Submit it **together with the app version** the first time (on the version page, under *In-App Purchases
    and Subscriptions*, add it before you submit).

@@ -714,7 +714,7 @@ function adsSettingsHtml() {
   });
   return `<div class="ads-box">${adsRemoved()
     ? '<p class="noads-done">✓ Ads removed. Thank you for supporting Rack &amp; Roll!</p>'
-    : '<button class="btn-gold small" id="btn-noads">Remove ads · <b>…</b></button><p>Turns off the ads between rounds for good. Ads you choose to watch for coins stay available.</p>'}
+    : '<button class="btn-gold small" id="btn-noads">Remove ads · <b>…</b></button><p>Turns off the full-screen ads during and after courses for good. Ads you choose to watch for coins stay available.</p>'}
     <div class="ads-row"><button class="btn" id="btn-restore">Restore purchases</button>${native ? '<button class="btn" id="btn-adprivacy">Ad privacy choices</button>' : ''}</div></div>`;
 }
 
@@ -2178,7 +2178,7 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
-  <p><b>Coins from ads</b>: after a round, a match or a daily challenge you can watch a short ad to double the coins you won, and the Cues &amp; Balls shop and Vs Computer screen offer ${AD_COINS} coins for an ad a few times a day. <b>Remove ads</b> in Settings turns off the ads between rounds for good.</p>
+  <p><b>Coins from ads</b>: after a round, a match or a daily challenge you can watch a short ad to double the coins you won, and the Cues &amp; Balls shop and Vs Computer screen offer ${AD_COINS} coins for an ad a few times a day. <b>Remove ads</b> in Settings turns off the full-screen ads (halfway through and at the end of a course) for good.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>Stuck on a hole? Tap the <b>💡</b> in the scorecard for tips on what works best there and what to avoid. It pauses the game while you read.</p>
@@ -2187,9 +2187,11 @@ click('btn-title-sound', toggleMute);
 let leaving = false;
 click('btn-next', async () => {
   if (party) { partyNext(); return; }
-  // Leaving a finished round, match, challenge or practice hole: maybe an ad first (never between holes)
+  // Maybe an ad first: halfway through a course (after hole 3) and when leaving a finished round, match,
+  // challenge or practice hole; never between the other holes
   const onward = match ? shootoutPending || holeIdx < LEVELS.length - 1 : !daily && !trick && !practice && holeIdx < LEVELS.length - 1;
-  if (!onward) {
+  const halfway = onward && !shootoutPending && !daily && !trick && !practice && holeIdx === 2 && LEVELS.length > 3;
+  if (!onward || halfway) {
     if (leaving) return;
     leaving = true;
     try { await maybeInterstitial(); } finally { leaving = false; }

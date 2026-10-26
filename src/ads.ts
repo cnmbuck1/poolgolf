@@ -1,8 +1,8 @@
 // Ads (AdMob) and the Remove ads purchase, in the app only.
 //
 // - Rewarded ads are always the player's choice: double a round's coins, or coins for the shop.
-// - A full-screen ad may show between rounds (never mid-round), at most every few minutes and not in a
-//   player's first few launches. Remove ads turns those off for good; rewarded ads stay available.
+// - A full-screen ad may show halfway through a course (after hole 3) and at the end, at most every couple of
+//   minutes and not in a player's first few launches. Remove ads turns those off for good; rewarded ads stay available.
 // - Consent: Google's form where the law asks for it (EU/UK), then Apple's tracking question. A player
 //   who says no still sees ads, just less personalised ones.
 //
@@ -25,7 +25,7 @@ export const canPurchase = native || fake;
 /** The player bought Remove ads (kept in saves, and re-checked with the App Store at launch). */
 export const adsRemoved = () => get('noads') === '1';
 
-// App launches, so a new player gets a few sessions without any between-round ads
+// App launches, so a new player gets a few sessions without any full-screen ads
 const session = Number(get('sessions') ?? 0) + 1;
 set('sessions', String(session));
 let lastAd = performance.now(); // counts from launch, so the first can't come straight away
@@ -128,11 +128,11 @@ export async function showRewarded(): Promise<boolean> {
   return earned;
 }
 
-/** Between rounds: maybe a full-screen ad (see the rules at the top). Resolves when it's closed. */
+/** Halfway through a course or at the end: maybe a full-screen ad (see the rules at the top). Resolves when it's closed. */
 export async function maybeInterstitial() {
   if (!adsAvailable || adsRemoved() || session < INTERSTITIAL_FROM_SESSION) return;
   if (performance.now() - lastAd < INTERSTITIAL_GAP_S * 1000) return;
-  if (fake && !native) { await fakeAd('Between-round ad', 2); lastAd = performance.now(); return; }
+  if (fake && !native) { await fakeAd('Full-screen ad', 2); lastAd = performance.now(); return; }
   if (!(await start()) || !interstitialLoaded) { void loadInterstitial(); return; }
   interstitialLoaded = false;
   await present('interstitial');

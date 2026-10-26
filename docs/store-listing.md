@@ -42,7 +42,7 @@ Character limits are Apple's.
 > • Hunt down the golden 8-ball hidden on each hole
 > • Win trophies and coins, and unlock 30 ball and cue designs, from a watermelon ball to a light-saber cue
 >
-> Free to play, with an optional one-time purchase to remove ads between rounds. Plays offline.
+> Free to play, with an optional one-time purchase to remove full-screen ads. Plays offline.
 
 **Keywords** (100, comma-separated, no spaces needed):
 `mini golf,putt,pool,billiards,cue,8 ball,golf,putting,arcade,party,friends,course,trick shot`
@@ -115,7 +115,7 @@ consent form in the EU/UK). Purchases are handled by Apple and aren't collected 
 > Rack & Roll is a single-player and pass-and-play mini golf game. No login is needed. Anonymous play
 > statistics (which can be turned off in Settings) and optional feedback are sent to the developer to
 > improve hole difficulty. The app shows Google AdMob ads (rewarded videos the player chooses to watch, and
-> occasional interstitials between rounds) and offers a non-consumable "Remove ads" in-app purchase, which
+> occasional interstitials halfway through and at the end of a course) and offers a non-consumable "Remove ads" in-app purchase, which
 > can be restored from Settings → Restore purchases. To test it, use a Sandbox account.
 
 ## Screenshots and preview video
