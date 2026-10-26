@@ -22,6 +22,9 @@ import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
+import { adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded } from './ads';
+import { AD_COINS } from './ads.config';
+import { bookReminder, canRemind, maybeAskForRating, remindersOn, setReminders } from './nudges';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track, watchErrors } from './telemetry';
 
 const MAX_STROKES = 10;
@@ -572,11 +575,12 @@ function finishHole(score: number, pickedUp = false) {
   const paysHole = !pickedUp && (!practice || prevBest == null || score < Number(prevBest));
   const lines = paysHole ? holeReward(score, par, sinkBanked) : [];
   const unlocked: string[] = [];
-  if (!pickedUp && score === 1) unlocked.push(earn('ace') ?? '');
+  if (!pickedUp && score === 1) { unlocked.push(earn('ace') ?? ''); maybeAskForRating(stat('rounds')); }
   if (last && !practice) {
     const d = roundToPar();
     lines.push(...roundReward(d));
     if (d < 0) unlocked.push(earn('underPar') ?? '');
+    if (d <= 0) maybeAskForRating(stat('rounds'));
     if (COURSE.id === 'space') unlocked.push(earn('lunar') ?? '');
   }
   if (daily?.kind === 'hole') {
@@ -584,6 +588,7 @@ function finishHole(score: number, pickedUp = false) {
     const d = daily;
     const r = pickedUp ? null : recordDaily(d, score);
     if (r) lines.push(...r.coins);
+    if (r) { void bookReminder(true, streak()); if (r.met) setTimeout(offerReminder); }
     $('hole-kicker').textContent = `DAILY CHALLENGE · ${dateLabel(d.day)}`;
     $('hole-card').innerHTML = ''; // a one-hole challenge: no course scorecard
     $('hole-detail').innerHTML = r?.met
@@ -614,6 +619,7 @@ function finishHole(score: number, pickedUp = false) {
     ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
       + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">Unlocked: ${n}!</span>`).join('')}</span>` : '')
     : practice && !pickedUp ? `<small>Beat your best here (${prevBest}) to earn coins in practice</small>` : '';
+  if ((last && !practice) || daily) offerDouble(lines);
   // Replay: the whole hole, with a hole in one finishing in slow motion
   setupShare(score, pickedUp, last);
   const ace = recorder.shots.some((x) => x.ace);
@@ -621,6 +627,95 @@ function finishHole(score: number, pickedUp = false) {
   $('btn-watch').innerHTML = `<svg><use href="#i-play"/></svg>${ace ? 'SLOW-MO REPLAY' : 'WATCH REPLAY'}`;
   updateHud();
   show('screen-hole');
+}
+
+// ---------- Ads ----------
+/** After a round, a match or a daily challenge: the player may watch an ad to double the coins just won (trophy coins aside). */
+function offerDouble(lines: [string, number][]) {
+  const earned = lines.filter(([l]) => !l.startsWith('🏆')).reduce((a, [, n]) => a + n, 0);
+  if (!adsAvailable || earned <= 0) return;
+  const b = document.createElement('button');
+  b.className = 'btn ad-btn';
+  b.innerHTML = `<svg><use href="#i-play"/></svg>Watch an ad to double: <i class="coin"></i>+${earned} more`;
+  b.onclick = async () => {
+    unlockAudio();
+    b.disabled = true;
+    if (!(await showRewarded())) { b.disabled = false; toast('Watch the whole ad to double your coins', '', 1800); return; }
+    addCoins(earned);
+    sfx.collect();
+    const done = document.createElement('span');
+    done.className = 'unlock';
+    done.textContent = `Doubled! +${earned} more coins`;
+    b.replaceWith(done);
+    updateHud();
+  };
+  $('hole-coins').append(b);
+}
+
+/** After a daily challenge goal is met, once: offer the daily reminder (it's also in Settings). */
+function offerReminder() {
+  if (!canRemind || localGet('remind') != null) return;
+  const b = document.createElement('button');
+  b.className = 'btn ad-btn';
+  b.textContent = "🔔 Remind me about tomorrow's challenge";
+  b.onclick = async () => {
+    b.disabled = true;
+    const on = await setReminders(true, true, streak());
+    b.textContent = on ? "✓ We'll remind you at 6 pm" : 'Notifications are off for Rack & Roll (turn them on in iPhone Settings)';
+  };
+  $('hole-coins').append(b);
+}
+
+/** A button for coins from an ad (in the shop and on Vs Computer), a few times a day. `after` refreshes the screen. */
+function coinAdButton(after: () => void) {
+  if (!adsAvailable || coinAdsLeft(today()) <= 0) return '';
+  setTimeout(() => {
+    const b = document.getElementById('btn-coin-ad') as HTMLButtonElement | null;
+    if (!b) return;
+    b.onclick = async () => {
+      unlockAudio();
+      b.disabled = true;
+      if (!(await showRewarded())) { b.disabled = false; toast('Watch the whole ad to earn the coins', '', 1800); return; }
+      addCoins(AD_COINS);
+      noteCoinAd(today());
+      sfx.collect();
+      toast(`+${AD_COINS} coins`, 'good', 1200);
+      after();
+    };
+  });
+  return `<button class="btn ad-btn" id="btn-coin-ad"><svg><use href="#i-play"/></svg>Watch an ad: <i class="coin"></i>+${AD_COINS}</button>`;
+}
+
+/** Settings: Remove ads (or a thank-you), Restore purchases, and Google's privacy choices. */
+function adsSettingsHtml() {
+  if (!canPurchase) return '';
+  setTimeout(() => {
+    const buy = document.getElementById('btn-noads') as HTMLButtonElement | null;
+    if (buy) {
+      void removeAdsPrice().then((p) => { const s = buy.querySelector('b'); if (s) s.textContent = p; });
+      buy.onclick = async () => {
+        buy.disabled = true;
+        const r = await buyRemoveAds();
+        buy.disabled = false;
+        if (r === 'done') { sfx.collect(); toast('Ads removed. Thank you!', 'good', 2000); openSettings(); }
+        else if (r === 'failed') toast("The purchase didn't go through. Try again later.", 'bad', 2200);
+      };
+    }
+    const rest = document.getElementById('btn-restore') as HTMLButtonElement | null;
+    if (rest) rest.onclick = async () => {
+      rest.disabled = true;
+      const ok = await restorePurchases();
+      rest.disabled = false;
+      toast(ok ? 'Purchase restored: ads removed' : 'No purchases to restore', ok ? 'good' : '', 2000);
+      if (ok) openSettings();
+    };
+    const priv = document.getElementById('btn-adprivacy');
+    if (priv) priv.onclick = () => void privacyChoices();
+  });
+  return `<div class="ads-box">${adsRemoved()
+    ? '<p class="noads-done">✓ Ads removed. Thank you for supporting Rack &amp; Roll!</p>'
+    : '<button class="btn-gold small" id="btn-noads">Remove ads · <b>…</b></button><p>Turns off the ads between rounds for good. Ads you choose to watch for coins stay available.</p>'}
+    <div class="ads-row"><button class="btn" id="btn-restore">Restore purchases</button>${native ? '<button class="btn" id="btn-adprivacy">Ad privacy choices</button>' : ''}</div></div>`;
 }
 
 function scorecardHtml() {
@@ -956,7 +1051,9 @@ function openSettings() {
     <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Follow the ball</span><em></em></button>
     <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button>
-    <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button></div>
+    <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button>
+    ${canRemind ? `<button class="toggle" data-set="remind" aria-pressed="${remindersOn()}"><span>Daily challenge reminder <small>(6 pm)</small></span><em></em></button>` : ''}</div>
+    ${adsSettingsHtml()}
     ${native ? '' : '<button class="btn" id="btn-playtest">Playtest results</button>'}
     <button class="btn reset" id="btn-reset">Reset all progress</button>
     <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
@@ -977,6 +1074,14 @@ function openSettings() {
     b.onclick = () => {
       sfx.ui();
       if (b.dataset.set === 'share') { setSharing(!sharing()); b.setAttribute('aria-pressed', String(sharing())); return; }
+      if (b.dataset.set === 'remind') {
+        void setReminders(!remindersOn(), isDoneToday(dailyFor(today())), streak()).then((on) => {
+          b.setAttribute('aria-pressed', String(on));
+          if (!on && b.dataset.want === '1') toast('Notifications are off for Rack & Roll: turn them on in iPhone Settings', 'bad', 2600);
+        });
+        b.dataset.want = remindersOn() ? '0' : '1';
+        return;
+      }
       const k = b.dataset.set as 'sound' | 'music' | 'vibrate' | 'guide' | 'follow' | 'top' | 'arrows';
       if (k === 'sound') toggleSound();
       if (k === 'music') toggleMusic();
@@ -994,7 +1099,7 @@ function openSettings() {
 function resetProgress() {
   try {
     const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; if (k.startsWith('poolgolf.') && k !== 'poolgolf.access' && k !== 'poolgolf.playtest.outbox') keys.push(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; if (k.startsWith('poolgolf.') && !['poolgolf.access', 'poolgolf.playtest.outbox', 'poolgolf.noads'].includes(k)) keys.push(k); }
     keys.forEach((k) => localStorage.removeItem(k)); // in the app this also clears the kept copy (see boot.ts)
   } catch { /* storage blocked: nothing to erase */ }
   // Give the app storage a moment to catch up before starting again
@@ -1093,7 +1198,7 @@ function openGear() {
   const ballId = localGet('ball') ?? 'cue', cueId = localGet('cue') ?? 'classic';
   const balls = BALLS.map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)).join('');
   const cues = CUES.map((c) => gearCard(`c:${c.id}`, preview(`c:${c.id}`, () => cuePreview(c.id)), c.id === cueId)).join('');
-  sheet('Cues & Balls', `<div class="gear-top"><p id="gear-msg">Earn coins on every hole, then unlock new balls and cues. Some can only be won.</p><b class="wallet"><i class="coin"></i><span id="gear-coins">${coins()}</span></b></div>
+  sheet('Cues & Balls', `<div class="gear-top"><p id="gear-msg">Earn coins on every hole, then unlock new balls and cues. Some can only be won.</p><b class="wallet"><i class="coin"></i><span id="gear-coins">${coins()}</span></b>${coinAdButton(openGear)}</div>
     <h3 class="gear-head">BALLS</h3><div class="gear-balls">${balls}</div>
     <h3 class="gear-head">CUES</h3><div class="gear-cues">${cues}</div>`);
   const body = $('sheet-body');
@@ -1130,9 +1235,11 @@ function openGear() {
 
 // ---------- Beat my score ----------
 /** On a finished practice hole or round: the challenge verdict (when playing one) and the share button. */
+/** "Challenge a friend" links: off for 1.0 (incoming links still work). */
+const CHALLENGES = false;
 function setupShare(score: number, pickedUp: boolean, last: boolean) {
   const round = !practice && last;
-  const ok = !pickedUp && !daily && !trick && !match && !party && whereIs(world.level) && (practice || round);
+  const ok = CHALLENGES && !pickedUp && !daily && !trick && !match && !party && whereIs(world.level) && (practice || round);
   $('btn-share').classList.toggle('hidden', !ok);
   if (!ok) return;
   const total = round ? scores.reduce<number>((a, b) => a + (b ?? 0), 0) : score;
@@ -1377,7 +1484,8 @@ function openVersus() {
       if (opp.stake > coins()) {
         const m = $('vs-msg');
         m.innerHTML = `${opp.name}'s stake is ${opp.stake} coins; you have ${coins()}. Earn more by playing a course, the daily challenge or trick shots, or play Rookie Ricky for free.`
-          + (coins() < TOP_UP ? ` Running low? You're topped up to ${TOP_UP} coins once a day.` : '');
+          + (coins() < TOP_UP ? ` Running low? You're topped up to ${TOP_UP} coins once a day.` : '')
+          + coinAdButton(openVersus);
         m.classList.add('bad');
         return;
       }
@@ -1501,6 +1609,7 @@ function finishAiHole(aiScore: number) {
   pendingBanked = false;
   $('hole-coins').innerHTML = `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
     + (unlocked.some(Boolean) ? `<span class="unlocks">${unlocked.filter(Boolean).map((n) => `<span class="unlock">${n.includes('challenges') ? n : `Unlocked: ${n}`}!</span>`).join('')}</span>` : '');
+  if (last && !shootoutPending) offerDouble(lines);
   // Scorecard: both players
   const row = (label: string, arr: (number | null)[]) => `<tr><th>${label}</th>${LEVELS.map((l, i) => {
     const sc = arr[i], other = arr === scores ? m.ai[i] : scores[i];
@@ -1523,6 +1632,7 @@ function finishAiHole(aiScore: number) {
 function concludeMatch(win: boolean, detail: string, lines: [string, number][], unlocked: string[]) {
   const m = match!;
   const firstWin = win && vsGet(`${m.opp.id}.wins`) === 0;
+  if (win) maybeAskForRating(stat('rounds'));
   const key = win ? 'wins' : 'losses';
   localSet(`vs.${m.opp.id}.${key}`, String(vsGet(`${m.opp.id}.${key}`) + 1));
   const h = $('hole-result');
@@ -1616,6 +1726,7 @@ function shootoutShot(d: number) {
   addCoins(earned);
   $('hole-coins').innerHTML = earned ? `<b><i class="coin"></i>+${earned}</b><small>${lines.map(([l, n]) => `${l} +${n}`).join(' · ')}</small>`
     + (unlocked.length ? `<span class="unlocks">${unlocked.map((n) => `<span class="unlock">${n}!</span>`).join('')}</span>` : '') : '';
+  offerDouble(lines);
   $('hole-card').innerHTML = '';
   $('btn-replay').classList.add('hidden');
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
@@ -1677,6 +1788,7 @@ function finishTrick() {
   const first = markDone(t);
   const lines: [string, number][] = first ? [['Trick shot', t.reward]] : [];
   const r = daily?.kind === 'trick' ? recordDaily(daily, attempts) : null;
+  if (r) { void bookReminder(true, streak()); if (r.met) setTimeout(offerReminder); }
   if (r) lines.push(...r.coins);
   const earned = lines.reduce((a, [, n]) => a + n, 0);
   addCoins(earned);
@@ -2066,14 +2178,22 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
   <p><b>Play with friends</b>: 2–4 players share one phone. Everyone plays each hole in turn with their own ball, and the lowest total wins.</p>
-  <p><b>Challenge a friend</b>: after a practice hole or a full round, tap <b>Challenge a friend</b> to send a link. They play the same hole or course with your score to beat (in the app or a browser), and can send theirs back.</p>
+  <p><b>Coins from ads</b>: after a round, a match or a daily challenge you can watch a short ad to double the coins you won, and the Cues &amp; Balls shop and Vs Computer screen offer ${AD_COINS} coins for an ad a few times a day. <b>Remove ads</b> in Settings turns off the ads between rounds for good.</p>
   <p>A new <b>daily challenge</b> appears on the main menu every day: a hole with a goal (par or birdie) or a trick shot. Complete it for bonus coins and keep your 🔥 streak going.</p>
   <p>Every hole earns <b>coins</b>: more for par, birdies, bank shots and holes in one, plus a bonus for finishing a round. Spend them in <b>Cues &amp; Balls</b>; a few designs can only be won.</p>
   <p>Stuck on a hole? Tap the <b>💡</b> in the scorecard for tips on what works best there and what to avoid. It pauses the game while you read.</p>
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', toggleMute);
-click('btn-next', () => {
+let leaving = false;
+click('btn-next', async () => {
   if (party) { partyNext(); return; }
+  // Leaving a finished round, match, challenge or practice hole: maybe an ad first (never between holes)
+  const onward = match ? shootoutPending || holeIdx < LEVELS.length - 1 : !daily && !trick && !practice && holeIdx < LEVELS.length - 1;
+  if (!onward) {
+    if (leaving) return;
+    leaving = true;
+    try { await maybeInterstitial(); } finally { leaving = false; }
+  }
   if (match) {
     if (shootoutPending) { startShootout(); return; }
     if (holeIdx === LEVELS.length - 1) { match = null; toTitle(); openVersus(); } else loadHole(holeIdx + 1);
@@ -2417,6 +2537,8 @@ function start(data: unknown) {
     show('screen-title');
   }
   if (incoming) { clearChallengeUrl(); startChallenge(incoming); } else maybeWelcome();
+  initAds();
+  void bookReminder(isDoneToday(dailyFor(today())), streak());
   requestAnimationFrame(frame);
 }
 if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});

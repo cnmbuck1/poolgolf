@@ -821,3 +821,23 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .ctile.off { opacity: 0.6; filter: saturate(0.6); }
 .ctile-badge { position: absolute; top: 8px; right: 8px; z-index: 1; padding: 2px 8px; border-radius: 6px; background: #1a1030; color: #ffb04a; font: 800 10px var(--display); letter-spacing: 0.12em; font-style: normal; }
 #btn-courses.special { border-color: rgba(255, 138, 26, 0.7); box-shadow: inset 0 1px 0 var(--edge-hi), 0 0 14px rgba(255, 138, 26, 0.35); }
+
+/* Ads: "watch an ad" offers, Remove ads in Settings, and the browser stand-in ad */
+.ad-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: auto;
+  padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(120, 220, 140, 0.55);
+  background: rgba(120, 220, 140, 0.12); color: #bff5c8;
+  font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+}
+.ad-btn svg { width: 14px; height: 14px; }
+.ad-btn:disabled { opacity: 0.5; }
+.coins-earned .ad-btn { flex-basis: auto; }
+#vs-msg .ad-btn { margin-top: 8px; }
+.ads-box { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; }
+.ads-box p { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.ads-box .noads-done { color: #bff5c8; font-weight: 700; font-size: 14px; }
+.ads-row { display: flex; gap: 8px; }
+.ads-row .btn { font-size: 14px; padding: 9px 10px; }
+.fake-ad { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: rgba(0, 0, 0, 0.92); color: #fff; text-align: center; }
+.fake-ad b { font-family: var(--display); font-size: 32px; }
+.fake-ad .btn { width: auto; margin: 10px auto 0; }

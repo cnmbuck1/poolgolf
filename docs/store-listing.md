@@ -34,7 +34,6 @@ Character limits are Apple's.
 > • Career: three tours of events with star targets
 > • Vs Computer: five rivals from Rookie Ricky to Ace Galaxy, with coins at stake
 > • Play with friends: 2–4 players pass one phone
-> • Beat my score: send a friend a link to a hole or a round and see if they can top you
 > • A new daily challenge every day: keep your streak going
 > • Trick shots: banks, swerves and draws in one shot
 >
@@ -43,7 +42,7 @@ Character limits are Apple's.
 > • Hunt down the golden 8-ball hidden on each hole
 > • Win trophies and coins, and unlock 30 ball and cue designs, from a watermelon ball to a light-saber cue
 >
-> No ads. No tracking. Plays offline.
+> Free to play, with an optional one-time purchase to remove ads between rounds. Plays offline.
 
 **Keywords** (100, comma-separated, no spaces needed):
 `mini golf,putt,pool,billiards,cue,8 ball,golf,putting,arcade,party,friends,course,trick shot`
@@ -74,6 +73,7 @@ Character limits are Apple's.
 Answer **None** / **No** to everything (violence, gambling, contests, user-generated content, web access,
 messaging and so on). Notes:
 
+- *Advertising:* the app contains ads. Answer **Yes** if asked. Turn on **In-App Purchases** for the Remove ads purchase.
 - *Simulated gambling:* None. Coin stakes against the computer are won by skill, not chance, and coins
   can't be bought or cashed out.
 - *Unrestricted web access:* No (links to the privacy and support pages open in the browser).
@@ -96,11 +96,27 @@ linked to the user's identity** and **Not used for tracking**:
 
 Players can switch play stats off (Settings → Share anonymous play stats).
 
+**Ads (Google AdMob) add these**, declared for the third party. Check them against Google's current
+guidance ("Prepare for Apple's App Privacy details", in the AdMob help centre) when you fill this in:
+
+| Data type | Purpose | Linked to identity? | Used for tracking? |
+|---|---|---|---|
+| Identifiers → Device ID (the advertising ID, only if the player allows tracking) | Third-Party Advertising, Analytics | No | **Yes** |
+| Usage Data → Advertising Data | Third-Party Advertising, Analytics | No | **Yes** |
+| Usage Data → Product Interaction | Analytics | No | No |
+| Location → Coarse Location (from the IP address) | Third-Party Advertising, Analytics | No | **Yes** |
+| Diagnostics → Crash Data, Performance Data, Other Diagnostic Data | Analytics | No | No |
+
+Because some of it is used for tracking, the app asks Apple's "Allow tracking?" question (after Google's
+consent form in the EU/UK). Purchases are handled by Apple and aren't collected by the app.
+
 ## App Review notes
 
 > Rack & Roll is a single-player and pass-and-play mini golf game. No login is needed. Anonymous play
 > statistics (which can be turned off in Settings) and optional feedback are sent to the developer to
-> improve hole difficulty. "Challenge a friend" shares a link to the web version of the game.
+> improve hole difficulty. The app shows Google AdMob ads (rewarded videos the player chooses to watch, and
+> occasional interstitials between rounds) and offers a non-consumable "Remove ads" in-app purchase, which
+> can be restored from Settings → Restore purchases. To test it, use a Sandbox account.
 
 ## Screenshots and preview video
 
