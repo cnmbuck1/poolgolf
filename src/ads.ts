@@ -130,7 +130,7 @@ export async function showRewarded(): Promise<boolean> {
 
 /** Halfway through a course or at the end: maybe a full-screen ad (see the rules at the top). Resolves when it's closed. */
 export async function maybeInterstitial() {
-  if (!adsAvailable || adsRemoved() || session < INTERSTITIAL_FROM_SESSION) return;
+  if (!adsAvailable || adsRemoved() || (session < INTERSTITIAL_FROM_SESSION && !fake)) return; // stand-ins skip the new-player grace, for previewing
   if (performance.now() - lastAd < INTERSTITIAL_GAP_S * 1000) return;
   if (fake && !native) { await fakeAd('Full-screen ad', 2); lastAd = performance.now(); return; }
   if (!(await start()) || !interstitialLoaded) { void loadInterstitial(); return; }
