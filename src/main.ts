@@ -148,6 +148,9 @@ function setLabel(id: string, text: string) {
   const b = $(id);
   if (b.firstChild?.nodeType === Node.TEXT_NODE) b.firstChild.textContent = text;
   else b.prepend(text);
+  // When a course, match, event or trick is over and the main button goes somewhere other than the menu
+  // (Play again, Opponents, Career, Courses, Trick shots), offer the main menu beside it
+  if (id === 'btn-next') $('btn-hole-menu').classList.toggle('hidden', ['MENU', 'NEXT HOLE', 'SHOOTOUT'].includes(text));
 }
 
 // ---------- Stats ----------
@@ -2185,6 +2188,14 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <p>The camera sits behind the ball and turns as you aim. Tap <b>TABLE</b> to see the whole hole, and <b>BALL</b> to come back.</p>`));
 click('btn-title-sound', toggleMute);
 let leaving = false;
+click('btn-hole-menu', async () => {
+  if (leaving) return;
+  leaving = true;
+  try { await maybeInterstitial(); } finally { leaving = false; }
+  match = null;
+  daily = null;
+  toTitle();
+});
 click('btn-next', async () => {
   if (party) { partyNext(); return; }
   // Maybe an ad first: halfway through a course (after hole 3) and when leaving a finished round, match,
