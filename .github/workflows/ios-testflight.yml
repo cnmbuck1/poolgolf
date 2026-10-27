@@ -87,15 +87,16 @@ jobs:
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $KEY_ID -authenticationKeyIssuerID $ISSUER"
           set -o pipefail
           cd ios/App
-          # Archive unsigned, then sign for App Store distribution while exporting: signing the archive itself
-          # would need a development profile, which Apple only makes once an iPhone is registered to the team
+          # Archive with a placeholder (ad-hoc) signature, then sign everything for App Store distribution while
+          # exporting: signing the archive properly would need a development profile, which Apple only makes once
+          # an iPhone is registered to the team. (An unsigned archive leaves Google's frameworks unsignable.)
           xcodebuild archive \
             -project App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM" \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
