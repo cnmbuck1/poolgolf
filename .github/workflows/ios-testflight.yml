@@ -87,17 +87,16 @@ jobs:
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $KEY_ID -authenticationKeyIssuerID $ISSUER"
           set -o pipefail
           cd ios/App
-          # Archive with a placeholder (ad-hoc) signature, then sign everything for App Store distribution while
-          # exporting: signing the archive properly would need a development profile, which Apple only makes once
-          # an iPhone is registered to the team. (An unsigned archive leaves Google's frameworks unsignable.)
+          # Signing the archive needs a development profile, which Apple only makes once at least one iPhone is
+          # registered to the team (developer.apple.com → Devices; see docs/APP_STORE.md). The export then signs
+          # it again for App Store distribution.
           xcodebuild archive \
             -project App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM" \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO \
-            2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+            $AUTH 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

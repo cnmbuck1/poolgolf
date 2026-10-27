@@ -37,6 +37,18 @@ Identifiers → +**:
 While you're there, note your **Team ID** (top right of the page, or **Membership details**): 10 letters
 and numbers.
 
+### Register your iPhone (once)
+
+Apple won't sign a build for an account with no devices on it, so register your own iPhone:
+
+1. Find its **UDID** (a long code that identifies the phone). Without a Mac, either:
+   - on a Windows PC, connect the iPhone, open the **Apple Devices** app (or iTunes), select the phone and
+     click the serial number until it shows the UDID, then copy it; or
+   - on the iPhone, open **udid.tech** (or a similar UDID site) in Safari, install the small profile it
+     offers, read off the UDID, then remove the profile in Settings → General → VPN & Device Management.
+2. developer.apple.com/account → **Certificates, IDs & Profiles → Devices → +**. Platform iOS, any name
+   (e.g. "My iPhone"), paste the UDID, **Continue → Register**.
+
 ## 3. Create the app in App Store Connect
 
 At [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → **Apps → + → New App**:
