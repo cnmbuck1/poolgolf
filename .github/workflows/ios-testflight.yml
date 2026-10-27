@@ -85,6 +85,7 @@ jobs:
           # Each upload needs a higher build number than the last
           BUILD_NUMBER=$((100 + GITHUB_RUN_NUMBER))
           AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $KEY_ID -authenticationKeyIssuerID $ISSUER"
+          set -o pipefail
           cd ios/App
           xcodebuild archive \
             -project App.xcodeproj -scheme App -configuration Release \
@@ -92,7 +93,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            $AUTH
+            $AUTH 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -108,6 +109,16 @@ jobs:
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
-            $AUTH
+            $AUTH 2>&1 | tee -a "$RUNNER_TEMP/xcodebuild.log"
           echo "Uploaded version $VERSION build $BUILD_NUMBER. It appears in TestFlight once Apple finishes processing (usually 5–30 minutes)." >> "$GITHUB_STEP_SUMMARY"
           rm -f "$KEY_PATH"
+
+      - name: Show why the build failed
+        if: failure()
+        run: |
+          # Repeat Xcode's error lines as annotations, so they show on the run's summary page
+          LOG="$RUNNER_TEMP/xcodebuild.log"
+          [ -f "$LOG" ] || exit 0
+          grep -E "error:|error: |\*\* (ARCHIVE|EXPORT) FAILED|Provisioning|No signing|No profiles|requires a provisioning|Code Signing|Authentication|forbidden|not authorized" "$LOG" | sort -u | head -25 | while IFS= read -r line; do
+            echo "::error::${line:0:900}"
+          done
