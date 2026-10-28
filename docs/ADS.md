@@ -4,6 +4,10 @@ The game side is built and runs on Google's **test ads**: they appear in the app
 Before release you set up two things (AdMob for the ads and App Store Connect for the purchase), and send
 Claude the IDs to paste in. About an hour, once your Apple developer account is approved.
 
+**Status:** the real AdMob app and ad units are in `src/ads.config.ts` and `Info.plist`. Copies installed from
+**TestFlight always show test ads** (the app checks where it was installed from), so testers can't tap a real ad;
+**App Store downloads show real ads**. Five taps on the version line in Settings show "Test ads" or "Real ads".
+
 ## How the ads work in the game
 
 | Ad | When | Notes |

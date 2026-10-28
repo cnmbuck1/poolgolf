@@ -1,16 +1,15 @@
 // Ads and the Remove ads purchase. See docs/ADS.md for the setup in AdMob and App Store Connect.
 //
-// The AdMob app (ca-app-pub-8965676427575286~1645510652) is set in ios/App/App/Info.plist. Until the real ad
-// unit IDs are pasted in below, these are Google's demo units, which always show test ads (safe to tap; they
-// earn nothing) and work with any app ID. With the real units in, set ADS_TESTING to false.
+// The AdMob app (ca-app-pub-8965676427575286~1645510652) is set in ios/App/App/Info.plist. Copies installed
+// from TestFlight always get test ads (safe to tap; they earn nothing); App Store downloads get real ones.
 
-/** Show test ads only. Leave true until the real ad unit IDs below are in place. */
-export const ADS_TESTING = true;
+/** Test ads everywhere, App Store copies included (for emergencies: TestFlight copies get them regardless). */
+export const ADS_TESTING = false;
 
 /** AdMob ad unit IDs (iOS). */
 export const AD_UNITS = {
   interstitial: 'ca-app-pub-8965676427575286/5393183974', // Between rounds
-  rewarded: 'ca-app-pub-3940256099942544/1712485313',
+  rewarded: 'ca-app-pub-8965676427575286/1979010584', // Rewarded coins
 };
 
 /** The Remove ads in-app purchase (a non-consumable product with this ID in App Store Connect). */

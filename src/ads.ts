@@ -35,6 +35,18 @@ let lastReason = 'none yet this launch';
 // ---------- AdMob ----------
 
 let ready: Promise<boolean> | null = null;
+/**
+ * Test ads instead of real ones: always while ADS_TESTING is on, and in any copy that didn't come from the App
+ * Store (TestFlight or Xcode), so testers can never tap a real ad. Settled when ads start.
+ */
+let testAds = ADS_TESTING;
+async function decideTestAds() {
+  if (testAds) return;
+  try {
+    const { appTransaction } = await NativePurchases.getAppTransaction();
+    testAds = appTransaction.environment !== 'Production';
+  } catch { /* can't tell (older iOS): an App Store copy, real ads */ }
+}
 let interstitialLoaded = false, rewardedLoaded = false;
 
 /** Consent, tracking question and SDK start, once; true when ads may be requested. */
@@ -47,7 +59,8 @@ function start() {
       if (!info.canRequestAds) return false;
       const t = await AdMob.trackingAuthorizationStatus();
       if (t.status === 'notDetermined') await AdMob.requestTrackingAuthorization();
-      await AdMob.initialize({ initializeForTesting: ADS_TESTING });
+      await decideTestAds();
+      await AdMob.initialize({ initializeForTesting: testAds });
       void loadRewarded();
       if (!adsRemoved()) void loadInterstitial();
       return true;
@@ -58,10 +71,10 @@ function start() {
 
 let loadError = '';
 async function loadInterstitial() {
-  try { await AdMob.prepareInterstitial({ adId: AD_UNITS.interstitial, isTesting: ADS_TESTING }); interstitialLoaded = true; loadError = ''; } catch (e) { interstitialLoaded = false; loadError = String((e as Error)?.message ?? e).slice(0, 120); }
+  try { await AdMob.prepareInterstitial({ adId: AD_UNITS.interstitial, isTesting: testAds }); interstitialLoaded = true; loadError = ''; } catch (e) { interstitialLoaded = false; loadError = String((e as Error)?.message ?? e).slice(0, 120); }
 }
 async function loadRewarded() {
-  try { await AdMob.prepareRewardVideoAd({ adId: AD_UNITS.rewarded, isTesting: ADS_TESTING }); rewardedLoaded = true; } catch { rewardedLoaded = false; }
+  try { await AdMob.prepareRewardVideoAd({ adId: AD_UNITS.rewarded, isTesting: testAds }); rewardedLoaded = true; } catch { rewardedLoaded = false; }
 }
 
 /**
@@ -153,7 +166,7 @@ export async function maybeInterstitial() {
 /** For testing: where the ads stand on this launch. */
 export function adStatus() {
   const since = lastFull === -Infinity ? 'none yet' : `${Math.round((performance.now() - lastFull) / 1000)}s ago`;
-  return `Launch ${session} (full-screen ads from launch ${INTERSTITIAL_FROM_SESSION}) · last full-screen ad ${since} · next one ${interstitialLoaded ? 'loaded' : 'not loaded'} · last check: ${lastReason}${adsRemoved() ? ' · Remove ads bought' : ''}`;
+  return `${testAds ? 'Test ads' : 'Real ads'} · Launch ${session} (full-screen ads from launch ${INTERSTITIAL_FROM_SESSION}) · last full-screen ad ${since} · next one ${interstitialLoaded ? 'loaded' : 'not loaded'} · last check: ${lastReason}${adsRemoved() ? ' · Remove ads bought' : ''}`;
 }
 
 /** Coin ads watched today, against the daily limit. */
