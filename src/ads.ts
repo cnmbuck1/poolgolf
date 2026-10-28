@@ -133,7 +133,10 @@ export async function maybeInterstitial() {
   if (!adsAvailable || adsRemoved() || (session < INTERSTITIAL_FROM_SESSION && !fake)) return; // stand-ins skip the new-player grace, for previewing
   if (performance.now() - lastAd < INTERSTITIAL_GAP_S * 1000) return;
   if (fake && !native) { await fakeAd('Full-screen ad', 2); lastAd = performance.now(); return; }
-  if (!(await start()) || !interstitialLoaded) { void loadInterstitial(); return; }
+  if (!(await start())) return;
+  // Normally loaded ahead of time; if not, give it a moment rather than skip this one
+  if (!interstitialLoaded) await Promise.race([loadInterstitial(), new Promise((r) => setTimeout(r, 2500))]);
+  if (!interstitialLoaded) return;
   interstitialLoaded = false;
   await present('interstitial');
   void loadInterstitial();
@@ -165,15 +168,25 @@ export async function removeAdsPrice() {
   } catch { return REMOVE_ADS_PRICE; }
 }
 
-/** Buy Remove ads. 'done' when bought, 'cancelled' if the player backed out, 'failed' otherwise. */
-export async function buyRemoveAds(): Promise<'done' | 'cancelled' | 'failed'> {
-  if (fake && !native) { set('noads', '1'); return 'done'; }
+/**
+ * Buy Remove ads. `done` when bought, `cancelled` if the player backed out, `unavailable` if the App Store
+ * doesn't offer the product (not set up yet, or no Paid Apps agreement), `failed` otherwise, with Apple's message.
+ */
+export async function buyRemoveAds(): Promise<{ result: 'done' | 'cancelled' | 'unavailable' | 'failed'; detail?: string }> {
+  if (fake && !native) { set('noads', '1'); return { result: 'done' }; }
+  try {
+    const { products } = await NativePurchases.getProducts({ productIdentifiers: [REMOVE_ADS_ID], productType: PURCHASE_TYPE.INAPP });
+    if (!products.length) return { result: 'unavailable' };
+  } catch (e) {
+    return { result: 'unavailable', detail: String((e as Error)?.message ?? e) };
+  }
   try {
     const t = await NativePurchases.purchaseProduct({ productIdentifier: REMOVE_ADS_ID, productType: PURCHASE_TYPE.INAPP });
-    if (t?.productIdentifier === REMOVE_ADS_ID || t?.transactionId) { set('noads', '1'); return 'done'; }
-    return 'failed';
+    if (t?.productIdentifier === REMOVE_ADS_ID || t?.transactionId) { set('noads', '1'); return { result: 'done' }; }
+    return { result: 'failed' };
   } catch (e) {
-    return /cancel/i.test(String((e as Error)?.message ?? e)) ? 'cancelled' : 'failed';
+    const msg = String((e as Error)?.message ?? e);
+    return /cancel/i.test(msg) ? { result: 'cancelled' } : { result: 'failed', detail: msg };
   }
 }
 

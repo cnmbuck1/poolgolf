@@ -243,6 +243,8 @@ svg { width: 22px; height: 22px; flex: none; }
   opacity: 0; transition: opacity 0.2s, transform 0.25s;
 }
 .toast.show { opacity: 1; transform: none; }
+/* Over menus and result screens */
+.toast.float { position: fixed; bottom: calc(12px + var(--sab)); left: 50%; translate: -50% 0; z-index: 60; max-width: calc(100% - 32px); background: #1b2836; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
 .toast.good { color: var(--gold-hi); }
 .toast.bad { color: var(--over); }
 
@@ -804,8 +806,18 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
   .title-col { max-height: 100%; overflow-y: auto; padding-bottom: var(--sab); }
   .title-col:has(.fs-tip:not(.off):not(.hidden)) .tagline { display: none; }
   /* Results: the replay button tucks into the top corner; details tighten up */
-  .result .btn-watch { position: absolute; top: 12px; right: 14px; padding: 5px 10px; font-size: 12px; z-index: 1; }
-  .result .detail { margin: 0; }
+  .result .btn-watch { position: absolute; top: 10px; right: 12px; width: 34px; height: 34px; padding: 0; gap: 0; font-size: 0; z-index: 1; }
+  .result .btn-watch svg { width: 14px; height: 14px; margin-left: 2px; }
+  .result-kicker { padding: 0 42px; font-size: 12px; letter-spacing: 0.18em; }
+  .result { gap: 5px; }
+  .result h2 { font-size: 25px; }
+  .result .detail { margin: 0; font-size: 14px; }
+  .coins-earned b { font-size: 19px; }
+  .card { font-size: 14px; }
+  .card th, .card td { padding: 2px 8px; }
+  .card td.total { font-size: 16px; }
+  .coins-earned .unlocks { flex-basis: auto; }
+  .coins-earned .ad-btn { padding: 4px 12px; font-size: 13px; }
   .hole-stars { display: inline; margin: 0 0 0 8px; font-size: 18px; }
   .coins-earned small { flex-basis: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Pause: toggles in three columns */
@@ -835,6 +847,9 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 #vs-msg .ad-btn { margin-top: 8px; }
 .ads-box { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; }
 .ads-box p { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.ads-box .noads-msg:empty { display: none; }
+.ads-box .noads-msg { color: var(--ink); }
+.ads-box .noads-msg.bad { color: var(--over); }
 .ads-box .noads-done { color: #bff5c8; font-weight: 700; font-size: 14px; }
 .ads-row { display: flex; gap: 8px; }
 .ads-row .btn { font-size: 14px; padding: 9px 10px; }

@@ -624,6 +624,7 @@ export class Renderer3D {
 
     this.updateBall(world, fx, dt);
     this.updateEight(time, dt);
+    this.clearView();
 
     this.rippleMeshes.forEach((m, i) => {
       const r = fx.ripples[i];
@@ -653,6 +654,29 @@ export class Renderer3D {
     this.updateCue(world, cue);
     if (this.quality <= 1) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Behind the ball, a tree or tall bit of scenery between the camera and the ball would fill the screen:
+   * hide any whose bounds cross the line of sight (or hold the camera), and show them again once clear.
+   */
+  private clearView() {
+    const occ = this.course?.occluders;
+    if (!occ?.length) return;
+    const active = !this.overview && this.mode === 'play';
+    const cam = this.camera.position, ball = this.ball.position;
+    const seg = ball.clone().sub(cam), len2 = seg.lengthSq() || 1;
+    const p = new THREE.Vector3();
+    for (const o of occ) {
+      let hide = false;
+      if (active) {
+        const t = Math.max(0, Math.min(1, o.c.clone().sub(cam).dot(seg) / len2));
+        p.copy(cam).addScaledVector(seg, t);
+        // A little smaller than the bounds (trees are rounder than their boxes), and never the ball's own spot
+        hide = p.distanceTo(o.c) < o.r * 0.8 && t < 0.97;
+      }
+      o.obj.visible = !hide;
+    }
   }
 
   private updateBall(world: World, fx: FX, dt: number) {

@@ -35,6 +35,19 @@ export interface Course {
   cupPulse: THREE.Mesh;
   /** Table-plane bounds of the fairway (for camera and shadow fitting). */
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
+  /** Trees and tall scenery that hide themselves when they come between the shot camera and the ball. */
+  occluders: Occluder[];
+}
+export interface Occluder { obj: THREE.Object3D; c: THREE.Vector3; r: number }
+
+/** An occluder for a single, compact object (a tree, a post, a house); null for big or flat ones. */
+function occluderOf(obj: THREE.Object3D): Occluder | null {
+  const box = new THREE.Box3().setFromObject(obj);
+  if (box.isEmpty()) return null;
+  const size = box.getSize(new THREE.Vector3());
+  // Batched scenery spans the whole hole, and low things never block the view
+  if (size.y < 35 || Math.max(size.x, size.z) > 320) return null;
+  return { obj, c: box.getCenter(new THREE.Vector3()), r: size.length() / 2 };
 }
 
 const C = {
@@ -318,28 +331,35 @@ export function buildCourse(world: World, models: Models | null): Course {
     add(shadow);
   }
   for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
+  const occluders: Occluder[] = [];
   for (const pm of L.palms ?? []) {
-    add(space ? moonTree(pm, L, to3) : candy ? lollipop(pm, L, to3) : hw ? deadTree(pm, L, to3) : xmas ? firTree(pm, L, to3) : coursePalm(pm, L, to3));
+    const tree = add(space ? moonTree(pm, L, to3) : candy ? lollipop(pm, L, to3) : hw ? deadTree(pm, L, to3) : xmas ? firTree(pm, L, to3) : coursePalm(pm, L, to3));
+    const oc = occluderOf(tree);
+    if (oc) occluders.push(oc);
     const shadow = contactDisc(palmR(pm) + 16);
     shadow.position.copy(to3(pm.x, pm.y)).setY(heightAt(L, pm.x, pm.y) + 0.45);
     add(shadow);
   }
 
   if (models) {
-    if (circus) group.add(circusLandscape(L, outline, to3, lawnH, anims));
-    else if (tomb) group.add(tombLandscape(L, outline, to3, lawnH, anims));
-    else if (arctic) group.add(arcticLandscape(L, outline, to3, lawnH, anims));
-    else if (candy) group.add(candyLandscape(L, outline, to3, lawnH, anims));
-    else if (hw) group.add(hauntedLandscape(L, outline, to3, lawnH, anims));
-    else if (xmas) group.add(villageLandscape(L, outline, to3, lawnH, anims));
+    let scenery: THREE.Group;
+    if (circus) scenery = circusLandscape(L, outline, to3, lawnH, anims);
+    else if (tomb) scenery = tombLandscape(L, outline, to3, lawnH, anims);
+    else if (arctic) scenery = arcticLandscape(L, outline, to3, lawnH, anims);
+    else if (candy) scenery = candyLandscape(L, outline, to3, lawnH, anims);
+    else if (hw) scenery = hauntedLandscape(L, outline, to3, lawnH, anims);
+    else if (xmas) scenery = villageLandscape(L, outline, to3, lawnH, anims);
     else {
       const dress = jur ? jurassicLandscape : space ? spaceLandscape : landscape;
-      group.add(dress(L, outline, models, to3, lawnH, anims));
+      scenery = dress(L, outline, models, to3, lawnH, anims);
     }
+    group.add(scenery);
+    group.updateMatrixWorld(true);
+    for (const ch of scenery.children) { const oc = occluderOf(ch); if (oc) occluders.push(oc); }
     if (!circus && !tomb && !arctic && !candy && !hw && !xmas) group.add(riverStones(L, models, to3, (x, y) => waterDip(L, x, y), rockSwap));
   }
 
-  return { group, spinnerAnims, legacySpinners, anims, waterMats, cupPos, cupPulse, bounds };
+  return { group, spinnerAnims, legacySpinners, anims, waterMats, cupPos, cupPulse, bounds, occluders };
 }
 
 // ---------- fairway mesh ----------

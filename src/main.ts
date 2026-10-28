@@ -297,10 +297,13 @@ function fitTopSlot() {
 let toastTimer = 0;
 function toast(msg: string, kind: '' | 'good' | 'bad' = '', ms = 1300) {
   if (demo) return; // the demo's captions say what's happening
-  fitTopSlot();
-  const t = $('toast');
+  // Over a menu or result screen the top bar is covered, so the message floats above the screen instead
+  const overScreen = [...document.querySelectorAll('.screen')].some((el) => !el.classList.contains('hidden'));
+  if (!overScreen) fitTopSlot();
+  if (overScreen) $('toast').className = 'toast'; else $('float-toast').className = 'toast float';
+  const t = $(overScreen ? 'float-toast' : 'toast');
   t.textContent = msg;
-  t.className = `toast show ${kind}`;
+  t.className = `toast ${overScreen ? 'float ' : ''}show ${kind}`;
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => t.classList.remove('show'), ms);
 }
@@ -628,6 +631,7 @@ function finishHole(score: number, pickedUp = false) {
   const ace = recorder.shots.some((x) => x.ace);
   $('btn-watch').classList.toggle('hidden', !recorder.shots.length);
   $('btn-watch').innerHTML = `<svg><use href="#i-play"/></svg>${ace ? 'SLOW-MO REPLAY' : 'WATCH REPLAY'}`;
+  $('btn-watch').setAttribute('aria-label', ace ? 'Slow-motion replay' : 'Watch replay');
   updateHud();
   show('screen-hole');
 }
@@ -697,11 +701,15 @@ function adsSettingsHtml() {
     if (buy) {
       void removeAdsPrice().then((p) => { const s = buy.querySelector('b'); if (s) s.textContent = p; });
       buy.onclick = async () => {
+        const note = (t: string) => { const m = document.getElementById('noads-msg'); if (m) { m.textContent = t; m.classList.toggle('bad', !!t); } };
         buy.disabled = true;
-        const r = await buyRemoveAds();
+        note('');
+        const { result, detail } = await buyRemoveAds();
         buy.disabled = false;
-        if (r === 'done') { sfx.collect(); toast('Ads removed. Thank you!', 'good', 2000); openSettings(); }
-        else if (r === 'failed') toast("The purchase didn't go through. Try again later.", 'bad', 2200);
+        // Said on the panel itself (a toast would be hidden behind it)
+        if (result === 'done') { sfx.collect(); toast('Ads removed. Thank you!', 'good', 2000); openSettings(); }
+        else if (result === 'unavailable') note(`Remove ads isn't available from the App Store right now. Please try again later.${detail ? ` (${detail})` : ''}`);
+        else if (result === 'failed') note(`The purchase didn't go through. Please try again later.${detail ? ` (${detail})` : ''}`);
       };
     }
     const rest = document.getElementById('btn-restore') as HTMLButtonElement | null;
@@ -709,15 +717,16 @@ function adsSettingsHtml() {
       rest.disabled = true;
       const ok = await restorePurchases();
       rest.disabled = false;
-      toast(ok ? 'Purchase restored: ads removed' : 'No purchases to restore', ok ? 'good' : '', 2000);
-      if (ok) openSettings();
+      if (ok) { toast('Purchase restored: ads removed', 'good', 2000); openSettings(); return; }
+      const m = document.getElementById('noads-msg');
+      if (m) { m.textContent = 'No purchases to restore on this Apple ID.'; m.classList.remove('bad'); }
     };
     const priv = document.getElementById('btn-adprivacy');
     if (priv) priv.onclick = () => void privacyChoices();
   });
   return `<div class="ads-box">${adsRemoved()
     ? '<p class="noads-done">✓ Ads removed. Thank you for supporting Rack &amp; Roll!</p>'
-    : '<button class="btn-gold small" id="btn-noads">Remove ads · <b>…</b></button><p>Turns off the full-screen ads during and after courses for good. Ads you choose to watch for coins stay available.</p>'}
+    : '<button class="btn-gold small" id="btn-noads">Remove ads · <b>…</b></button><p id="noads-msg" class="noads-msg"></p><p>Turns off the full-screen ads during and after courses for good. Ads you choose to watch for coins stay available.</p>'}
     <div class="ads-row"><button class="btn" id="btn-restore">Restore purchases</button>${native ? '<button class="btn" id="btn-adprivacy">Ad privacy choices</button>' : ''}</div></div>`;
 }
 
@@ -919,7 +928,15 @@ function toggleMute() {
 }
 function toggleSound() { settings.sound = !settings.sound; setSound(settings.sound); localSet('sound', settings.sound ? '1' : '0'); syncSettingsUi(); }
 function toggleMusic() { settings.music = !settings.music; setMusic(settings.music); localSet('music', settings.music ? '1' : '0'); syncSettingsUi(); }
-function toggleVibrate() { settings.vibrate = !settings.vibrate; localSet('vibrate', settings.vibrate ? '1' : '0'); syncSettingsUi(); buzz(ImpactStyle.Medium); }
+function toggleVibrate() {
+  settings.vibrate = !settings.vibrate;
+  localSet('vibrate', settings.vibrate ? '1' : '0');
+  syncSettingsUi();
+  // Turning it on gives a full test buzz: in-game taps are lighter, and iPhone only plays them with
+  // Settings → Sounds & Haptics → System Haptics switched on
+  if (settings.vibrate && native) void Haptics.vibrate({ duration: 300 }).catch(() => {});
+  else buzz(ImpactStyle.Medium);
+}
 function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.guide ? 'full' : 'short'; localSet('guide', settings.guide ? 'full' : 'short'); syncSettingsUi(); }
 function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
