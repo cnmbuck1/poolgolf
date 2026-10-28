@@ -791,6 +791,8 @@ export function filletPolygon(p: Pt[], radius: number, segs: number): Pt[] {
  * Where to look from (x, y) to head toward the cup: walks a distance field around walls, water,
  * rocks and bumpers and returns the furthest point along the route that is in a clear straight line.
  */
+/** How far along the route the view looks when the clear stretch ahead is short. */
+const ROUTE_LOOK = 220;
 export function routeTarget(world: World, x: number, y: number): [number, number] {
   const L = world.level;
   const f = routeField(world);
@@ -805,6 +807,10 @@ export function routeTarget(world: World, x: number, y: number): [number, number
     return true;
   };
   if (clear(L.cup[0], L.cup[1])) return L.cup;
+  // Walk down the route: `best` is the furthest point the ball can see straight; `far` is a point well along
+  // the route whether it's visible or not. Tucked in beside a mast or a wall, the visible stretch can be a
+  // ball's width, which would turn the view sideways, so then face the point further along instead.
+  let far: [number, number] | null = null, seeing = true, along = 0;
   for (let step = 0; step < 200; step++) {
     let nx = cx, ny = cy, nd = f.d[idx(cx, cy)];
     for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
@@ -813,10 +819,13 @@ export function routeTarget(world: World, x: number, y: number): [number, number
       if (f.d[idx(ax, ay)] < nd) { nd = f.d[idx(ax, ay)]; nx = ax; ny = ay; }
     }
     if (nx === cx && ny === cy) break;
+    along += Math.hypot(nx - cx, ny - cy) * G;
     cx = nx; cy = ny;
     const px = cx * G + G / 2 - O, py = cy * G + G / 2 - O;
-    if (clear(px, py)) best = [px, py]; else break;
+    if (seeing && clear(px, py)) best = [px, py]; else seeing = false;
+    if (along >= ROUTE_LOOK) { far = [px, py]; if (!seeing) break; }
   }
+  if (Math.hypot(best[0] - x, best[1] - y) < ROUTE_LOOK * 0.55) return far ?? L.cup; // (close to the cup, face it)
   return best;
 }
 
