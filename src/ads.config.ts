@@ -1,8 +1,8 @@
 // Ads and the Remove ads purchase. See docs/ADS.md for the setup in AdMob and App Store Connect.
 //
-// Until the real AdMob IDs are pasted in, these are Google's demo units, which always show test ads (safe to
-// tap; they earn nothing). When you switch to your own IDs, also change GADApplicationIdentifier in
-// ios/App/App/Info.plist to your AdMob app ID, and set ADS_TESTING to false.
+// The AdMob app (ca-app-pub-8965676427575286~1645510652) is set in ios/App/App/Info.plist. Until the real ad
+// unit IDs are pasted in below, these are Google's demo units, which always show test ads (safe to tap; they
+// earn nothing) and work with any app ID. With the real units in, set ADS_TESTING to false.
 
 /** Show test ads only. Leave true until the real ad unit IDs below are in place. */
 export const ADS_TESTING = true;

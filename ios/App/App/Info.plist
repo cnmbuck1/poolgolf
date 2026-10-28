@@ -70,7 +70,7 @@
 	<key>UIRequiresFullScreen</key>
 	<true/>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-8965676427575286~1645510652</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Allowing this lets the ads that keep Rack &amp; Roll free be more relevant to you. You'll see the same number of ads either way.</string>
 	<key>SKAdNetworkItems</key>

@@ -45,6 +45,10 @@ All the timings and amounts are in `src/ads.config.ts`.
 
 ### app-ads.txt
 
+The file for this account is `docs/app-ads.txt` (publisher `pub-8965676427575286`); it has to be served at
+`https://cnmbuck1.github.io/app-ads.txt`.
+
+
 AdMob checks a small file called `app-ads.txt` on your **developer website** (the Marketing URL in your App
 Store listing) to confirm the ads are really yours. Unverified apps earn noticeably less. The file must be at
 the root of the site, for example `https://cnmbuck1.github.io/app-ads.txt`, not inside `/poolgolf/`. On GitHub
