@@ -5,10 +5,9 @@ Character limits are Apple's.
 
 ## Name and text
 
-**Name** (30): `Rack & Roll`
-(If it's taken: `Rack & Roll Mini Golf`.)
+**Name** (30): `Rack & Roll Mini Golf` (plain `Rack & Roll` was taken). The home screen still shows `Rack & Roll`.
 
-**Subtitle** (30): `Mini golf with a pool cue`
+**Subtitle** (30): `Putt with a pool cue` (the name already says mini golf)
 
 **Promotional text** (170, can be changed any time without review):
 > Pull back the cue, bank it off the rails and sink it! Six wild worlds, holiday specials, and an expert course aboard a rolling pirate ship.
@@ -54,7 +53,8 @@ Character limits are Apple's.
 > Free to play, with an optional one-time purchase to remove full-screen ads. Plays offline.
 
 **Keywords** (100, comma-separated, no spaces needed):
-`mini golf,putt,pool,billiards,cue,8 ball,golf,putting,arcade,party,friends,pirate,trick shot`
+`putt,pool,billiards,cue,8 ball,putting,arcade,party,friends,pirate,trick shot,snooker,minigolf,holiday`
+(Words in the name and subtitle already count for search, so they aren't repeated here.)
 
 **What's New** (for later versions): leave empty for 1.0.
 
