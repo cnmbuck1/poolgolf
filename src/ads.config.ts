@@ -13,7 +13,7 @@ export const AD_UNITS = {
 };
 
 /** The Remove ads in-app purchase (a non-consumable product with this ID in App Store Connect). */
-export const REMOVE_ADS_ID = 'com.cnmbuckstudios.rackandroll.removeads';
+export const REMOVE_ADS_ID = 'com.cnmbuckstudios.racknroll.removeads';
 /** Shown until the App Store's own (local) price has loaded. */
 export const REMOVE_ADS_PRICE = '$2.99';
 

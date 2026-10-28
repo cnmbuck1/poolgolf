@@ -76,7 +76,7 @@ helps what they bid. Paste the list to Claude and it'll go into `Info.plist`.
 2. Your app → **Monetization → In-App Purchases → +**:
    - Type: **Non-Consumable**
    - Reference name: `Remove ads`
-   - Product ID: **`com.cnmbuckstudios.rackandroll.removeads`** (exactly this; the game looks for it)
+   - Product ID: **`com.cnmbuckstudios.racknroll.removeads`** (exactly this; the game looks for it)
    - Price: **$2.99** (tier 3)
    - Display name: `Remove ads`. Description: `Turns off the full-screen ads for good.`
    - Review screenshot: a screenshot of Settings with the Remove ads button (Claude can make one).
