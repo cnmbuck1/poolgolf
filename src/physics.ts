@@ -15,6 +15,9 @@ const LIN_DAMP = 0.55; // proportional damping (1/s)
 const SAND_FACTOR = 5;
 const REST_SPEED = 6;
 const SINK_SPEED = 560; // faster than this and the ball lips out / skims over
+/** Pro: a stricter cup (set for every world, so the computer's practice shots see the same cup). */
+let sinkSpeed = SINK_SPEED;
+export function setStrictCup(on: boolean) { sinkSpeed = on ? 400 : SINK_SPEED; }
 const RAIL_E = 0.78;
 const WALL_E = 0.7;
 const BUMPER_E = 0.95;
@@ -331,7 +334,7 @@ export class World {
       if (dc < CUP_R && !falling) {
         this.inCup = true;
         const s2 = Math.hypot(b.vx, b.vy);
-        if (s2 < SINK_SPEED && dc < CUP_R - BALL_R * 0.35) {
+        if (s2 < sinkSpeed && dc < CUP_R - BALL_R * 0.35) {
           events.push({ type: 'sink' });
           this.moving = false;
           return events;

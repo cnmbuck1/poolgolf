@@ -36,7 +36,8 @@ const AIM_COLORS: Record<Theme, number> = {
   jurassic: 0x18e8ff, circus: 0x18e8ff, candy: 0x1f5bff, halloween: 0xffa424, christmas: 0xffb020, pirate: 0xff2b2b,
 };
 
-export type GuideMode = 'full' | 'short';
+/** full: two banks, reaching further with power; one: up to the first bank; short: a straight stretch; line: a short aiming line (no spin curve). */
+export type GuideMode = 'full' | 'one' | 'short' | 'line';
 export interface AimState { active: boolean; dx: number; dy: number; power: number; guide: GuideMode; spin?: { side: number; vert: number } }
 /** Where the cue is drawn, independent of aiming so it can animate the strike. */
 export interface CueState { visible: boolean; dx: number; dy: number; pull: number; alpha: number; ox?: number; oy?: number; spin?: { side: number; vert: number } }
@@ -705,9 +706,10 @@ export class Renderer3D {
     this.ghosts.forEach((g) => (g.visible = false));
     if (!on) { this.dots.count = 0; return; }
 
-    // The full guide reaches further with more power and always shows two banks.
-    const maxLen = aim.guide === 'full' ? 320 + aim.power * 700 : 150, banks = aim.guide === 'full' ? 2 : 0;
-    if (aim.spin && (aim.spin.side || aim.spin.vert)) { this.drawSpinGuide(world, aim, maxLen, banks); return; }
+    // The full guide reaches further with more power and always shows two banks; the others show less
+    const long = aim.guide === 'full' || aim.guide === 'one';
+    const maxLen = long ? 320 + aim.power * 700 : aim.guide === 'line' ? 70 : 150, banks = aim.guide === 'full' ? 2 : aim.guide === 'one' ? 1 : 0;
+    if (aim.guide !== 'line' && aim.spin && (aim.spin.side || aim.spin.vert)) { this.drawSpinGuide(world, aim, maxLen, banks); return; }
     const path = world.aimPath(aim.dx, aim.dy, maxLen, banks);
     const m = new THREE.Matrix4();
     const col = new THREE.Color();

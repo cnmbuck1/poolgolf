@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
 import { ALL_COURSES, COURSE, CourseDef, COURSES, EXPERT, inSeason, LevelDef, LEVELS, SEASONAL, setCourse } from './levels';
-import { alienAt, astronautAt, BALL_R, dinoPose, inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
+import { setStrictCup, alienAt, astronautAt, BALL_R, dinoPose, inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
 import { ballPreview, BALLS, cuePreview, CUES } from './gear';
@@ -22,6 +22,7 @@ import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
+import { noteRound, ORDER, setSkill, Skill, skill, SKILLS, snooze } from './difficulty';
 import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded } from './ads';
 import { AD_COINS } from './ads.config';
 import { bookReminder, canRemind, maybeAskForRating, remindersOn, setReminders } from './nudges';
@@ -123,9 +124,16 @@ const settings = {
 };
 setSound(settings.sound);
 setMusic(settings.music);
-aim.guide = settings.guide ? 'full' : 'short';
 view3d.follow = settings.follow;
-view3d.setSlopeArrows(settings.arrows);
+applySkill();
+
+/** The aids for the player's level: the aim guide, slope arrows and how strict the cup is. */
+function applySkill() {
+  const d = SKILLS[skill()];
+  aim.guide = d.guide ?? (settings.guide ? 'full' : 'short');
+  view3d.setSlopeArrows(settings.arrows && d.arrows);
+  setStrictCup(d.strictCup);
+}
 view3d.setOverview(settings.top);
 view3d.setBall(localGet('ball') ?? 'cue');
 view3d.setCue(localGet('cue') ?? 'classic');
@@ -137,6 +145,9 @@ function syncSettingsUi() {
   $('set-guide').setAttribute('aria-pressed', String(settings.guide));
   $('set-follow').setAttribute('aria-pressed', String(settings.follow));
   $('set-arrows').setAttribute('aria-pressed', String(settings.arrows));
+  // Above Amateur the level decides the aim guide (and on Pro the slope arrows), so those switches step aside
+  $('set-guide').classList.toggle('hidden', skill() !== 'amateur');
+  $('set-arrows').classList.toggle('hidden', !SKILLS[skill()].arrows);
   $('view-label').textContent = view3d.isOverview ? 'BALL' : 'TABLE';
   $('btn-turn').setAttribute('aria-label', view3d.isOverview ? 'View the table from the other side' : 'Turn around');
   // The speaker on the title screen mutes everything: it shows muted only when sound and music are both off
@@ -489,7 +500,7 @@ function holeOut(score: number, pickedUp = false) {
   const at = whereIs(world.level);
   if (party) { partyHoleOut(score, pickedUp); return; }
   if (at && !shootout && !(match && turn === 'ai')) {
-    const mode = daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round';
+    const mode = (daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round') + (skill() === 'amateur' ? '' : `-${skill()}`);
     track({ type: 'hole', ...at, name: world.level.name, par: world.level.par, strokes: score, mode, seconds: Math.round((performance.now() - holeStartedAt) / 1000), pickedUp });
     lastPlayed = { ...at, name: world.level.name, strokes: score };
   }
@@ -539,6 +550,35 @@ function awardTrophies(lines: [string, number][], unlocked: string[]) {
     lines.push([`🏆 ${t.name}`, t.coins]);
     unlocked.push((t.item && earn(t.item)) || '');
   }
+}
+
+/** Intermediate and Pro pay a bonus on a hole's coins (not on trophies, added after). */
+function skillBonus(lines: [string, number][]) {
+  const d = SKILLS[skill()];
+  const base = lines.reduce((a, [, n]) => a + n, 0);
+  const extra = Math.round(base * d.bonus);
+  if (extra > 0) lines.push([`${d.name} bonus`, extra]);
+}
+
+/** The game thinks the player is ready for the next level: say what changes, and let them try it or not. */
+let levelOffer: Skill | null = null;
+function offerLevel(next: Skill) {
+  if (phase !== 'holeDone' && phase !== 'title') return;
+  levelOffer = next;
+  const d = SKILLS[next];
+  $('intro-kicker').textContent = 'LEVEL UP';
+  $('intro-icon').textContent = next === 'pro' ? '🏆' : '🎯';
+  $('intro-title').textContent = `Ready for ${d.name}?`;
+  $('intro-points').innerHTML = [`You've been playing great. ${d.name} takes away some help and pays more:`, ...d.points, 'You can change your level any time in Settings.'].map((p) => `<li>${p}</li>`).join('');
+  setLabel('btn-intro-ok', `TRY ${d.name.toUpperCase()}`);
+  $('btn-intro-alt').textContent = 'Not now';
+  $('btn-intro-alt').classList.remove('hidden');
+  $('screen-intro').classList.remove('hidden');
+}
+function changeSkill(s: Skill) {
+  setSkill(s);
+  applySkill();
+  syncSettingsUi();
 }
 
 /** Stars and activity counts for the player's finished hole; adds coin lines for new stars, returns the stars. */
@@ -593,6 +633,7 @@ function finishHole(score: number, pickedUp = false) {
     lines.push(...roundReward(d));
     if (d < 0) unlocked.push(earn('underPar') ?? '');
     if (d <= 0) maybeAskForRating(stat('rounds'));
+    if (!daily && !demo) { const next = noteRound(d); if (next) setTimeout(() => offerLevel(next), 1600); }
     if (COURSE.id === 'space') unlocked.push(earn('lunar') ?? '');
   }
   if (daily?.kind === 'hole') {
@@ -622,8 +663,10 @@ function finishHole(score: number, pickedUp = false) {
   }
   const stars = pickedUp ? null : holeProgress(score, lines);
   if (last && !practice) P.noteRound(COURSE.id);
+  skillBonus(lines);
   awardTrophies(lines, unlocked);
   $('hole-detail').insertAdjacentHTML('beforeend', starsHtml(stars));
+  if (skill() !== 'amateur') $('hole-kicker').textContent += ` · ${SKILLS[skill()].name.toUpperCase()}`;
   const earned = lines.reduce((a, [, n]) => a + n, 0);
   addCoins(earned);
   sinkBanked = false;
@@ -947,8 +990,8 @@ function toggleVibrate() {
   if (settings.vibrate && native) void Haptics.vibrate({ duration: 300 }).catch(() => {});
   else buzz(ImpactStyle.Medium);
 }
-function toggleGuide() { settings.guide = !settings.guide; aim.guide = settings.guide ? 'full' : 'short'; localSet('guide', settings.guide ? 'full' : 'short'); syncSettingsUi(); }
-function toggleArrows() { settings.arrows = !settings.arrows; view3d.setSlopeArrows(settings.arrows); localSet('arrows', settings.arrows ? '1' : '0'); syncSettingsUi(); }
+function toggleGuide() { settings.guide = !settings.guide; localSet('guide', settings.guide ? 'full' : 'short'); applySkill(); syncSettingsUi(); }
+function toggleArrows() { settings.arrows = !settings.arrows; localSet('arrows', settings.arrows ? '1' : '0'); applySkill(); syncSettingsUi(); }
 function toggleFollow() { settings.follow = !settings.follow; view3d.follow = settings.follow; localSet('follow', settings.follow ? '1' : '0'); syncSettingsUi(); }
 click('btn-view', toggleView);
 click('btn-turn', () => {
@@ -1094,12 +1137,14 @@ function openCourseHoles(id: string) {
 }
 
 function openSettings() {
-  sheet('Settings', `<div class="settings">
+  sheet('Settings', `<div class="skill-pick"><b>Level</b><div class="skill-row">${ORDER.map((k) => `<button class="skill-btn${k === skill() ? ' on' : ''}" data-skill="${k}">${SKILLS[k].name}</button>`).join('')}</div>
+    <ul class="skill-points">${SKILLS[skill()].points.map((p) => `<li>${p}</li>`).join('')}</ul></div>
+    <div class="settings">
     <button class="toggle" data-set="sound" aria-pressed="${settings.sound}"><span>Sound effects</span><em></em></button>
     <button class="toggle" data-set="music" aria-pressed="${settings.music}"><span>Music</span><em></em></button>
     <button class="toggle" data-set="vibrate" aria-pressed="${settings.vibrate}"><span>${canVibrate ? 'Vibration' : 'Vibration <small>(in the app)</small>'}</span><em></em></button>
-    <button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>
-    <button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>
+    ${skill() === 'amateur' ? `<button class="toggle" data-set="guide" aria-pressed="${settings.guide}"><span>Bank guide (two banks)</span><em></em></button>` : ''}
+    ${SKILLS[skill()].arrows ? `<button class="toggle" data-set="arrows" aria-pressed="${settings.arrows}"><span>Slope arrows</span><em></em></button>` : ''}
     <button class="toggle" data-set="follow" aria-pressed="${settings.follow}"><span>Follow the ball</span><em></em></button>
     <button class="toggle" data-set="top" aria-pressed="${settings.top}"><span>Whole-table camera</span><em></em></button>
     <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button>
@@ -1110,6 +1155,9 @@ function openSettings() {
     <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
       <a href="${SITE}privacy.html" target="_blank" rel="noopener">Privacy policy</a> · <a href="${SITE}support.html" target="_blank" rel="noopener">Support</a></p>`);
   if (!native) $('btn-playtest').onclick = () => void openPlaytest();
+  $('sheet-body').querySelectorAll<HTMLButtonElement>('[data-skill]').forEach((b) => {
+    b.onclick = () => { sfx.ui(); changeSkill(b.dataset.skill as Skill); openSettings(); };
+  });
   // Testing aid: five taps on the version line show why the last full-screen ad did or didn't appear
   let aboutTaps = 0;
   (document.querySelector('#sheet-body .about') as HTMLElement).onclick = (e) => {
@@ -2043,8 +2091,16 @@ function stepReplay(dt: number) {
 click('btn-courses', () => openCourses());
 click('btn-party', openParty);
 click('btn-coach-skip', () => { setCoachStep(COACH_STEPS.length); updateCoach(); });
-click('btn-intro-ok', () => { sfx.ui(); $('screen-intro').classList.add('hidden'); });
-click('btn-intro-alt', () => { $('screen-intro').classList.add('hidden'); startDemo(); });
+click('btn-intro-ok', () => {
+  sfx.ui();
+  $('screen-intro').classList.add('hidden');
+  if (levelOffer) { changeSkill(levelOffer); toast(`You're on ${SKILLS[levelOffer].name} now. Good luck!`, 'good', 2200); levelOffer = null; setLabel('btn-intro-ok', "LET'S PLAY"); $('btn-intro-alt').textContent = '▶ Watch how to play'; }
+});
+click('btn-intro-alt', () => {
+  $('screen-intro').classList.add('hidden');
+  if (levelOffer) { snooze(); levelOffer = null; setLabel('btn-intro-ok', "LET'S PLAY"); $('btn-intro-alt').textContent = '▶ Watch how to play'; return; }
+  startDemo();
+});
 click('btn-settings', openSettings);
 click('btn-feedback', () => openFeedback());
 click('btn-demo', () => startDemo());
@@ -2239,6 +2295,7 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p>Every October, <b>Haunted Hollow</b> 🎃 opens for Halloween: ghosts that are solid only while you can see them, bats, spider webs that catch the ball, green slime, coffins you roll into and out of, pumpkin catapults, and witches whose brooms fly the ball across the hole.</p>
+  <h3>Levels</h3><p>Everyone starts on <b>Amateur</b>, with the full aim guide. Play well and the game offers <b>Intermediate</b> (the guide shows the path up to the first bank only, +25% coins), then <b>Pro</b> (just a short aiming line, no slope arrows or spin curve, a stricter cup, +50% coins). Change your level any time in Settings.</p>
   <p><b>Skull Island</b> 🏴‍☠️ is the expert course, unlocked by earning 36 stars on the six regular courses: narrow planks over the sea, cannonballs raining down, pirates and parrots in the way, quicksand, a kraken guarding its channel, sea caves, ship's cannons, and galleons whose decks rock on the swell, rolling the ball one way and then the other.</p>
   <p>From December 1 to January 6, <b>North Pole Village</b> 🎄 opens for Christmas: presents to bank off, snowmen, marching nutcracker soldiers, rolling snowballs, a frozen pond with holes in the ice, chimneys you drop down and pop out of, a toy train that carries the ball along its track, and Santa's sleigh, which flies it up onto the rooftops.</p>
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
