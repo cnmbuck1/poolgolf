@@ -461,7 +461,28 @@ export function krakenTentacle(len: number, arms: number): Animated {
 
 // ---------- sea caves (portals) ----------
 
+/** Aboard ship, a portal is a cargo hatch: a raised timber frame round a dark square opening. */
+function hatch(x: number, y: number, L: LevelDef, toScene: ToScene, exit: boolean, yaw: number) {
+  const root = new THREE.Group();
+  root.position.copy(toScene(x, y)).setY(heightAt(L, x, y));
+  root.rotation.y = yaw;
+  const out = PORTAL_R * 1.25, inn = PORTAL_R;
+  const sh = new THREE.Shape(); sh.moveTo(-out, -out); sh.lineTo(out, -out); sh.lineTo(out, out); sh.lineTo(-out, out); sh.closePath();
+  const ho = new THREE.Path(); ho.moveTo(-inn, -inn); ho.lineTo(-inn, inn); ho.lineTo(inn, inn); ho.lineTo(inn, -inn); ho.closePath();
+  sh.holes.push(ho);
+  root.add(part(new THREE.ExtrudeGeometry(sh, { depth: 5, bevelEnabled: false }).rotateX(-Math.PI / 2), toon(0x5a3418), 1));
+  for (const c of [-1, 1]) for (const d of [-1, 1]) place(root, new THREE.Mesh(new THREE.SphereGeometry(1.6, 6, 5), toon(0xc8a040)), c * out * 0.85, 5.2, d * out * 0.85);
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(inn * 2, inn * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: exit ? 0x3a2a14 : 0x0a0604, toneMapped: false }));
+  hole.position.y = 0.6; root.add(hole);
+  if (exit) {
+    const arrow = new THREE.Mesh(new THREE.ConeGeometry(5, 12, 3).rotateZ(-Math.PI / 2), glow(0xffd84a));
+    arrow.position.set(out + 12, 3, 0); root.add(arrow);
+  }
+  return { root, hole };
+}
+
 function caveMouth(x: number, y: number, L: LevelDef, toScene: ToScene, exit: boolean, yaw: number) {
+  if (L.ship) return hatch(x, y, L, toScene, exit, yaw);
   const root = new THREE.Group();
   root.position.copy(toScene(x, y)).setY(heightAt(L, x, y));
   root.rotation.y = yaw;
@@ -485,7 +506,7 @@ export function seaCave(p: Portal, L: LevelDef, toScene: ToScene): Animated {
   const a = caveMouth(p.a[0], p.a[1], L, toScene, false, -Math.atan2(p.b[1] - p.a[1], p.b[0] - p.a[0]));
   const b = caveMouth(p.b[0], p.b[1], L, toScene, true, exitYaw);
   g.add(a.root, b.root);
-  return { group: g, update(_x, t) { (b.hole.material as THREE.MeshBasicMaterial).color.setHSL(0.53, 0.8, 0.4 + 0.08 * Math.sin(t * 3)); } };
+  return { group: g, update(_x, t) { if (!L.ship) (b.hole.material as THREE.MeshBasicMaterial).color.setHSL(0.53, 0.8, 0.4 + 0.08 * Math.sin(t * 3)); } };
 }
 
 // ---------- the island around the course ----------

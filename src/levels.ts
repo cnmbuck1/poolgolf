@@ -1058,123 +1058,124 @@ const CHRISTMAS: LevelDef[] = [
   },
 ];
 
-/** Skull Island (expert): plank bridges, cannon volleys, pirates, parrots, quicksand, a kraken and rocking ship decks. */
+/** Skull Island (expert): every hole aboard a pirate ship rolling on the swell, with cannon volleys, open hatches, a kraken, pirates and parrots. */
 const chest = (x: number, y: number, r = 20) => ball(5, x, y, r);
+/** A galleon's deck outline, bow to the right: every Skull Island hole is played aboard a ship. */
+const SHIP_R: Pt[] = [[50, 130], [700, 105], [850, 150], [955, 250], [850, 350], [700, 395], [50, 370]];
 const PIRATE: LevelDef[] = [
   {
-    // Island to island across two sea channels on wide planks, a chest on the middle island to steer round
+    // The kraken has smashed the middle of the deck clean through: one narrow plank spans the hole, and the ship's
+    // roll tries to tip you off it into the sea
     name: 'Walk the Plank',
     par: 3,
-    tee: [90, 250],
-    cup: [900, 250],
-    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
-    water: [creek([[300, 34], [290, 150], [310, 350], [300, 466]], 110, 2), creek([[640, 34], [650, 200], [630, 350], [645, 466]], 110, 5)],
-    bridges: [{ x: 300, y: 250, len: 180, width: 104, angle: 0 }, { x: 640, y: 250, len: 180, width: 104, angle: 0 }],
-    bumpers: [chest(470, 320, 20), chest(820, 340, 18)],
-    rocks: [{ x: 470, y: 150, r: 16 }, { x: 800, y: 150, r: 15 }],
-    parrots: [{ x: 900, y: 250, orbit: 50, speed: 1.2 }],
-    palms: [{ x: 150, y: 110 }, { x: 150, y: 400 }],
-    slopes: [{ kind: 'hill', x: 900, y: 250, r: 50, h: -2 }],
+    tee: [860, 250],
+    cup: [150, 250],
+    outline: SHIP_R,
+    ship: { dir: 90, tilt: 150, period: 4.5 },
+    water: [{ kind: 'poly', pts: [[420, 105], [600, 105], [610, 200], [585, 300], [600, 400], [410, 400], [395, 300], [425, 200]] }],
+    bridges: [{ x: 505, y: 250, len: 250, width: 58, angle: 0 }],
+    pillars: [{ x: 720, y: 250, r: 13 }],
+    bumpers: [chest(250, 205, 16), chest(250, 295, 16)],
+    pirates: [{ a: [330, 140], b: [330, 360], speed: 55 }],
+    parrots: [{ x: 150, y: 250, orbit: 40, speed: 1.5 }],
+    rocks: [{ x: 780, y: 170, r: 14 }, { x: 780, y: 330, r: 14 }],
   },
-
   {
-    // A long reef wall splits the beach; the only way round is its far end, under cannon fire, past patrolling pirates
+    // The gun deck under fire from the fort: cannonballs crash down, the cargo hatches stand open to the hold, and
+    // the crew run between the guns
     name: 'Cannon Cove',
     par: 3,
-    tee: [100, 400],
-    cup: [880, 100],
-    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
-    bars: [{ x: 470, y: 255, len: 660, angle: 0 }],
+    tee: [140, 250],
+    cup: [870, 250],
+    outline: SHIP_R,
+    ship: { dir: 0, tilt: 130, period: 5.5 },
+    water: [{ kind: 'rect', x: 340, y: 130, w: 70, h: 70 }, { kind: 'rect', x: 340, y: 300, w: 70, h: 70 }],
+    pillars: [{ x: 520, y: 250, r: 13 }],
     meteors: [
-      { x: 330, y: 340, r: 20, period: 6 },
-      { x: 600, y: 330, r: 20, period: 6.5, phase: 0.6 },
-      { x: 870, y: 255, r: 22, period: 5, phase: 0.3 },
-      { x: 720, y: 170, r: 20, period: 7.5, phase: 0.15 },
-      { x: 780, y: 90, r: 18, period: 6, phase: 0.45 },
+      { x: 470, y: 180, r: 20, period: 5.5 },
+      { x: 470, y: 320, r: 20, period: 6, phase: 0.5 },
+      { x: 600, y: 140, r: 18, period: 6.5, phase: 0.7 },
+      { x: 600, y: 360, r: 18, period: 6.5, phase: 0.2 },
     ],
-    pirates: [{ a: [880, 300], b: [880, 440], speed: 45 }, { a: [600, 60], b: [600, 230], speed: 50, phase: 0.5 }],
-    bumpers: [chest(250, 160), chest(470, 110, 18), chest(900, 170, 16)],
-    rocks: [{ x: 400, y: 440, r: 16 }, { x: 830, y: 140, r: 14 }],
-    water: [blob(320, 140, 70, 55, 3, 0.18)],
-    palms: [{ x: 160, y: 140 }],
-    slopes: [{ kind: 'hill', x: 880, y: 100, r: 50, h: -2 }],
+    pirates: [{ a: [560, 125], b: [560, 375], speed: 60 }, { a: [800, 170], b: [800, 330], speed: 45, phase: 0.5 }],
+    bumpers: [chest(250, 160, 16), chest(250, 340, 16), chest(870, 190, 14)],
+    rocks: [{ x: 680, y: 140, r: 14 }, { x: 680, y: 360, r: 14 }],
   },
-
   {
-    // Aboard the galleon, rolling side to side on the swell: from the bow, round the masts and the crew to the
-    // rope ladder, and up to the quarterdeck at the stern, where the cup is. The roll bends every putt
+    // Aboard the galleon, rolling hard on the swell: from the bow, round the masts and the crew to the rope ladder,
+    // and up to the quarterdeck at the stern. The roll bends every putt
     name: 'Rocking Deck',
     par: 3,
     tee: [860, 250],
     cup: [130, 190],
-    outline: [[50, 130], [700, 105], [850, 150], [955, 250], [850, 350], [700, 395], [50, 370]],
-    ship: { dir: 90, tilt: 170, period: 5 },
+    outline: SHIP_R,
+    ship: { dir: 90, tilt: 210, period: 4.5 },
     tiers: [{ pts: [[50, 130], [250, 122], [250, 378], [50, 370]], h: 34 }],
     ladders: [{ path: [[340, 320], [218, 320]] }],
     pillars: [{ x: 430, y: 250, r: 13 }, { x: 640, y: 250, r: 13 }],
-    pirates: [{ a: [540, 130], b: [540, 370], speed: 50 }, { a: [330, 140], b: [330, 250], speed: 40, phase: 0.5 }],
-    meteors: [{ x: 480, y: 320, r: 18, period: 6 }, { x: 720, y: 190, r: 18, period: 7, phase: 0.4 }, { x: 380, y: 190, r: 18, period: 6.5, phase: 0.7 }],
-    rocks: [{ x: 760, y: 330, r: 14 }, { x: 600, y: 160, r: 14 }],
-    parrots: [{ x: 130, y: 190, orbit: 40, speed: 1.4 }],
+    water: [{ kind: 'rect', x: 500, y: 300, w: 70, h: 75 }, { kind: 'rect', x: 500, y: 125, w: 70, h: 75 }],
+    pirates: [{ a: [540, 130], b: [540, 370], speed: 55 }, { a: [330, 140], b: [330, 250], speed: 40, phase: 0.5 }, { a: [270, 290], b: [270, 370], speed: 30, phase: 0.2 }],
+    meteors: [{ x: 720, y: 190, r: 18, period: 7, phase: 0.4 }, { x: 380, y: 190, r: 18, period: 6.5, phase: 0.7 }, { x: 400, y: 330, r: 18, period: 6 }],
+    rocks: [{ x: 760, y: 330, r: 14 }, { x: 760, y: 170, r: 14 }],
+    parrots: [{ x: 130, y: 190, orbit: 40, speed: 1.6 }],
     bumpers: [chest(160, 320, 16)],
   },
-
   {
-    // One plank across the kraken's channel, and a tentacle sweeping over it. Past it, quicksand flanks the way to the cup
+    // The kraken has burst up through the deck amidships: its tentacle sweeps the whole width of the ship, and the
+    // hole it tore is open sea
     name: "Kraken's Lair",
-    par: 4,
-    tee: [100, 250],
-    cup: [890, 250],
-    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
-    water: [creek([[500, 34], [490, 150], [510, 350], [500, 466]], 240, 3)],
-    bridges: [{ x: 500, y: 250, len: 340, width: 70, angle: 0 }],
-    spinners: [{ x: 500, y: 250, len: 58, speed: 0.6, style: 'turnstile', arms: 1 }],
-    quicksand: [{ kind: 'circle', x: 730, y: 140, r: 42 }, { kind: 'circle', x: 730, y: 360, r: 42 }],
-    bumpers: [chest(820, 170, 18), chest(820, 330, 18)],
-    parrots: [{ x: 890, y: 250, orbit: 48, speed: -1.5 }],
-    rocks: [{ x: 240, y: 160, r: 16 }, { x: 240, y: 340, r: 16 }],
-    palms: [{ x: 130, y: 120 }],
-    slopes: [{ kind: 'hill', x: 890, y: 250, r: 45, h: -2 }],
-  },
-  {
-    // A cliff splits the island from end to end. Through the sea cave, or over it from the cannon if you catch it aimed right; rolling barrels on the far side
-    name: 'Treasure Cave',
     par: 3,
-    tee: [100, 100],
-    cup: [880, 400],
-    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
-    bars: [{ x: 500, y: 250, len: 430, angle: 90 }],
-    portals: [{ a: [380, 120], b: [620, 110], exit: 0 }],
-    cannons: [{ x: 250, y: 350, angle: 0, sweep: 35, speed: 0.8, dist: 330 }],
-    tumbleweeds: [{ a: [720, 60], b: [720, 300], speed: 60, r: 16, phase: 0.4 }, { a: [560, 440], b: [760, 440], speed: 70, r: 16 }],
-    quicksand: [{ kind: 'circle', x: 780, y: 190, r: 44 }],
-    pirates: [{ a: [800, 280], b: [940, 280], speed: 40 }, { a: [640, 230], b: [640, 440], speed: 45, phase: 0.3 }],
-    bumpers: [chest(800, 400, 20), chest(900, 330, 16)],
-    parrots: [{ x: 880, y: 400, orbit: 45, speed: 1.6 }],
-    rocks: [{ x: 300, y: 220, r: 18 }],
-    palms: [{ x: 160, y: 380 }],
-    slopes: [{ kind: 'hill', x: 880, y: 400, r: 45, h: -2 }],
+    tee: [140, 250],
+    cup: [880, 250],
+    outline: SHIP_R,
+    ship: { dir: 90, tilt: 170, period: 5 },
+    spinners: [{ x: 500, y: 250, len: 155, speed: 0.85, style: 'turnstile', arms: 1 }],
+    pillars: [{ x: 300, y: 250, r: 13 }, { x: 720, y: 250, r: 13 }],
+    bumpers: [chest(820, 200, 15), chest(820, 300, 15), chest(940, 250, 12)],
+    pirates: [{ a: [640, 130], b: [640, 370], speed: 55 }, { a: [760, 180], b: [760, 320], speed: 40, phase: 0.5 }],
+    water: [{ kind: 'circle', x: 500, y: 250, r: 62 }],
+    parrots: [{ x: 880, y: 250, orbit: 42, speed: -1.6 }],
+    rocks: [{ x: 230, y: 160, r: 14 }, { x: 230, y: 340, r: 14 }],
   },
   {
-    // The finale aboard the flagship, pitching bow to stern: up the deck under cannon fire, round the masts, then up
-    // the ladder to the forecastle and the cup. Roll past it and the plank slide sends you back to the stern
+    // A bulkhead runs right across the deck. Drop through the hatch into the hold and climb out the far one, or get
+    // fired over it by the ship's cannon if you catch it aimed right. Barrels roll loose on the far side
+    name: 'Treasure Hold',
+    par: 3,
+    tee: [130, 190],
+    cup: [890, 250],
+    outline: SHIP_R,
+    ship: { dir: 0, tilt: 150, period: 6 },
+    bars: [{ x: 480, y: 250, len: 320, angle: 90 }],
+    portals: [{ a: [360, 330], b: [610, 150], exit: 180 }],
+    cannons: [{ x: 300, y: 190, angle: 0, sweep: 40, speed: 0.9, dist: 300 }],
+    tumbleweeds: [{ a: [700, 130], b: [700, 380], speed: 75, r: 16 }, { a: [800, 160], b: [800, 360], speed: 60, r: 15, phase: 0.5 }],
+    water: [{ kind: 'rect', x: 590, y: 270, w: 70, h: 80 }, { kind: 'rect', x: 715, y: 205, w: 60, h: 70 }],
+    pirates: [{ a: [620, 250], b: [760, 250], speed: 40 }],
+    bumpers: [chest(840, 200, 14), chest(840, 300, 14)],
+    parrots: [{ x: 890, y: 250, orbit: 38, speed: 1.7 }],
+    rocks: [{ x: 200, y: 330, r: 14 }],
+  },
+  {
+    // The finale aboard the flagship, pitching bow to stern: up the deck through cannon fire and the hatches, round
+    // the masts, then up the ladder to the forecastle and the cup. Roll past it and the plank slide sends you back
     name: "Captain's Quarters",
     par: 4,
     tee: [110, 250],
     cup: [830, 250],
-    outline: [[50, 130], [700, 105], [850, 150], [955, 250], [850, 350], [700, 395], [50, 370]],
-    ship: { dir: 0, tilt: 150, period: 6 },
+    outline: SHIP_R,
+    ship: { dir: 0, tilt: 180, period: 5.5 },
     tiers: [{ pts: [[690, 108], [850, 150], [955, 250], [850, 350], [690, 392]], h: 34 }],
     ladders: [{ path: [[600, 150], [724, 150]] }],
     chutes: [{ path: [[905, 250], [880, 330], [700, 352], [400, 352], [150, 330]] }],
     pillars: [{ x: 300, y: 250, r: 13 }, { x: 500, y: 250, r: 13 }],
-    meteors: [{ x: 400, y: 170, r: 18, period: 6 }, { x: 400, y: 330, r: 18, period: 7, phase: 0.5 }, { x: 590, y: 230, r: 18, period: 6.5, phase: 0.25 }, { x: 660, y: 200, r: 18, period: 5, phase: 0.6 }],
-    pirates: [{ a: [420, 125], b: [420, 375], speed: 45 }, { a: [560, 118], b: [560, 300], speed: 40, phase: 0.4 }, { a: [520, 150], b: [640, 150], speed: 35, phase: 0.2 }],
-    parrots: [{ x: 830, y: 250, orbit: 38, speed: 1.7 }],
-    rocks: [{ x: 200, y: 160, r: 14 }, { x: 200, y: 340, r: 14 }],
+    water: [{ kind: 'rect', x: 330, y: 135, w: 70, h: 70 }, { kind: 'rect', x: 530, y: 160, w: 60, h: 60 }],
+    meteors: [{ x: 400, y: 330, r: 18, period: 7, phase: 0.5 }, { x: 590, y: 230, r: 18, period: 6.5, phase: 0.25 }, { x: 660, y: 200, r: 18, period: 5, phase: 0.6 }, { x: 250, y: 180, r: 18, period: 6 }],
+    pirates: [{ a: [420, 125], b: [420, 375], speed: 50 }, { a: [560, 118], b: [560, 300], speed: 45, phase: 0.4 }, { a: [520, 150], b: [640, 150], speed: 40, phase: 0.2 }],
+    parrots: [{ x: 830, y: 250, orbit: 38, speed: 1.9 }],
+    rocks: [{ x: 200, y: 330, r: 14 }],
     bumpers: [chest(760, 200, 16)],
   },
-
 ];
 
 /** `season`: a holiday course, open only between these dates each year ([month, day], inclusive). */
