@@ -1,0 +1,110 @@
+<!doctype html>
+<!-- App icon concepts for Rack & Roll. ?kind=a|b|c|d renders one at 1024x1024; ?kind=sheet shows them all
+     at App Store and home-screen sizes for comparison. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@800&family=Saira:wght@800;900&display=block">
+<style>
+  html, body { margin: 0; background: transparent; font-family: 'Saira', sans-serif; }
+  .sheet { width: 1400px; padding: 40px; background: #1c1c1e; color: #fff; display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+  .sheet .col { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .sheet h3 { margin: 0; font: 800 34px 'Saira Condensed', sans-serif; letter-spacing: 0.08em; }
+  .sheet p { margin: -10px 0 0; font: 400 17px sans-serif; color: #aaa; text-align: center; max-width: 280px; }
+  .big { width: 280px; height: 280px; border-radius: 62px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .home { display: flex; gap: 22px; align-items: flex-start; padding: 18px 20px; border-radius: 22px; background: linear-gradient(160deg, #3a4a6a, #20283a); }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 76px; font: 500 12.5px -apple-system, sans-serif; color: #fff; }
+  .app .i { width: 64px; height: 64px; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+  .app .n { width: 64px; height: 64px; border-radius: 14px; background: linear-gradient(160deg, #e8e8ea, #b8b8be); }
+  .tiny { width: 40px; height: 40px; border-radius: 9px; overflow: hidden; }
+  svg { display: block; width: 100%; height: 100%; }
+</style></head>
+<body>
+<div id="art"></div>
+<script>
+const P = new URLSearchParams(location.search), kind = P.get('kind') ?? 'sheet';
+const font = "font-family=\"Saira Condensed, sans-serif\" font-weight=\"800\"";
+// One glossy 8-ball, shared by the concepts (cx, cy, r in the 100-unit icon space)
+const ball = (id, cx, cy, r, rot = 0) => `
+  <defs>
+    <radialGradient id="${id}b" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#8a8a8a"/><stop offset="0.28" stop-color="#262626"/><stop offset="0.75" stop-color="#050505"/></radialGradient>
+    <radialGradient id="${id}w" cx="42%" cy="38%" r="70%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e4dcc8"/></radialGradient>
+  </defs>
+  <circle cx="${cx}" cy="${cy}" r="${r + 1.4}" fill="#000" opacity="0.9"/>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${id}b)"/>
+  <g transform="rotate(${rot} ${cx} ${cy})">
+    <circle cx="${cx - r * 0.12}" cy="${cy - r * 0.2}" r="${r * 0.44}" fill="url(#${id}w)"/>
+    <text x="${cx - r * 0.12}" y="${cy - r * 0.2 + r * 0.2}" text-anchor="middle" ${font} font-size="${r * 0.62}" fill="#111">8</text>
+  </g>
+  <ellipse cx="${cx - r * 0.38}" cy="${cy - r * 0.52}" rx="${r * 0.26}" ry="${r * 0.13}" fill="#fff" opacity="0.28" transform="rotate(-32 ${cx - r * 0.38} ${cy - r * 0.52})"/>`;
+const flag = (x, y, h, s = 1) => `
+  <line x1="${x}" y1="${y}" x2="${x}" y2="${y - h}" stroke="#2a1408" stroke-width="${3.6 * s}" stroke-linecap="round"/>
+  <line x1="${x}" y1="${y}" x2="${x}" y2="${y - h}" stroke="#fffaf0" stroke-width="${2 * s}" stroke-linecap="round"/>
+  <path d="M${x + 0.6} ${y - h} Q ${x + 10 * s} ${y - h + 2 * s} ${x + 19 * s} ${y - h + 1 * s} Q ${x + 14 * s} ${y - h + 6 * s} ${x + 18 * s} ${y - h + 11 * s} Q ${x + 9 * s} ${y - h + 10 * s} ${x + 0.6} ${y - h + 11 * s} Z" fill="#ff3b3b" stroke="#2a1408" stroke-width="${1.4 * s}" stroke-linejoin="round"/>`;
+
+const CONCEPTS = {
+  // A · Tee off: the 8-ball streaking toward the flag on a bright green under a sky, a cue tip behind it
+  a: { name: 'TEE OFF', note: 'The cue sends the 8-ball rolling at the flag, in the game\'s cartoon colours', svg: `
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fc3ff"/><stop offset="1" stop-color="#bfeaff"/></linearGradient>
+      <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fd36a"/><stop offset="1" stop-color="#1f9a45"/></linearGradient>
+      <linearGradient id="cue" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7a4a24"/><stop offset="0.7" stop-color="#e9c48a"/><stop offset="0.86" stop-color="#f6ecd6"/><stop offset="0.87" stop-color="#2a6ad8"/></linearGradient>
+    </defs>
+    <rect width="100" height="100" fill="url(#sky)"/>
+    <circle cx="80" cy="16" r="9" fill="#fff3a8"/>
+    <path d="M0 52 Q 30 42 60 48 T 100 44 V100 H0 Z" fill="url(#grass)" stroke="#16702f" stroke-width="1.2"/>
+    <ellipse cx="74" cy="56" rx="9" ry="3" fill="#123d1c"/>
+    ${flag(74, 56, 34)}
+    <g stroke="#fff" stroke-linecap="round" stroke-width="3" opacity="0.85"><line x1="6" y1="66" x2="20" y2="66"/><line x1="3" y1="75" x2="18" y2="75"/><line x1="8" y1="84" x2="20" y2="84"/></g>
+    <g transform="rotate(-14 22 92)"><rect x="-40" y="86" width="62" height="7" rx="3.5" fill="url(#cue)" stroke="#2a1408" stroke-width="1.2"/></g>
+    ${ball('a', 42, 72, 19, -8)}` },
+  // B · Corner pocket: looking down at the corner of a pool table; the pocket is a golf cup with its flag
+  b: { name: 'CORNER CUP', note: 'A pool table corner where the pocket is a golf cup, flag and all', svg: `
+    <defs>
+      <radialGradient id="felt" cx="40%" cy="60%" r="80%"><stop offset="0" stop-color="#3fbf6a"/><stop offset="1" stop-color="#14713a"/></radialGradient>
+      <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8743a"/><stop offset="1" stop-color="#6a3a16"/></linearGradient>
+    </defs>
+    <rect width="100" height="100" fill="url(#felt)"/>
+    <path d="M0 0 H100 V22 H22 V100 H0 Z" fill="url(#wood)" stroke="#2a1408" stroke-width="1.4"/>
+    <path d="M22 22 H100 V30 H30 V100 H22 Z" fill="#0e5a2c"/>
+    <circle cx="9" cy="9" r="2.4" fill="#f6d27a"/><circle cx="60" cy="11" r="2.4" fill="#f6d27a"/><circle cx="11" cy="60" r="2.4" fill="#f6d27a"/>
+    <circle cx="31" cy="31" r="15" fill="#06140b" stroke="#2a1408" stroke-width="1.4"/>
+    <circle cx="31" cy="31" r="15" fill="none" stroke="#f6d27a" stroke-width="2.2" opacity="0.9"/>
+    ${flag(31, 31, 26, 0.9)}
+    <g stroke="#fff" stroke-linecap="round" stroke-width="3" opacity="0.6"><line x1="80" y1="80" x2="92" y2="92"/><line x1="72" y1="88" x2="80" y2="96"/><line x1="88" y1="72" x2="96" y2="80"/></g>
+    ${ball('b', 60, 60, 21, 20)}` },
+  // C · Big 8: the 8-ball fills the icon, the flag planted in it like a hole-in-one, on the brand's felt
+  c: { name: 'BIG 8', note: 'The logo\'s 8-ball, big and bold, with the flag planted in it', svg: `
+    <defs>
+      <radialGradient id="cfelt" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="#36b468"/><stop offset="0.6" stop-color="#1d7a44"/><stop offset="1" stop-color="#0c4424"/></radialGradient>
+      <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffe07a" stop-opacity="0.55"/><stop offset="1" stop-color="#ffe07a" stop-opacity="0"/></radialGradient>
+    </defs>
+    <rect width="100" height="100" fill="url(#cfelt)"/>
+    <circle cx="48" cy="56" r="42" fill="url(#glow)"/>
+    <ellipse cx="48" cy="88" rx="26" ry="5" fill="#000" opacity="0.35"/>
+    ${ball('c', 46, 58, 29, -10)}
+    ${flag(68, 40, 30, 1.1)}` },
+  // D · Rack & Roll: the brand's gold "R&R" monogram over the 8-ball, for a wordmark-style icon
+  d: { name: 'R & R', note: 'A gold monogram over the 8-ball: closest to the logo on the title screen', svg: `
+    <defs>
+      <radialGradient id="dfelt" cx="50%" cy="38%" r="80%"><stop offset="0" stop-color="#2f9a5a"/><stop offset="0.55" stop-color="#1d7a44"/><stop offset="1" stop-color="#0b3a20"/></radialGradient>
+      <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0.1" stop-color="#fff1b8"/><stop offset="0.55" stop-color="#f2b84a"/><stop offset="1" stop-color="#b9771b"/></linearGradient>
+    </defs>
+    <rect width="100" height="100" fill="url(#dfelt)"/>
+    ${ball('d', 50, 62, 24, 0)}
+    <text x="50" y="38" text-anchor="middle" font-family="Saira, sans-serif" font-weight="900" font-size="30" fill="url(#gold)" stroke="#5a3507" stroke-width="1.4" paint-order="stroke" letter-spacing="1">R&amp;R</text>` },
+};
+const svg = (k) => `<svg viewBox="0 0 100 100">${CONCEPTS[k].svg}</svg>`;
+const art = document.getElementById('art');
+if (CONCEPTS[kind]) {
+  art.style.cssText = 'width:1024px;height:1024px';
+  art.innerHTML = svg(kind);
+} else {
+  art.className = 'sheet';
+  art.innerHTML = Object.keys(CONCEPTS).map((k) => `<div class="col">
+    <h3>${k.toUpperCase()} · ${CONCEPTS[k].name}</h3><p>${CONCEPTS[k].note}</p>
+    <div class="big">${svg(k)}</div>
+    <div class="home"><div class="app"><div class="n"></div>Photos</div><div class="app"><div class="i">${svg(k)}</div>Rack &amp; Roll</div><div class="app"><div class="tiny">${svg(k)}</div>Search</div></div>
+  </div>`).join('');
+}
+document.fonts.ready.then(() => (document.body.dataset.ready = '1'));
+</script>
+</body></html>
