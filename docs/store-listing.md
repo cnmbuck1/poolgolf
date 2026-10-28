@@ -11,7 +11,7 @@ Character limits are Apple's.
 **Subtitle** (30): `Mini golf with a pool cue`
 
 **Promotional text** (170, can be changed any time without review):
-> Pull back the cue, bank it off the rails and sink it! 36 wild holes across six worlds, plus challenges you can send to friends.
+> Pull back the cue, bank it off the rails and sink it! Six wild worlds, holiday specials, and an expert course aboard a rolling pirate ship.
 
 **Description** (4,000):
 > Mini golf meets pool. Line up your shot with a cue, bank the ball off the rails, put spin on it to curve
@@ -25,10 +25,19 @@ Character limits are Apple's.
 > • Pharaoh's Tomb: scarab portals, sliding stone doors and quicksand
 > • Arctic Peaks: slick ice, ski jumps, seals and igloo tunnels
 >
+> THE EXPERT COURSE
+> • Jolly Roger: earn your stars to unlock six holes aboard a pirate ship rolling on the swell, with open
+>   hatches, cannon fire, pirates, parrots and a kraken bursting through the deck
+>
+> HOLIDAY SPECIALS
+> • Haunted Hollow every October: ghosts, spider webs, coffins and witches' brooms
+> • North Pole Village every December: Santa's sleigh, chimneys, a toy train and nutcrackers
+>
 > REAL POOL SKILLS
 > • Pull back to draw the cue: the further back, the harder the shot
 > • A dotted guide shows your line and your banks off the rails
 > • Spin pad: side spin curves the ball, backspin stops it, top spin rolls it on
+> • Amateur, Intermediate and Pro: as you improve, take away the aids for a real challenge and bigger rewards
 >
 > SO MUCH TO PLAY
 > • Career: three tours of events with star targets
@@ -45,7 +54,7 @@ Character limits are Apple's.
 > Free to play, with an optional one-time purchase to remove full-screen ads. Plays offline.
 
 **Keywords** (100, comma-separated, no spaces needed):
-`mini golf,putt,pool,billiards,cue,8 ball,golf,putting,arcade,party,friends,course,trick shot`
+`mini golf,putt,pool,billiards,cue,8 ball,golf,putting,arcade,party,friends,pirate,trick shot`
 
 **What's New** (for later versions): leave empty for 1.0.
 
@@ -122,12 +131,18 @@ consent form in the EU/UK). Purchases are handled by Apple and aren't collected 
 
 Six iPhone **6.9-inch** screenshots (2868 × 1320, landscape) are in `docs/store-screenshots/`, in this order:
 
-1. `1-aim.png`: Mini golf with a pool cue
-2. `2-bank.png`: Bank it off the rails
-3. `3-worlds.png`: Six worlds · 36 holes
-4. `4-space.png`: Rockets, portals and cannons
-5. `5-friends.png`: Play with friends
-6. `6-ace.png`: Stars, trophies and 30 designs
+1. `01-aim.png`: Mini golf with a pool cue
+2. `02-ship.png`: Then take it to sea (the expert pirate ship)
+3. `03-bank.png`: Bank it off the rails
+4. `04-worlds.png`: Six worlds to master
+5. `05-holidays.png`: Holiday specials
+6. `06-space.png`: Rockets, portals and cannons
+7. `07-friends.png`: Play with friends
+8. `08-levels.png`: Amateur to Pro
+9. `09-stars.png`: Stars, trophies and 30 designs
 
 In App Store Connect, open the version page, pick the **6.9" Display** (iPhone) box and drag them in, in that order.
-Apple scales them for smaller iPhones. An app preview video (15–30 s) is optional and can be added later.
+Apple scales them for smaller iPhones. 
+**App preview video:** `docs/store-screenshots/preview.mp4` (1920 × 886, about 25 s). In the same 6.9" box, drag it
+in before the screenshots; it plays first, muted, in the App Store. Apple picks the poster frame from the video;
+you can change it after uploading.
