@@ -16,8 +16,9 @@ concurrency:
 
 jobs:
   testflight:
-    # macos-15 machines are the most available and carry the Xcode 26 releases (picked below)
-    runs-on: macos-15
+    # Intel macos-15 machines carry the Xcode 26 releases (picked below); GitHub's Apple-chip Macs kept
+    # running out of capacity and never started the job
+    runs-on: macos-15-intel
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
