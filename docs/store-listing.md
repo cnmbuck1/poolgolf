@@ -53,7 +53,7 @@ Character limits are Apple's.
 > Free to play, with an optional one-time purchase to remove full-screen ads. Plays offline.
 
 **Keywords** (100, comma-separated, no spaces needed):
-`putt,pool,billiards,cue,8 ball,putting,arcade,party,friends,pirate,trick shot,snooker,minigolf,holiday`
+`putt,pool,billiards,cue,8 ball,putting,arcade,party,friends,pirate,trick shot,snooker,minigolf`
 (Words in the name and subtitle already count for search, so they aren't repeated here.)
 
 **What's New** (for later versions): leave empty for 1.0.
