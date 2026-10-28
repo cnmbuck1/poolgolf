@@ -38,24 +38,24 @@ const T: Record<string, Record<string, Tips>> = {
       do: ['The kraken smashed the middle of the deck: cross on the plank, firmly and dead straight.', 'The ship rolls side to side, so time the plank for when the deck is level, or aim a touch to the high side.'],
       avoid: ['Off the plank is the sea (+1 stroke).', 'A pirate paces in front of the cup, and the parrot circles it.'],
     },
-    'Cannon Cove': {
+    'Fire in the Hole': {
       do: ['Go through the middle, between the open hatches, then round either side of the mast.', 'Watch the red rings: a cannonball lands there a moment later and sits for a few seconds.'],
       avoid: ['The open hatches drop the ball into the hold (+1 stroke).', 'The ship pitches bow to stern, speeding up and slowing every putt toward the cup.'],
     },
-    'Rocking Deck': {
+    'Heave Ho': {
       do: ['The whole ship rolls side to side: a slow ball drifts toward the low side, so aim a little to the high side and hit firmly.', 'Bank round the masts to the rope ladder low on the port side, which climbs to the quarterdeck and the cup.'],
       avoid: ['Open hatches either side of the middle drop the ball into the hold (+1 stroke).', 'Cannonballs land where the red rings flash, and the crew walk across your line.'],
       spin: 'Top spin keeps a putt rolling straight through the deck\'s drift.',
     },
-    "Kraken's Lair": {
+    'Release the Kraken': {
       do: ['The kraken burst up through the deck: wait for its tentacle to swing past, then go round the hole it made.', 'Past the masts, thread between the chests to the cup at the bow.'],
       avoid: ['The hole round the kraken is open sea (+1 stroke).', 'Two pirates patrol the bow.'],
     },
-    'Treasure Hold': {
+    'Batten the Hatches': {
       do: ['A bulkhead runs right across the deck: drop down the hatch near the tee and you climb out of the one on the far side, facing back toward the bulkhead.', 'Or ride the cannon over the bulkhead, if you catch it aimed right.'],
       avoid: ['An open hatch on the far side catches a cannon shot that rolls on too far.', 'Barrels roll across the deck in front of the cup.'],
     },
-    "Captain's Quarters": {
+    'Abandon Ship': {
       do: ['The flagship pitches bow to stern: putts toward the bow speed up as it dips and stall as it rises, so time them.', 'Go up the starboard side (the top rail) to the ladder onto the forecastle, then putt down to the cup at the bow.'],
       avoid: ['Open hatches on the starboard side, a pirate in front of the ladder and a cannonball beside it.', 'Past the cup is the plank slide: it sends you all the way back to the stern.'],
     },

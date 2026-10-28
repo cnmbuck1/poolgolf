@@ -44,7 +44,7 @@ export const COURSE_INTROS: Record<string, CourseIntro> = {
     "Get around on a <b>witch's broom</b> (roll onto her circle), through the <b>coffins</b>, or launched by a <b>pumpkin catapult</b>.",
   ] },
   pirate: { icon: '🏴‍☠️', points: [
-    'Ahoy! <b>Skull Island</b> is the expert course: par is tough, and the sea is never far away.',
+    'Ahoy! <b>Jolly Roger</b> is the expert course: par is tough, and the sea is never far away.',
     'Every hole is aboard a <b>pirate ship</b> rolling on the swell: a slow ball drifts with the roll, so time your putts.',
     '<b>Open hatches</b> and holes in the deck drop you into the sea or the hold. <b>Cannonballs</b> land where a red ring flashes, and <b>pirates</b>, <b>parrots</b> and a <b>kraken</b> get in the way.',
   ] },

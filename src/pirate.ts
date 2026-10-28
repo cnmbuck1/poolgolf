@@ -1,4 +1,4 @@
-// Skull Island, the expert course, in the same cartoon toon-and-ink style as the others: tropical turf on
+// Jolly Roger, the expert course, in the same cartoon toon-and-ink style as the others: tropical turf on
 // sandy islands in a turquoise sea, treasure-chest bumpers, barrels, pirates, parrots, cannonball volleys,
 // ship's cannons, a kraken's tentacle, sea caves and galleons whose decks rock on the swell. Purely visual;
 // positions come from physics.ts.
@@ -103,7 +103,7 @@ function hullMaterial() {
   });
 }
 
-/** Sea level on Skull Island (the open ocean round every hole). */
+/** Sea level on Jolly Roger (the open ocean round every hole). */
 export const SEA_Y = -26;
 
 /**
@@ -139,7 +139,7 @@ export function skirtMesh(outline: Pt[], toScene: ToScene, ship: boolean) {
   return m;
 }
 
-/** Ground height round a Skull Island hole: the beach sloping into the sea, or the sea itself beside a ship. */
+/** Ground height round a Jolly Roger hole: the beach sloping into the sea, or the sea itself beside a ship. */
 export function coveHeight(outline: Pt[], ship: boolean) {
   return (x: number, y: number) => {
     const { d, inside } = outlineDistance(outline, x, y);

@@ -77,7 +77,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   setInkColor(space ? SPACE_INK : hw ? HALLOWEEN_INK : 0x2a1408);
   const rockSwap = jur ? basaltSwap() : space ? moonRockSwap() : arctic ? { Stone: toon(0xb8e2f8, { vertexColors: true }) } : candy ? { Stone: toon(0xc8a0ff, { vertexColors: true }) } : undefined; // ice boulders in the Arctic
   add(fairwayMesh(L, outline, L.theme));
-  // On Skull Island there's no lawn: a beach (or a ship's hull) runs down into the open sea all round
+  // On Jolly Roger there's no lawn: a beach (or a ship's hull) runs down into the open sea all round
   const lawnH = pir ? coveHeight(outline, !!L.ship) : makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
   const centre3 = to3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
   if (pir) add(skirtMesh(outline, to3, !!L.ship));

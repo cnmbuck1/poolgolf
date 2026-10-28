@@ -184,7 +184,7 @@ export interface LevelDef {
   /** Spider webs: a ball that rolls into one is caught (+1 stroke, back to where it was hit from). Flights pass over. */
   webs?: Zone[];
   /** Coffins (Halloween) are drawn for `portals`; pumpkin catapults for `cannons`. */
-  /** Skull Island: rocking ship decks, pirates swaggering between two points, and parrots circling (bouncy). */
+  /** Jolly Roger: rocking ship decks, pirates swaggering between two points, and parrots circling (bouncy). */
   decks?: Deck[];
   /**
    * The whole hole is a ship's deck rolling on the swell (like a `Deck` covering everything, with no `pts`): the
@@ -194,7 +194,7 @@ export interface LevelDef {
   pirates?: Astronaut[];
   parrots?: Alien[];
   /**
-   * On Skull Island the other pieces are dressed for it: treasure chests for `bumpers`, barrels for `rocks`,
+   * On Jolly Roger the other pieces are dressed for it: treasure chests for `bumpers`, barrels for `rocks`,
    * rolling barrels for `tumbleweeds`, cannonball volleys for `meteors`, ship's cannons for `cannons`, a
    * kraken's tentacle for `spinners`, sea caves for `portals`, pilings for `pillars`, rope ladders and plank
    * slides for `ladders` and `chutes`, ship's decks for `tiers` and the sea for `water`.
@@ -1058,9 +1058,9 @@ const CHRISTMAS: LevelDef[] = [
   },
 ];
 
-/** Skull Island (expert): every hole aboard a pirate ship rolling on the swell, with cannon volleys, open hatches, a kraken, pirates and parrots. */
+/** Jolly Roger (expert): every hole aboard a pirate ship rolling on the swell, with cannon volleys, open hatches, a kraken, pirates and parrots. */
 const chest = (x: number, y: number, r = 20) => ball(5, x, y, r);
-/** A galleon's deck outline, bow to the right: every Skull Island hole is played aboard a ship. */
+/** A galleon's deck outline, bow to the right: every Jolly Roger hole is played aboard a ship. */
 const SHIP_R: Pt[] = [[50, 130], [700, 105], [850, 150], [955, 250], [850, 350], [700, 395], [50, 370]];
 const PIRATE: LevelDef[] = [
   {
@@ -1083,7 +1083,7 @@ const PIRATE: LevelDef[] = [
   {
     // The gun deck under fire from the fort: cannonballs crash down, the cargo hatches stand open to the hold, and
     // the crew run between the guns
-    name: 'Cannon Cove',
+    name: 'Fire in the Hole',
     par: 3,
     tee: [140, 250],
     cup: [870, 250],
@@ -1104,7 +1104,7 @@ const PIRATE: LevelDef[] = [
   {
     // Aboard the galleon, rolling hard on the swell: from the bow, round the masts and the crew to the rope ladder,
     // and up to the quarterdeck at the stern. The roll bends every putt
-    name: 'Rocking Deck',
+    name: 'Heave Ho',
     par: 3,
     tee: [860, 250],
     cup: [130, 190],
@@ -1123,7 +1123,7 @@ const PIRATE: LevelDef[] = [
   {
     // The kraken has burst up through the deck amidships: its tentacle sweeps the whole width of the ship, and the
     // hole it tore is open sea
-    name: "Kraken's Lair",
+    name: 'Release the Kraken',
     par: 3,
     tee: [140, 250],
     cup: [880, 250],
@@ -1140,7 +1140,7 @@ const PIRATE: LevelDef[] = [
   {
     // A bulkhead runs right across the deck. Drop through the hatch into the hold and climb out the far one, or get
     // fired over it by the ship's cannon if you catch it aimed right. Barrels roll loose on the far side
-    name: 'Treasure Hold',
+    name: 'Batten the Hatches',
     par: 3,
     tee: [130, 190],
     cup: [890, 250],
@@ -1159,7 +1159,7 @@ const PIRATE: LevelDef[] = [
   {
     // The finale aboard the flagship, pitching bow to stern: up the deck through cannon fire and the hatches, round
     // the masts, then up the ladder to the forecastle and the cup. Roll past it and the plank slide sends you back
-    name: "Captain's Quarters",
+    name: 'Abandon Ship',
     par: 4,
     tee: [110, 250],
     cup: [830, 250],
@@ -1314,7 +1314,7 @@ export const SEASONAL: CourseDef[] = [
  * courses they stay out of Career, the daily challenge and the all-course trophies.
  */
 export const EXPERT: CourseDef[] = [
-  { id: 'pirate', name: 'Skull Island', theme: 'pirate', holes: PIRATE, unlockStars: 36 },
+  { id: 'pirate', name: 'Jolly Roger', theme: 'pirate', holes: PIRATE, unlockStars: 36 },
 ];
 /** Every course, regular, holiday and expert, for looking one up by id. */
 export const ALL_COURSES: CourseDef[] = [...COURSES, ...SEASONAL, ...EXPERT];
