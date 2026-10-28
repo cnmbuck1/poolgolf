@@ -9,7 +9,7 @@ export const ADS_TESTING = true;
 
 /** AdMob ad unit IDs (iOS). */
 export const AD_UNITS = {
-  interstitial: 'ca-app-pub-3940256099942544/4411468910',
+  interstitial: 'ca-app-pub-8965676427575286/5393183974', // Between rounds
   rewarded: 'ca-app-pub-3940256099942544/1712485313',
 };
 
