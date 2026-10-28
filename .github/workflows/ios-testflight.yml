@@ -71,6 +71,34 @@ jobs:
             -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
           echo "The app compiles. Add the four secrets in docs/APP_STORE.md to sign and upload it to TestFlight." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Clear out old development certificates
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+          KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          # Every run signs on a fresh Mac, so Xcode makes a new development certificate each time, and Apple
+          # only allows a few. Revoke the old development ones first (they're throwaway: nothing else uses them,
+          # and revoking them doesn't touch builds already uploaded or the app on the store). Distribution
+          # certificates are left alone.
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography 2>/dev/null || python3 -m pip install --quiet pyjwt cryptography
+          python3 - <<'PY'
+          import json, os, time, urllib.request, jwt
+          token = jwt.encode({'iss': os.environ['ISSUER'], 'iat': int(time.time()), 'exp': int(time.time()) + 600, 'aud': 'appstoreconnect-v1'},
+                             os.environ['KEY'], algorithm='ES256', headers={'kid': os.environ['KEY_ID'], 'typ': 'JWT'})
+          def call(method, url):
+              req = urllib.request.Request(url, method=method, headers={'Authorization': f'Bearer {token}'})
+              with urllib.request.urlopen(req) as r:
+                  body = r.read()
+                  return json.loads(body) if body else None
+          certs = call('GET', 'https://api.appstoreconnect.apple.com/v1/certificates?limit=200')['data']
+          dev = [c for c in certs if c['attributes']['certificateType'] in ('DEVELOPMENT', 'IOS_DEVELOPMENT')]
+          for c in dev:
+              call('DELETE', f"https://api.appstoreconnect.apple.com/v1/certificates/{c['id']}")
+          print(f'Revoked {len(dev)} old development certificate(s); {len(certs) - len(dev)} other certificate(s) left alone')
+          PY
+
       - name: Archive, sign and upload to TestFlight
         if: steps.secrets.outputs.ready == 'true'
         env:
