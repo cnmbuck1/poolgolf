@@ -281,8 +281,8 @@ export class World {
       b.vx -= SLOPE_G * gx * h;
       b.vy -= SLOPE_G * gy * h;
       // A rocking deck rolls the ball one way and then the other
-      for (const d of this.level.decks ?? []) {
-        if (falling || !inPoly(d.pts, b.x, b.y)) continue;
+      for (const d of [...(this.level.decks ?? []), ...(this.level.ship ? [{ ...this.level.ship, pts: null }] : [])]) {
+        if (falling || (d.pts && !inPoly(d.pts, b.x, b.y))) continue;
         const { accel } = deckRoll(d, this.time), a = (d.dir * Math.PI) / 180;
         b.vx += Math.cos(a) * accel * h;
         b.vy += Math.sin(a) * accel * h;
@@ -1166,7 +1166,7 @@ export const PIRATE_R = 15;
 export const PARROT_R = 11;
 
 /** A rocking deck at time t: the push along its `dir` (units/s²) and how far it's heeled over (radians, for drawing). */
-export function deckRoll(d: Deck, t: number) {
+export function deckRoll(d: Omit<Deck, 'pts'>, t: number) {
   const s = Math.sin(((t / (d.period ?? 5)) + (d.phase ?? 0)) * Math.PI * 2);
   return { accel: (d.tilt ?? 100) * s, angle: s * 0.026 };
 }

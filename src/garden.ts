@@ -26,7 +26,7 @@ export const ATMOSPHERE: Record<Theme, Atmosphere> = {
   // Christmas Eve at dusk: deep blue sky, a rosy glow on the horizon, soft cool light on the snow
   christmas: { top: 0x1a2a6a, horizon: 0xf0a8b0, ground: 0xdce8f4, sun: 0xfff0e0, fog: 0xb8c8e8, sunLight: 0xfff0e4, sunIntensity: 2.4, hemiSky: 0xd8e4ff, hemiGround: 0xb0bcd8, hemiIntensity: 1.15, exposure: 0.95 },
   // A bright tropical afternoon: deep blue sky, hazy turquoise horizon, warm sun on the sand
-  pirate: { top: 0x2a7ad8, horizon: 0xbfeaf0, ground: 0xe8d4a0, sun: 0xfff2c8, fog: 0xbfe0e8, sunLight: 0xfff0d8, sunIntensity: 2.7, hemiSky: 0xd8f0ff, hemiGround: 0xc8b080, hemiIntensity: 1.1, exposure: 1.0 },
+  pirate: { top: 0x2a7ad8, horizon: 0xbfeaf0, ground: 0x1a90b8, sun: 0xfff2c8, fog: 0xbfe0e8, sunLight: 0xfff0d8, sunIntensity: 2.7, hemiSky: 0xd8f0ff, hemiGround: 0xc8b080, hemiIntensity: 1.1, exposure: 1.0 },
   circus: { top: 0x3a0a14, horizon: 0x8a3a2a, ground: 0x6a4a2a, sun: 0xfff0c8, fog: 0x2a1410, sunLight: 0xfff0d8, sunIntensity: 2.7, hemiSky: 0xffd8b0, hemiGround: 0x6a3a20, hemiIntensity: 1.05, exposure: 1.0 },
   space: { top: 0x070720, horizon: 0x4b3a8e, ground: 0x2e2c44, sun: 0xfff2dc, fog: 0x2a2650, sunLight: 0xf6f2ff, sunIntensity: 2.9, hemiSky: 0xb8c0ff, hemiGround: 0x403a5a, hemiIntensity: 1.0, exposure: 1.0 },
 };

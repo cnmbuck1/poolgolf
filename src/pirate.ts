@@ -76,6 +76,80 @@ export function deckMaterial() {
   });
 }
 
+/** The ship's rail (the curb on a ship hole): dark timber with a gold stripe. */
+export function shipRail() {
+  return cached('m:shiprail', () => {
+    const t = canvasTex(128, 32, (g) => {
+      g.fillStyle = '#4a2a12'; g.fillRect(0, 0, 128, 32);
+      g.fillStyle = '#c8a040'; g.fillRect(0, 8, 128, 4);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 26, 128, 6);
+      for (let x = 0; x < 128; x += 32) { g.fillStyle = '#c8a040'; g.beginPath(); g.arc(x + 16, 20, 2.5, 0, Math.PI * 2); g.fill(); }
+    });
+    return shared(new THREE.MeshToonMaterial({ map: t, gradientMap: toonRamp() }));
+  });
+}
+
+/** A ship's hull below the rail: dark planks, a gold stripe and a row of gun ports. */
+function hullMaterial() {
+  return cached('m:hull', () => {
+    const map = canvasTex(256, 128, (g) => {
+      for (let y = 0; y < 128; y += 14) { g.fillStyle = (y / 14) % 2 ? '#5a3418' : '#4a2a12'; g.fillRect(0, y, 256, 14); g.fillStyle = 'rgba(20,10,0,0.5)'; g.fillRect(0, y, 256, 1.5); }
+      g.fillStyle = '#c8a040'; g.fillRect(0, 6, 256, 6);
+      for (let x = 20; x < 256; x += 64) { g.fillStyle = '#2a1408'; g.fillRect(x, 26, 24, 18); g.strokeStyle = '#c8a040'; g.lineWidth = 2; g.strokeRect(x, 26, 24, 18); }
+      g.fillStyle = 'rgba(30,80,40,0.55)'; g.fillRect(0, 104, 256, 24); // weed at the waterline
+    });
+    map.wrapT = THREE.ClampToEdgeWrapping;
+    return shared(new THREE.MeshToonMaterial({ map, gradientMap: toonRamp(), side: THREE.DoubleSide }));
+  });
+}
+
+/** Sea level on Skull Island (the open ocean round every hole). */
+export const SEA_Y = -26;
+
+/**
+ * Below the curb: a sandy beach shelving down into the sea round an island hole, or the ship's hull dropping
+ * into the water on a ship hole. Swept along the outline like the curb.
+ */
+export function skirtMesh(outline: Pt[], toScene: ToScene, ship: boolean) {
+  const pts = resample(outline, 10);
+  // (offset outward, height) at the top and bottom of the skirt
+  const top: [number, number] = ship ? [10, 2] : [10, -4.5], bot: [number, number] = ship ? [-4, SEA_Y - 30] : [95, SEA_Y - 6];
+  const n = pts.length, pos = new Float32Array(n * 2 * 3), uv = new Float32Array(n * 2 * 2);
+  let along = 0;
+  pts.forEach((p, i) => {
+    if (i) along += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y);
+    const q = pts[(i + n - 1) % n];
+    let nx = p.nx + q.nx, ny = p.ny + q.ny;
+    const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+    [top, bot].forEach(([o, h], j) => {
+      const s = toScene(p.x + nx * o, p.y + ny * o);
+      pos.set([s.x, h, s.z], (i * 2 + j) * 3);
+      uv.set(ship ? [along / 130, j] : [s.x / 170, s.z / 170], (i * 2 + j) * 2);
+    });
+  });
+  const idx: number[] = [];
+  for (let i = 0; i < n; i++) { const a = i * 2, b = ((i + 1) % n) * 2; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, ship ? hullMaterial() : new THREE.MeshToonMaterial({ map: beachMaterial().map, gradientMap: toonRamp(), side: THREE.DoubleSide }));
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Ground height round a Skull Island hole: the beach sloping into the sea, or the sea itself beside a ship. */
+export function coveHeight(outline: Pt[], ship: boolean) {
+  return (x: number, y: number) => {
+    const { d, inside } = outlineDistance(outline, x, y);
+    if (inside) return -4.5;
+    if (ship) return SEA_Y;
+    const k = Math.min(1, Math.max(0, (d - 10) / 85));
+    return -4.5 + (SEA_Y - 6 + 4.5) * k;
+  };
+}
+
 // ---------- treasure chests (bumpers) ----------
 
 export function treasureChest(bp: Bumper, L: LevelDef, toScene: ToScene) {
@@ -159,6 +233,56 @@ export function piling(pl: Rock, L: LevelDef, toScene: ToScene) {
   g.position.copy(toScene(pl.x, pl.y)).setY(heightAt(L, pl.x, pl.y));
   return g;
 }
+
+/** A ship's mast (pillars on a ship hole): a tall pole with furled sails on its yards, a crow's nest and the Jolly Roger. */
+export function mast(pl: Rock, L: LevelDef, toScene: ToScene): Animated {
+  const g = new THREE.Group();
+  const wood = toon(0x6a4428), canvas = toon(0xf4ecd8), rope = toon(0xd8b878);
+  const H = 230;
+  g.add(part(new THREE.CylinderGeometry(pl.r * 0.55, pl.r, H, 10).translate(0, H / 2, 0), wood, 1.1));
+  place(g, part(new THREE.CylinderGeometry(pl.r * 1.3, pl.r * 1.3, 10, 12), wood, 0.6), 0, 5, 0);
+  // Yards across the ship, each with its sail rolled up along it
+  for (const [y, w] of [[95, 130], [160, 100]] as const) {
+    place(g, part(new THREE.CylinderGeometry(2.4, 2.4, w, 8).rotateX(Math.PI / 2), wood, 0.5), 0, y, 0);
+    place(g, part(new THREE.CapsuleGeometry(5, w * 0.8, 4, 10).rotateX(Math.PI / 2), canvas, 0.6), 0, y - 5, 0);
+    for (const z of [-w * 0.3, 0, w * 0.3]) place(g, part(new THREE.TorusGeometry(5.5, 0.9, 4, 10).rotateY(Math.PI / 2), rope, 0), 0, y - 5, z);
+  }
+  // The crow's nest
+  place(g, part(new THREE.CylinderGeometry(13, 10, 10, 12, 1, true), toon(0x7a4a24, { side: THREE.DoubleSide }), 0.8), 0, 196, 0);
+  // Rigging down to the rails
+  for (const z of [-1, 1]) {
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1, 4), rope);
+    const a = V(0, 190, 0), b = V(0, 6, z * 110);
+    line.position.copy(a).add(b).multiplyScalar(0.5);
+    line.scale.y = a.distanceTo(b);
+    line.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+    g.add(line);
+  }
+  // The Jolly Roger, flapping at the top
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(34, 22, 8, 1).translate(17, 0, 0), new THREE.MeshToonMaterial({ map: jollyRoger(), gradientMap: toonRamp(), side: THREE.DoubleSide }));
+  flag.position.set(0, H - 10, 0);
+  g.add(flag);
+  const pos = flag.geometry.attributes.position as THREE.BufferAttribute, base = Float32Array.from(pos.array as Float32Array);
+  g.position.copy(toScene(pl.x, pl.y)).setY(heightAt(L, pl.x, pl.y));
+  const seed = pl.x * 0.03;
+  return {
+    group: g,
+    update(_a, t) {
+      for (let i = 0; i < pos.count; i++) { const x = base[i * 3]; pos.setZ(i, Math.sin(x * 0.25 - t * 6 + seed) * x * 0.12); }
+      pos.needsUpdate = true;
+    },
+  };
+}
+
+const jollyRoger = () => cached('t:jolly', () => canvasTex(128, 84, (g) => {
+  g.fillStyle = '#111'; g.fillRect(0, 0, 128, 84);
+  g.fillStyle = '#f4f0e6';
+  g.beginPath(); g.arc(64, 34, 16, 0, Math.PI * 2); g.fill();
+  g.fillRect(54, 44, 20, 10);
+  g.fillStyle = '#111'; g.beginPath(); g.arc(58, 33, 4.5, 0, Math.PI * 2); g.arc(70, 33, 4.5, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#f4f0e6'; g.lineWidth = 6; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(36, 56); g.lineTo(92, 76); g.moveTo(92, 56); g.lineTo(36, 76); g.stroke();
+}));
 
 // ---------- pirates ----------
 
@@ -400,9 +524,9 @@ function ocean(centre: THREE.Vector3): Animated {
     for (let i = 0; i < 90; i++) { g.strokeStyle = r() > 0.5 ? 'rgba(255,255,255,0.35)' : 'rgba(10,90,140,0.35)'; g.lineWidth = 2; const x = r() * 256, y = r() * 256; g.beginPath(); g.arc(x, y, 6 + r() * 10, 3.6, 5.8); g.stroke(); }
   }, true, 40));
   const m = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshToonMaterial({ map, gradientMap: toonRamp() }));
-  m.position.copy(centre).setY(-26);
+  m.position.copy(centre).setY(SEA_Y);
   m.receiveShadow = true;
-  return { group: m, update: (_a, t) => { map.offset.set(t * 0.004, t * 0.002); m.position.y = -26 + Math.sin(t * 0.8) * 1.5; } };
+  return { group: m, update: (_a, t) => { map.offset.set(t * 0.004, t * 0.002); m.position.y = SEA_Y + Math.sin(t * 0.8) * 1.5; } };
 }
 
 /**
@@ -421,9 +545,9 @@ export function coveLandscape(L: LevelDef, outline: Pt[], toScene: ToScene, lawn
   const centre = toScene(cx, cy);
   const sea = ocean(centre); group.add(sea.group); anims.push(sea);
 
-  // Palms, barrels and crates along the beach
-  resample(outline, 90).forEach((p, i) => {
-    const x = p.x + p.nx * 60, y = p.y + p.ny * 60;
+  // Palms, barrels and crates along the beach (round an island; beside a ship there's only sea)
+  if (!L.ship) resample(outline, 90).forEach((p, i) => {
+    const x = p.x + p.nx * 42, y = p.y + p.ny * 42;
     if (!clearOf(x, y, 30) || Math.hypot(x - tx, y - ty) < 120) return;
     if (i % 4 === 0) { const t = palm(i * 7 + 3, 110 + r() * 60); t.position.copy(at(x, y, -2)); group.add(t); }
     else if (i % 4 === 2) { const bb = barrelBody(11, 24); bb.position.copy(at(x, y, 12)); group.add(bb); }

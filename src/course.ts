@@ -10,7 +10,7 @@ import { ashMaterial, basaltPlain, basaltSwap, coursePalm, courseVolcano, dinosa
 import { candyKerb, candyLandscape, chuteMesh, frostingMaterial, gingerbreadMan, gumdrop, ladderMesh, levelLook, lollipop, sugarGroundMaterial, tierMesh } from './candy';
 import { arcticLandscape, iceKerb, iceMaterial, igloo, penguin, polarBear, seal, skiRamp, snowfieldMaterial, snowMaterial } from './arctic';
 import { desertMaterial, mummy, pillar, portal, quicksandPatch, sandstoneMaterial, stoneDoor, templeKerb, tombLandscape } from './tomb';
-import { barrel, beachMaterial, cannonVolley, coveLandscape, islandTurfMaterial, krakenTentacle, parrot, piling, pirate, rollingBarrel, ropeKerb, seaCave, shipCannon, treasureChest } from './pirate';
+import { mast, coveHeight, deckMaterial, shipRail, skirtMesh, barrel, cannonVolley, coveLandscape, islandTurfMaterial, krakenTentacle, parrot, piling, pirate, rollingBarrel, ropeKerb, seaCave, shipCannon, treasureChest } from './pirate';
 import { snowdriftMaterial, candyCanePost, chimneys, christmasKerb, firTree, frostedTurfMaterial, nutcracker, present, santaSleigh, snowball, snowman, toyTrain, villageLandscape } from './christmas';
 import { bat, cobwebMaterial, coffin, deadTree, pumpkinCatapult, spiderWeb, ghost, graveGrassMaterial, gravestone, HALLOWEEN_INK, hauntedKerb, hauntedLandscape, hollowGroundMaterial, jackOLantern, slimeMaterial, witchBroom } from './halloween';
 import { cannon, circusLandscape, clown, elephant, feltMaterial, sawdustMaterial, stripedKerb, trampoline } from './circus';
@@ -65,6 +65,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   const isMill = (s: { style?: string }) => s.style === 'windmill';
   const group = new THREE.Group();
   const add = <T extends THREE.Object3D>(o: T) => { group.add(o); return o; };
+  const occluders: Occluder[] = [];
   const at = (x: number, y: number, lift = 0) => to3(x, y).setY(heightAt(L, x, y) + lift);
   const anims: Animated[] = [];
   const outline = fairwayOutline(L);
@@ -76,14 +77,16 @@ export function buildCourse(world: World, models: Models | null): Course {
   setInkColor(space ? SPACE_INK : hw ? HALLOWEEN_INK : 0x2a1408);
   const rockSwap = jur ? basaltSwap() : space ? moonRockSwap() : arctic ? { Stone: toon(0xb8e2f8, { vertexColors: true }) } : candy ? { Stone: toon(0xc8a0ff, { vertexColors: true }) } : undefined; // ice boulders in the Arctic
   add(fairwayMesh(L, outline, L.theme));
-  const lawnH = makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
+  // On Skull Island there's no lawn: a beach (or a ship's hull) runs down into the open sea all round
+  const lawnH = pir ? coveHeight(outline, !!L.ship) : makeLawnHeight(outline, L.tee[0] * 0.01 + L.cup[1] * 0.003);
   const centre3 = to3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
-  add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : space ? regolithMaterial() : circus ? sawdustMaterial() : tomb ? desertMaterial() : arctic || xmas ? snowfieldMaterial() : candy ? sugarGroundMaterial() : hw ? hollowGroundMaterial() : pir ? beachMaterial() : lawnMaterial(), centre3));
+  if (pir) add(skirtMesh(outline, to3, !!L.ship));
+  else add(lawnMesh(outline, to3, lawnH, jur ? ashMaterial() : space ? regolithMaterial() : circus ? sawdustMaterial() : tomb ? desertMaterial() : arctic || xmas ? snowfieldMaterial() : candy ? sugarGroundMaterial() : hw ? hollowGroundMaterial() : lawnMaterial(), centre3));
   const arrows = slopeArrows(world, outline);
   if (arrows) { add(arrows.group); anims.push(arrows); }
 
   // ---- Curved timber kerb swept along the outline (its centre line is the physics boundary) ----
-  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : space ? moonKerb() : circus ? stripedKerb() : tomb ? templeKerb() : arctic ? iceKerb() : candy ? candyKerb() : hw ? hauntedKerb() : xmas ? christmasKerb() : pir ? ropeKerb() : undefined));
+  add(kerbMesh(L, outline, to3, jur ? basaltPlain() : space ? moonKerb() : circus ? stripedKerb() : tomb ? templeKerb() : arctic ? iceKerb() : candy ? candyKerb() : hw ? hauntedKerb() : xmas ? christmasKerb() : pir ? (L.ship ? shipRail() : ropeKerb()) : undefined));
 
   // ---- Cup, flag and tee ----
   const cupPos = at(L.cup[0], L.cup[1]);
@@ -330,7 +333,7 @@ export function buildCourse(world: World, models: Models | null): Course {
   for (const d of L.doors ?? []) { const a = stoneDoor(d, world, L, to3); add(a.group); anims.push(a); }
   for (const m of L.mummies ?? []) { const a = mummy(m, world, L, to3); add(a.group); anims.push(a); }
   (L.pillars ?? []).forEach((pl, i) => {
-    add(xmas ? candyCanePost(pl, L, to3) : pir ? piling(pl, L, to3) : pillar(pl, L, to3, i));
+    if (pir && L.ship) { const a = mast(pl, L, to3); add(a.group); anims.push(a); const oc = occluderOf(a.group); if (oc) occluders.push(oc); } else add(xmas ? candyCanePost(pl, L, to3) : pir ? piling(pl, L, to3) : pillar(pl, L, to3, i));
     const shadow = contactDisc(pl.r + 14);
     shadow.position.copy(to3(pl.x, pl.y)).setY(heightAt(L, pl.x, pl.y) + 0.45);
     add(shadow);
@@ -356,7 +359,6 @@ export function buildCourse(world: World, models: Models | null): Course {
     add(shadow);
   }
   for (const v of L.volcanoes ?? []) { const a = courseVolcano(v, L, to3); add(a.group); anims.push(a); }
-  const occluders: Occluder[] = [];
   for (const pm of L.palms ?? []) {
     const tree = add(space ? moonTree(pm, L, to3) : candy ? lollipop(pm, L, to3) : hw ? deadTree(pm, L, to3) : xmas ? firTree(pm, L, to3) : coursePalm(pm, L, to3));
     const oc = occluderOf(tree);
@@ -455,7 +457,7 @@ function fairwayMesh(L: LevelDef, outline: [number, number][], theme: Theme = 'g
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
   flat.dispose();
-  const m = new THREE.Mesh(g, jur ? dirtMaterial() : space ? moonDustMaterial() : circus ? feltMaterial() : tomb ? sandstoneMaterial() : arctic ? snowMaterial() : theme === 'candy' ? frostingMaterial() : theme === 'halloween' ? graveGrassMaterial() : theme === 'christmas' ? frostedTurfMaterial() : theme === 'pirate' ? islandTurfMaterial() : fairwayMaterial());
+  const m = new THREE.Mesh(g, jur ? dirtMaterial() : space ? moonDustMaterial() : circus ? feltMaterial() : tomb ? sandstoneMaterial() : arctic ? snowMaterial() : theme === 'candy' ? frostingMaterial() : theme === 'halloween' ? graveGrassMaterial() : theme === 'christmas' ? frostedTurfMaterial() : theme === 'pirate' ? (L.ship ? deckMaterial() : islandTurfMaterial()) : fairwayMaterial());
   m.receiveShadow = true;
   return m;
 }

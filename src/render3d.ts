@@ -10,7 +10,7 @@ import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR }
 import { ballMaterial, cueMaterials } from './gear';
 import { getModels } from './models';
 import { Theme } from './levels';
-import { BALL_R, CUP_R, heightNow, routeTarget, spinPath, World } from './physics';
+import { BALL_R, CUP_R, deckRoll, heightNow, routeTarget, spinPath, World } from './physics';
 
 /** Warm grade + soft vignette, applied after tone mapping (one cheap full-screen pass). */
 const GradeShader = {
@@ -575,6 +575,13 @@ export class Renderer3D {
     }
     cam.up.set(0, 1, 0);
     cam.lookAt(this.camLook);
+    // Aboard a ship the whole view rolls and lifts with the swell, so you feel the deck move
+    const ship = this.level?.ship;
+    if (ship && this.mode !== 'title') {
+      const roll = deckRoll(ship, this.worldTime).angle;
+      cam.rotateZ(roll * 1.7);
+      cam.position.y += Math.sin((this.worldTime / (ship.period ?? 5)) * Math.PI * 4) * 2.5;
+    }
     cam.setViewOffset(this.size.w, this.size.h, 0, this.offsetY * (1 - this.blend), this.size.w, this.size.h);
     cam.updateMatrixWorld();
   }

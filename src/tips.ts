@@ -35,16 +35,16 @@ const T: Record<string, Record<string, Tips>> = {
 
   pirate: {
     'Walk the Plank': {
-      do: ['Cross the first plank low, then come back up across the middle island to the second plank, which sits higher.', 'A firm, straight shot across a plank is safer than a gentle one that drifts.'],
+      do: ['Cross each plank square on: the straight line from tee to cup runs over both.', 'The chest on the middle island sits just below the line; keep to the top half of each plank.'],
       avoid: ['Off the side of a plank is the sea (+1 stroke).', 'The parrot circles the cup: putt when it\'s on the far side.'],
     },
     'Cannon Cove': {
-      do: ['Go round the right-hand end of the reef wall. Watch the red rings: a cannonball lands there a moment later and sits for a few seconds.', 'Time your shot through the pirates\' patrol, then line up the putt between the chest and the barrel.'],
-      avoid: ['A cannonball on the ground is as solid as a rock.', 'The lagoon at the top left costs a stroke.'],
+      do: ['The reef wall runs almost all the way across: go round its far right end, through the gap.', 'Watch the red rings: a cannonball lands there a moment later and sits for a few seconds, and one lands right in the gap.'],
+      avoid: ['A cannonball on the ground is as solid as a rock.', 'Pirates patrol the gap and the top of the beach.'],
     },
     'Rocking Deck': {
-      do: ['Roll gently onto the rope ladder at the side of the ship to climb aboard, then take the second ladder up to the quarterdeck.', 'On deck, watch the roll: a slow ball drifts toward whichever side is low, so aim a little uphill.'],
-      avoid: ['The pirates on deck stop a ball dead.', 'The parrot circles the cup on the quarterdeck.'],
+      do: ['The whole ship rolls side to side: a slow ball drifts toward the low side, so aim a little to the high side and hit firmly.', 'Bank round the masts to the rope ladder low on the port side, which climbs to the quarterdeck and the cup.'],
+      avoid: ['The masts stand on the straight line from the bow.', 'Cannonballs land on deck where the red rings flash, and the crew walk across your line.'],
       spin: 'Top spin keeps a putt rolling straight through the deck\'s drift.',
     },
     "Kraken's Lair": {
@@ -56,8 +56,8 @@ const T: Record<string, Record<string, Tips>> = {
       avoid: ['The cannon swings: fired at the wrong moment, it lands you short or in the corner.', 'Quicksand near the cave\'s exit swallows a slow ball.'],
     },
     "Captain's Quarters": {
-      do: ['Climb aboard by the ladder in front of the tee, cross the deck past the cannon fire, then take the ladder at the top up to the forecastle.', 'Putt down toward the cup at the low corner of the bow, timing it with the roll.'],
-      avoid: ['Past the cup is the plank slide: it sends you all the way back down to the dock.', 'Cannonballs land on the deck where the red rings flash.'],
+      do: ['The flagship pitches bow to stern: putts toward the bow speed up as it dips and stall as it rises, so time them.', 'Go up the starboard side (the top rail) to the ladder onto the forecastle, then putt down to the cup at the bow.'],
+      avoid: ['A pirate patrols in front of the ladder, and a cannonball lands beside it.', 'Past the cup is the plank slide: it sends you all the way back to the stern.'],
     },
   },
 

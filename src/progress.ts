@@ -18,10 +18,10 @@ export const EIGHTS: Record<string, Record<string, Pt>> = {
   pirate: {
     'Walk the Plank': [420, 185],
     'Cannon Cove': [655, 325],
-    'Rocking Deck': [565, 165],
+    'Rocking Deck': [90, 330],
     "Kraken's Lair": [690, 250],
     'Treasure Cave': [615, 155],
-    "Captain's Quarters": [445, 235],
+    "Captain's Quarters": [725, 345],
   },
   christmas: {
     'Jingle Bell Lane': [575, 125],
