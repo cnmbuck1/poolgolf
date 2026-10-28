@@ -143,6 +143,6 @@ Six iPhone **6.9-inch** screenshots (2868 × 1320, landscape) are in `docs/store
 
 In App Store Connect, open the version page, pick the **6.9" Display** (iPhone) box and drag them in, in that order.
 Apple scales them for smaller iPhones. 
-**App preview video:** `docs/store-screenshots/preview.mp4` (1920 × 886, about 25 s). In the same 6.9" box, drag it
+**App preview video:** `docs/store-screenshots/preview.mp4` (1920 × 886, 21 s, with a silent audio track as Apple requires). In the same 6.9" box, drag it
 in before the screenshots; it plays first, muted, in the App Store. Apple picks the poster frame from the video;
 you can change it after uploading.
