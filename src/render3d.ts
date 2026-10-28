@@ -657,26 +657,15 @@ export class Renderer3D {
   }
 
   /**
-   * Behind the ball, a tree or tall bit of scenery between the camera and the ball would fill the screen:
-   * hide any whose bounds cross the line of sight (or hold the camera), and show them again once clear.
+   * When the shot camera ends up inside a tree or a tall bit of scenery (backed up under a palm's leaves, say),
+   * that object would fill the screen: hide it until the camera is out again. Nothing else is hidden.
    */
   private clearView() {
     const occ = this.course?.occluders;
     if (!occ?.length) return;
     const active = !this.overview && this.mode === 'play';
-    const cam = this.camera.position, ball = this.ball.position;
-    const seg = ball.clone().sub(cam), len2 = seg.lengthSq() || 1;
-    const p = new THREE.Vector3();
-    for (const o of occ) {
-      let hide = false;
-      if (active) {
-        const t = Math.max(0, Math.min(1, o.c.clone().sub(cam).dot(seg) / len2));
-        p.copy(cam).addScaledVector(seg, t);
-        // A little smaller than the bounds (trees are rounder than their boxes), and never the ball's own spot
-        hide = p.distanceTo(o.c) < o.r * 0.8 && t < 0.97;
-      }
-      o.obj.visible = !hide;
-    }
+    const cam = this.camera.position;
+    for (const o of occ) o.obj.visible = !(active && o.box.containsPoint(cam));
   }
 
   private updateBall(world: World, fx: FX, dt: number) {

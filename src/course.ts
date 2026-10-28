@@ -35,10 +35,10 @@ export interface Course {
   cupPulse: THREE.Mesh;
   /** Table-plane bounds of the fairway (for camera and shadow fitting). */
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
-  /** Trees and tall scenery that hide themselves when they come between the shot camera and the ball. */
+  /** Trees and tall scenery that hide themselves while the shot camera is inside them. */
   occluders: Occluder[];
 }
-export interface Occluder { obj: THREE.Object3D; c: THREE.Vector3; r: number }
+export interface Occluder { obj: THREE.Object3D; box: THREE.Box3 }
 
 /** An occluder for a single, compact object (a tree, a post, a house); null for big or flat ones. */
 function occluderOf(obj: THREE.Object3D): Occluder | null {
@@ -47,7 +47,7 @@ function occluderOf(obj: THREE.Object3D): Occluder | null {
   const size = box.getSize(new THREE.Vector3());
   // Batched scenery spans the whole hole, and low things never block the view
   if (size.y < 35 || Math.max(size.x, size.z) > 320) return null;
-  return { obj, c: box.getCenter(new THREE.Vector3()), r: size.length() / 2 };
+  return { obj, box: box.expandByScalar(12) };
 }
 
 const C = {

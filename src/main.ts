@@ -22,7 +22,7 @@ import { DEMO_LEVEL, DEMO_SHOT } from './demo';
 import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
-import { adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded } from './ads';
+import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded } from './ads';
 import { AD_COINS } from './ads.config';
 import { bookReminder, canRemind, maybeAskForRating, remindersOn, setReminders } from './nudges';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track, watchErrors } from './telemetry';
@@ -1079,6 +1079,20 @@ function openSettings() {
     <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
       <a href="${SITE}privacy.html" target="_blank" rel="noopener">Privacy policy</a> · <a href="${SITE}support.html" target="_blank" rel="noopener">Support</a></p>`);
   if (!native) $('btn-playtest').onclick = () => void openPlaytest();
+  // Testing aid: five taps on the version line show why the last full-screen ad did or didn't appear
+  let aboutTaps = 0;
+  (document.querySelector('#sheet-body .about') as HTMLElement).onclick = (e) => {
+    if ((e.target as HTMLElement).closest('a') || ++aboutTaps < 5) return;
+    aboutTaps = 0;
+    const old = document.getElementById('ad-status');
+    if (old) { old.remove(); return; }
+    const p = document.createElement('p');
+    p.id = 'ad-status';
+    p.className = 'ad-status';
+    p.textContent = adStatus();
+    $('sheet-body').append(p);
+    p.scrollIntoView({ block: 'end' });
+  };
   // Two taps: the first asks, the second wipes everything and starts the game again as a new player
   $('btn-reset').onclick = () => {
     sfx.ui();

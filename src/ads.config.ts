@@ -19,7 +19,7 @@ export const REMOVE_ADS_ID = 'com.cnmbuckstudios.rackandroll.removeads';
 export const REMOVE_ADS_PRICE = '$2.99';
 
 /** Full-screen ads (after hole 3 of a course, and at the end): at most one this often, and none in a player's first few app launches. */
-export const INTERSTITIAL_GAP_S = 120;
+export const INTERSTITIAL_GAP_S = 60;
 export const INTERSTITIAL_FROM_SESSION = 4;
 
 /** Coins for watching an ad from the shop or the Vs Computer screen, and how many of those a day. */

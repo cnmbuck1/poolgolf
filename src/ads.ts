@@ -1,8 +1,8 @@
 // Ads (AdMob) and the Remove ads purchase, in the app only.
 //
 // - Rewarded ads are always the player's choice: double a round's coins, or coins for the shop.
-// - A full-screen ad may show halfway through a course (after hole 3) and at the end, at most every couple of
-//   minutes and not in a player's first few launches. Remove ads turns those off for good; rewarded ads stay available.
+// - A full-screen ad may show halfway through a course (after hole 3) and at the end, at most once a
+//   minute and not in a player's first few launches. Remove ads turns those off for good; rewarded ads stay available.
 // - Consent: Google's form where the law asks for it (EU/UK), then Apple's tracking question. A player
 //   who says no still sees ads, just less personalised ones.
 //
@@ -28,7 +28,9 @@ export const adsRemoved = () => get('noads') === '1';
 // App launches, so a new player gets a few sessions without any full-screen ads
 const session = Number(get('sessions') ?? 0) + 1;
 set('sessions', String(session));
-let lastAd = performance.now(); // counts from launch, so the first can't come straight away
+let lastFull = -Infinity; // when the last full-screen ad closed (rewarded ads, which the player chose, don't count)
+/** Why the last full-screen ad did or didn't show, for the hidden status readout in Settings. */
+let lastReason = 'none yet this launch';
 
 // ---------- AdMob ----------
 
@@ -54,8 +56,9 @@ function start() {
   return ready;
 }
 
+let loadError = '';
 async function loadInterstitial() {
-  try { await AdMob.prepareInterstitial({ adId: AD_UNITS.interstitial, isTesting: ADS_TESTING }); interstitialLoaded = true; } catch { interstitialLoaded = false; }
+  try { await AdMob.prepareInterstitial({ adId: AD_UNITS.interstitial, isTesting: ADS_TESTING }); interstitialLoaded = true; loadError = ''; } catch (e) { interstitialLoaded = false; loadError = String((e as Error)?.message ?? e).slice(0, 120); }
 }
 async function loadRewarded() {
   try { await AdMob.prepareRewardVideoAd({ adId: AD_UNITS.rewarded, isTesting: ADS_TESTING }); rewardedLoaded = true; } catch { rewardedLoaded = false; }
@@ -94,7 +97,7 @@ async function present(kind: 'rewarded' | 'interstitial') {
     await Promise.race([closed, shown.then(() => closed, () => undefined)]);
   } catch { /* not shown */ } finally {
     setAudioPaused(false);
-    lastAd = performance.now();
+    if (kind === 'interstitial') lastFull = performance.now();
     for (const h of handles) void (await h).remove();
   }
   return earned;
@@ -118,7 +121,7 @@ function fakeAd(label: string, seconds: number) {
  * false if it wasn't available or they closed it early.
  */
 export async function showRewarded(): Promise<boolean> {
-  if (fake && !native) { const ok = await fakeAd('Rewarded ad', 3); lastAd = performance.now(); return ok; }
+  if (fake && !native) return fakeAd('Rewarded ad', 3);
   if (!(await start())) return false;
   if (!rewardedLoaded) await loadRewarded();
   if (!rewardedLoaded) return false;
@@ -130,16 +133,27 @@ export async function showRewarded(): Promise<boolean> {
 
 /** Halfway through a course or at the end: maybe a full-screen ad (see the rules at the top). Resolves when it's closed. */
 export async function maybeInterstitial() {
-  if (!adsAvailable || adsRemoved() || (session < INTERSTITIAL_FROM_SESSION && !fake)) return; // stand-ins skip the new-player grace, for previewing
-  if (performance.now() - lastAd < INTERSTITIAL_GAP_S * 1000) return;
-  if (fake && !native) { await fakeAd('Full-screen ad', 2); lastAd = performance.now(); return; }
-  if (!(await start())) return;
+  const skip = (why: string) => { lastReason = why; };
+  if (!adsAvailable) return skip('not in the app');
+  if (adsRemoved()) return skip('Remove ads bought');
+  if (session < INTERSTITIAL_FROM_SESSION && !fake) return skip(`launch ${session}: none until launch ${INTERSTITIAL_FROM_SESSION}`); // stand-ins skip the new-player grace, for previewing
+  const since = (performance.now() - lastFull) / 1000;
+  if (since < INTERSTITIAL_GAP_S) return skip(`only ${Math.round(since)}s since the last one (gap ${INTERSTITIAL_GAP_S}s)`);
+  if (fake && !native) { await fakeAd('Full-screen ad', 2); lastFull = performance.now(); return skip('shown (stand-in)'); }
+  if (!(await start())) return skip('ads not started (consent not given, or no connection)');
   // Normally loaded ahead of time; if not, give it a moment rather than skip this one
   if (!interstitialLoaded) await Promise.race([loadInterstitial(), new Promise((r) => setTimeout(r, 2500))]);
-  if (!interstitialLoaded) return;
+  if (!interstitialLoaded) return skip(`not loaded: ${loadError || 'still loading'}`);
   interstitialLoaded = false;
   await present('interstitial');
   void loadInterstitial();
+  skip('shown');
+}
+
+/** For testing: where the ads stand on this launch. */
+export function adStatus() {
+  const since = lastFull === -Infinity ? 'none yet' : `${Math.round((performance.now() - lastFull) / 1000)}s ago`;
+  return `Launch ${session} (full-screen ads from launch ${INTERSTITIAL_FROM_SESSION}) · last full-screen ad ${since} · next one ${interstitialLoaded ? 'loaded' : 'not loaded'} · last check: ${lastReason}${adsRemoved() ? ' · Remove ads bought' : ''}`;
 }
 
 /** Coin ads watched today, against the daily limit. */
