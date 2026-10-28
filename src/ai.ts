@@ -144,7 +144,7 @@ export class Planner {
 
 /** Does anything on the hole move (so the moment of the shot matters)? */
 export function hasMovers(L: LevelDef) {
-  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length || L.penguins?.length || L.gingerbread?.length || L.ghosts?.length || L.bats?.length || L.nutcrackers?.length || L.tiers?.some((t) => t.move));
+  return !!(L.spinners?.length || L.tumbleweeds?.length || L.dinos?.length || L.asteroids?.length || L.aliens?.length || L.astronauts?.length || L.rockets?.length || L.meteors?.length || L.clowns?.length || L.cannons?.some((c) => c.sweep) || L.mummies?.length || L.doors?.length || L.penguins?.length || L.gingerbread?.length || L.ghosts?.length || L.bats?.length || L.nutcrackers?.length || L.pirates?.length || L.parrots?.length || L.decks?.length || L.tiers?.some((t) => t.move));
 }
 
 /** Gaussian noise for the computer's aim and power. */

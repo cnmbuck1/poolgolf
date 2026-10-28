@@ -13,6 +13,7 @@ import { feltMaterial } from './circus';
 import { sandstoneMaterial, templeKerb } from './tomb';
 import { snowMaterial } from './arctic';
 import { cryptSide, graveGrassMaterial } from './halloween';
+import { deckMaterial } from './pirate';
 import { TURF_TILE } from './art';
 import { outlineDistance, resample } from './landscape';
 
@@ -266,6 +267,18 @@ export function levelLook(theme: string): LevelLook {
       rim: { kind: 'tube', mat: toon(0x2a1a30), r: 3.4 },
       chute: { colors: [0x5a2a7a, 0xff8a1a], lip: 0x1a1420, post: () => toon(0x2a1a30), mouth: ['#14081c', '#b05aff'], ring: ring([0xb05aff, 0xff8a1a]) },
       ladder: { kind: 'stairs', ring: 0xff8a1a },
+    };
+    case 'pirate': return {
+      top: () => deckMaterial(), tile: 260,
+      side: () => sideTex('pirate', (g, r) => {
+        for (let y = 0; y < 128; y += 16) { g.fillStyle = (y / 16) % 2 ? '#5a3418' : '#4a2a12'; g.fillRect(0, y, 256, 16); g.fillStyle = 'rgba(20,10,0,0.5)'; g.fillRect(0, y, 256, 1.5); }
+        g.fillStyle = '#c8a040'; g.fillRect(0, 10, 256, 6);
+        for (let x = 24; x < 256; x += 64) { g.fillStyle = '#c8a040'; g.beginPath(); g.arc(x, 60, 11, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1a1410'; g.beginPath(); g.arc(x, 60, 8, 0, Math.PI * 2); g.fill(); }
+        speckle(g, r, 60, ['rgba(255,220,160,0.15)']);
+      }),
+      rim: { kind: 'tube', mat: toon(0x7a4a24), r: 3.8 },
+      chute: { colors: [0xb07a44, 0xa06c3a], lip: 0x5a3418, post: () => toon(0x5a3418), mouth: ['#1a1410', '#d8b878'], ring: ring([0xd8b878, 0xc8a040]) },
+      ladder: { kind: 'rails', rail: () => toon(0xd8b878), rung: 0xb07a44, ring: 0xd8b878 },
     };
     case 'christmas': return {
       top: () => snowMaterial(), tile: 260,

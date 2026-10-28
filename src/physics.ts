@@ -1,4 +1,4 @@
-import { Alien, Astronaut, Bridge, Cannon, Chute, Ghost, Lift, Tier, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
+import { Alien, Astronaut, Bridge, Cannon, Chute, Deck, Ghost, Lift, Tier, Crater, Dino, Door, Igloo, LevelDef, Meteor, Pt, Rocket, Tumbleweed, WORLD_H, WORLD_W, Zone } from './levels';
 
 export const BALL_R = 12;
 export const CUP_R = 21;
@@ -277,6 +277,13 @@ export class World {
       const [gx, gy] = slopeAt(this.level, b.x, b.y);
       b.vx -= SLOPE_G * gx * h;
       b.vy -= SLOPE_G * gy * h;
+      // A rocking deck rolls the ball one way and then the other
+      for (const d of this.level.decks ?? []) {
+        if (falling || !inPoly(d.pts, b.x, b.y)) continue;
+        const { accel } = deckRoll(d, this.time), a = (d.dir * Math.PI) / 180;
+        b.vx += Math.cos(a) * accel * h;
+        b.vy += Math.sin(a) * accel * h;
+      }
 
       // Friction
       const sp = Math.hypot(b.vx, b.vy);
@@ -1152,6 +1159,14 @@ export const ASTRONAUT_R = 17;
 export const PENGUIN_R = 14;
 export const GINGER_R = 14;
 export const NUTCRACKER_R = 14;
+export const PIRATE_R = 15;
+export const PARROT_R = 11;
+
+/** A rocking deck at time t: the push along its `dir` (units/s²) and how far it's heeled over (radians, for drawing). */
+export function deckRoll(d: Deck, t: number) {
+  const s = Math.sin(((t / (d.period ?? 5)) + (d.phase ?? 0)) * Math.PI * 2);
+  return { accel: (d.tilt ?? 100) * s, angle: s * 0.026 };
+}
 
 /**
  * A landing rocket's cycle at time t: `h` is its height (1 = out of sight, 0 = on the pad), `u` the
@@ -1202,6 +1217,8 @@ export function movers(level: LevelDef, t: number): { circles: MoverCircle[]; ar
   for (const s of level.penguins ?? []) circles.push({ ...astronautAt(s, t), r: PENGUIN_R, e: 0.55, kind: 'wall' });
   for (const s of level.gingerbread ?? []) circles.push({ ...astronautAt(s, t), r: GINGER_R, e: 0.6, kind: 'wall' });
   for (const s of level.nutcrackers ?? []) circles.push({ ...astronautAt(s, t), r: NUTCRACKER_R, e: 0.6, kind: 'wall' });
+  for (const s of level.pirates ?? []) circles.push({ ...astronautAt(s, t), r: PIRATE_R, e: 0.5, kind: 'wall' });
+  for (const a of level.parrots ?? []) circles.push({ ...alienAt(a, t), r: PARROT_R, e: 0.85, kind: 'rail' });
   for (const g of level.ghosts ?? []) { const p = ghostAt(g, t); if (p.solid) circles.push({ x: p.x, y: p.y, r: p.r, vx: p.vx, vy: p.vy, e: 0.5, kind: 'wall' }); }
   for (const b of level.bats ?? []) circles.push({ ...alienAt(b, t), r: BAT_R, e: 0.85, kind: 'rail' });
   for (const o of level.rockets ?? []) if (rocketAt(o, t).landed) circles.push({ x: o.x, y: o.y, r: ROCKET_R, vx: 0, vy: 0, e: 0.55, kind: 'wall' });

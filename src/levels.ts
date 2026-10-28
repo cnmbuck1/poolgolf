@@ -109,8 +109,14 @@ export interface Lift { x: number; y: number; to: Pt; kind: 'rocket' | 'geyser' 
  * A ghost drifting back and forth between a and b. It fades out for part of every `period` seconds
  * (`gone`, 0..1, the fraction of the cycle it's invisible) and the ball passes straight through it then.
  */
+/**
+ * A rocking ship's deck: while the ball rolls anywhere inside `pts`, the deck's roll pushes it toward `dir`
+ * (degrees) and back, `tilt` units/s² at the extremes, every `period` seconds (`phase` 0..1 staggers it).
+ * `tier` is the raised level drawn as the deck, which rocks with it.
+ */
+export interface Deck { pts: Pt[]; dir: number; tilt?: number; period?: number; phase?: number; tier?: number }
 export interface Ghost { a: Pt; b: Pt; speed: number; period?: number; gone?: number; phase?: number; r?: number }
-export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy' | 'halloween' | 'christmas';
+export type Theme = 'garden' | 'jurassic' | 'space' | 'circus' | 'tomb' | 'arctic' | 'candy' | 'halloween' | 'christmas' | 'pirate';
 
 /**
  * Terrain shaping. Heights are in world units; the ball feels the slope (see physics.ts).
@@ -178,6 +184,16 @@ export interface LevelDef {
   /** Spider webs: a ball that rolls into one is caught (+1 stroke, back to where it was hit from). Flights pass over. */
   webs?: Zone[];
   /** Coffins (Halloween) are drawn for `portals`; pumpkin catapults for `cannons`. */
+  /** Skull Island: rocking ship decks, pirates swaggering between two points, and parrots circling (bouncy). */
+  decks?: Deck[];
+  pirates?: Astronaut[];
+  parrots?: Alien[];
+  /**
+   * On Skull Island the other pieces are dressed for it: treasure chests for `bumpers`, barrels for `rocks`,
+   * rolling barrels for `tumbleweeds`, cannonball volleys for `meteors`, ship's cannons for `cannons`, a
+   * kraken's tentacle for `spinners`, sea caves for `portals`, pilings for `pillars`, rope ladders and plank
+   * slides for `ladders` and `chutes`, ship's decks for `tiers` and the sea for `water`.
+   */
   /** Christmas: nutcracker soldiers marching between two points (same motion as an astronaut). */
   nutcrackers?: Astronaut[];
   /**
@@ -1037,8 +1053,130 @@ const CHRISTMAS: LevelDef[] = [
   },
 ];
 
+/** Skull Island (expert): plank bridges, cannon volleys, pirates, parrots, quicksand, a kraken and rocking ship decks. */
+const chest = (x: number, y: number, r = 20) => ball(5, x, y, r);
+const PIRATE: LevelDef[] = [
+  {
+    // Island to island across two sea channels on planks: cross each one square, or the ball rolls off the side into the sea
+    name: 'Walk the Plank',
+    par: 4,
+    tee: [90, 250],
+    cup: [900, 250],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    water: [creek([[300, 34], [290, 150], [310, 350], [300, 466]], 110, 2), creek([[640, 34], [650, 200], [630, 350], [645, 466]], 110, 5)],
+    bridges: [{ x: 300, y: 268, len: 180, width: 92, angle: 0 }, { x: 640, y: 232, len: 180, width: 92, angle: 0 }],
+    bumpers: [chest(470, 250, 22), chest(820, 330, 18)],
+    rocks: [{ x: 470, y: 120, r: 16 }, { x: 470, y: 390, r: 16 }, { x: 800, y: 150, r: 15 }],
+    parrots: [{ x: 900, y: 250, orbit: 50, speed: 1.4 }],
+    palms: [{ x: 150, y: 110 }, { x: 150, y: 400 }],
+    slopes: [{ kind: 'hill', x: 900, y: 250, r: 50, h: -2 }],
+  },
+  {
+    // A reef wall splits the beach; round its end, cannonballs rain down after a splash of warning and pirates patrol the gaps
+    name: 'Cannon Cove',
+    par: 3,
+    tee: [100, 400],
+    cup: [880, 100],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    meteors: [
+      { x: 330, y: 330, r: 20, period: 6 },
+      { x: 450, y: 200, r: 20, period: 7, phase: 0.3 },
+      { x: 600, y: 320, r: 20, period: 6.5, phase: 0.6 },
+      { x: 720, y: 180, r: 20, period: 7.5, phase: 0.15 },
+      { x: 820, y: 260, r: 20, period: 6, phase: 0.45 },
+    ],
+    pirates: [{ a: [530, 60], b: [530, 440], speed: 55 }, { a: [760, 330], b: [920, 330], speed: 45, phase: 0.5 }, { a: [790, 60], b: [790, 170], speed: 35, phase: 0.2 }],
+    bars: [{ x: 420, y: 255, len: 560, angle: 0 }],
+    bumpers: [chest(250, 160), chest(650, 90, 18), chest(900, 170, 16)],
+    rocks: [{ x: 400, y: 440, r: 16 }, { x: 870, y: 200, r: 16 }],
+    water: [blob(320, 140, 70, 55, 3, 0.18)],
+    palms: [{ x: 160, y: 140 }],
+    slopes: [{ kind: 'hill', x: 880, y: 100, r: 50, h: -2 }],
+  },
+  {
+    // A galleon moored at the dock, rocking on the swell. Climb the rope ladder aboard, then up again to the
+    // quarterdeck, where the cup is; the roll of the deck carries a slow ball toward whichever side is low
+    name: 'Rocking Deck',
+    par: 3,
+    tee: [880, 410],
+    cup: [290, 210],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [
+      { pts: [[200, 130], [760, 130], [880, 210], [760, 290], [200, 290]], h: 36 },
+      { pts: [[200, 130], [400, 130], [400, 290], [200, 290]], h: 30 },
+    ],
+    decks: [{ pts: [[200, 130], [760, 130], [880, 210], [760, 290], [200, 290]], dir: 90, tilt: 110, period: 5, tier: 0 }],
+    ladders: [{ path: [[600, 340], [600, 256]] }, { path: [[450, 210], [366, 210]] }],
+    water: [{ kind: 'poly', pts: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 110], [40, 110]] }],
+    pirates: [{ a: [520, 150], b: [520, 270], speed: 40 }, { a: [700, 160], b: [700, 262], speed: 50, phase: 0.5 }],
+    pillars: [{ x: 600, y: 210, r: 10 }, { x: 780, y: 210, r: 9 }],
+    parrots: [{ x: 290, y: 210, orbit: 45, speed: 1.3 }],
+    bumpers: [chest(330, 400), chest(720, 420, 18)],
+    rocks: [{ x: 470, y: 420, r: 16 }, { x: 200, y: 400, r: 16 }],
+  },
+  {
+    // One plank across the kraken's channel, and a tentacle sweeping over it. Past it, quicksand flanks the way to the cup
+    name: "Kraken's Lair",
+    par: 4,
+    tee: [100, 250],
+    cup: [890, 250],
+    outline: [[40, 120], [120, 40], [880, 40], [960, 120], [960, 380], [880, 460], [120, 460], [40, 380]],
+    water: [creek([[500, 34], [490, 150], [510, 350], [500, 466]], 240, 3)],
+    bridges: [{ x: 500, y: 250, len: 340, width: 70, angle: 0 }],
+    spinners: [{ x: 500, y: 250, len: 58, speed: 0.6, style: 'turnstile', arms: 1 }],
+    quicksand: [{ kind: 'circle', x: 730, y: 140, r: 42 }, { kind: 'circle', x: 730, y: 360, r: 42 }],
+    bumpers: [chest(820, 170, 18), chest(820, 330, 18)],
+    parrots: [{ x: 890, y: 250, orbit: 48, speed: -1.5 }],
+    rocks: [{ x: 240, y: 160, r: 16 }, { x: 240, y: 340, r: 16 }],
+    palms: [{ x: 130, y: 120 }],
+    slopes: [{ kind: 'hill', x: 890, y: 250, r: 45, h: -2 }],
+  },
+  {
+    // A cliff splits the island from end to end. Through the sea cave, or over it from the cannon if you catch it aimed right; rolling barrels on the far side
+    name: 'Treasure Cave',
+    par: 3,
+    tee: [100, 100],
+    cup: [880, 400],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    bars: [{ x: 500, y: 250, len: 430, angle: 90 }],
+    portals: [{ a: [380, 120], b: [620, 110], exit: 0 }],
+    cannons: [{ x: 250, y: 350, angle: 0, sweep: 35, speed: 0.8, dist: 330 }],
+    tumbleweeds: [{ a: [720, 60], b: [720, 300], speed: 60, r: 16, phase: 0.4 }, { a: [560, 440], b: [760, 440], speed: 70, r: 16 }],
+    quicksand: [{ kind: 'circle', x: 780, y: 190, r: 44 }],
+    pirates: [{ a: [800, 280], b: [940, 280], speed: 40 }, { a: [640, 230], b: [640, 440], speed: 45, phase: 0.3 }],
+    bumpers: [chest(800, 400, 20), chest(900, 330, 16)],
+    parrots: [{ x: 880, y: 400, orbit: 45, speed: 1.6 }],
+    rocks: [{ x: 300, y: 220, r: 18 }],
+    palms: [{ x: 160, y: 380 }],
+    slopes: [{ kind: 'hill', x: 880, y: 400, r: 45, h: -2 }],
+  },
+  {
+    // The finale aboard the flagship: up from the dock, across a rocking deck under cannon fire, and up again to the
+    // forecastle. Roll past the cup and the plank slide sends you all the way back down to the dock
+    name: "Captain's Quarters",
+    par: 5,
+    tee: [110, 420],
+    cup: [700, 320],
+    outline: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 400], [900, 460], [100, 460], [40, 400]],
+    tiers: [
+      { pts: [[160, 140], [700, 140], [820, 250], [700, 360], [160, 360]], h: 36 },
+      { pts: [[620, 140], [700, 140], [820, 250], [700, 360], [620, 360]], h: 30 },
+    ],
+    decks: [{ pts: [[160, 140], [700, 140], [820, 250], [700, 360], [160, 360]], dir: 90, tilt: 120, period: 6, tier: 0 }],
+    ladders: [{ path: [[300, 410], [300, 326]] }, { path: [[580, 165], [664, 165]] }],
+    chutes: [{ path: [[785, 285], [870, 380], [760, 430], [480, 435]] }],
+    water: [{ kind: 'poly', pts: [[40, 100], [100, 40], [900, 40], [960, 100], [960, 118], [40, 118]] }],
+    meteors: [{ x: 400, y: 200, r: 18, period: 6 }, { x: 480, y: 300, r: 18, period: 7, phase: 0.5 }, { x: 560, y: 180, r: 18, period: 6.5, phase: 0.25 }],
+    pirates: [{ a: [360, 160], b: [360, 340], speed: 45 }],
+    parrots: [{ x: 700, y: 320, orbit: 38, speed: 1.7 }],
+    pillars: [{ x: 240, y: 250, r: 10 }],
+    bumpers: [chest(600, 420, 18)],
+    rocks: [{ x: 880, y: 160, r: 16 }],
+  },
+];
+
 /** `season`: a holiday course, open only between these dates each year ([month, day], inclusive). */
-export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[]; season?: { from: [number, number]; to: [number, number] } }
+export interface CourseDef { id: string; name: string; theme: Theme; holes: LevelDef[]; season?: { from: [number, number]; to: [number, number] }; unlockStars?: number }
 
 /** A regular polygon around (cx, cy): vertex k at angle `rot` + k·360/n degrees (edge k runs from vertex k to k+1). */
 const ngon = (cx: number, cy: number, r: number, n: number, rot = 0): Pt[] =>
@@ -1168,8 +1306,15 @@ export const SEASONAL: CourseDef[] = [
   { id: 'halloween', name: 'Haunted Hollow', theme: 'halloween', holes: HALLOWEEN, season: { from: [10, 1], to: [11, 7] } },
   { id: 'christmas', name: 'North Pole Village', theme: 'christmas', holes: CHRISTMAS, season: { from: [12, 1], to: [1, 6] } },
 ];
-/** Every course, regular and holiday, for looking one up by id. */
-export const ALL_COURSES: CourseDef[] = [...COURSES, ...SEASONAL];
+/**
+ * Expert courses: unlocked by earning `unlockStars` hole stars on the regular courses. Like the holiday
+ * courses they stay out of Career, the daily challenge and the all-course trophies.
+ */
+export const EXPERT: CourseDef[] = [
+  { id: 'pirate', name: 'Skull Island', theme: 'pirate', holes: PIRATE, unlockStars: 36 },
+];
+/** Every course, regular, holiday and expert, for looking one up by id. */
+export const ALL_COURSES: CourseDef[] = [...COURSES, ...SEASONAL, ...EXPERT];
 for (const c of ALL_COURSES) for (const h of c.holes) h.theme = c.theme;
 
 /** Whether a course is open on this date (regular courses always are). `?season=open` (or a preview, see main.ts) forces holiday courses open, for testing; `real` ignores that. */

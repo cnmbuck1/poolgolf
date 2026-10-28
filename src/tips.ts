@@ -33,6 +33,34 @@ const T: Record<string, Record<string, Tips>> = {
     },
   },
 
+  pirate: {
+    'Walk the Plank': {
+      do: ['Cross the first plank low, then come back up across the middle island to the second plank, which sits higher.', 'A firm, straight shot across a plank is safer than a gentle one that drifts.'],
+      avoid: ['Off the side of a plank is the sea (+1 stroke).', 'The parrot circles the cup: putt when it\'s on the far side.'],
+    },
+    'Cannon Cove': {
+      do: ['Go round the right-hand end of the reef wall. Watch the red rings: a cannonball lands there a moment later and sits for a few seconds.', 'Time your shot through the pirates\' patrol, then line up the putt between the chest and the barrel.'],
+      avoid: ['A cannonball on the ground is as solid as a rock.', 'The lagoon at the top left costs a stroke.'],
+    },
+    'Rocking Deck': {
+      do: ['Roll gently onto the rope ladder at the side of the ship to climb aboard, then take the second ladder up to the quarterdeck.', 'On deck, watch the roll: a slow ball drifts toward whichever side is low, so aim a little uphill.'],
+      avoid: ['The pirates on deck stop a ball dead.', 'The parrot circles the cup on the quarterdeck.'],
+      spin: 'Top spin keeps a putt rolling straight through the deck\'s drift.',
+    },
+    "Kraken's Lair": {
+      do: ['Wait for the kraken\'s tentacle to swing clear of the plank, then go straight across.', 'Past the channel, take the middle between the two patches of quicksand.'],
+      avoid: ['Knocked off the plank by the tentacle is the sea (+1 stroke).', 'Stop in quicksand and it swallows the ball (+1 stroke).'],
+    },
+    'Treasure Cave': {
+      do: ['The cliff runs right across: roll into the sea cave by the tee and you come out on the far side, or ride the cannon when it\'s aimed past the cliff.', 'Then go down past the rolling barrels and the pirates to the cup.'],
+      avoid: ['The cannon swings: fired at the wrong moment, it lands you short or in the corner.', 'Quicksand near the cave\'s exit swallows a slow ball.'],
+    },
+    "Captain's Quarters": {
+      do: ['Climb aboard by the ladder in front of the tee, cross the deck past the cannon fire, then take the ladder at the top up to the forecastle.', 'Putt down toward the cup at the low corner of the bow, timing it with the roll.'],
+      avoid: ['Past the cup is the plank slide: it sends you all the way back down to the dock.', 'Cannonballs land on the deck where the red rings flash.'],
+    },
+  },
+
   christmas: {
     'Jingle Bell Lane': {
       do: ['Go straight up the middle: the big present sits a little behind the first pair, so aim just past it.', 'Time the last putt for when the nutcracker has marched out of the way.'],

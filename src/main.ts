@@ -2,7 +2,7 @@ import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
-import { ALL_COURSES, COURSE, COURSES, inSeason, LevelDef, LEVELS, SEASONAL, setCourse } from './levels';
+import { ALL_COURSES, COURSE, CourseDef, COURSES, EXPERT, inSeason, LevelDef, LEVELS, SEASONAL, setCourse } from './levels';
 import { alienAt, astronautAt, BALL_R, dinoPose, inZone, MAX_SHOT_SPEED, routeDistance, shotSpeed, World } from './physics';
 import { AimState, CueState, FX, Renderer3D } from './render3d';
 import { loadModels } from './models';
@@ -54,7 +54,11 @@ let holeStartedAt = 0; // for playtest records: how long each hole took
 /** The last hole the player finished, so feedback sent from the main menu afterwards is tied to it. */
 let lastPlayed: { course: string; hole: number; name: string; strokes: number } | null = null;
 /** The courses that can be played today: the regular six, plus any holiday course in its season. */
-function playable() { return [...COURSES, ...SEASONAL.filter((c) => inSeason(c))]; }
+function playable() { return [...COURSES, ...SEASONAL.filter((c) => inSeason(c)), ...EXPERT.filter(expertOpen)]; }
+/** Hole stars earned on the six regular courses (what unlocks the expert courses). */
+function regularStars() { return COURSES.reduce((a, c) => a + P.courseStars(c.id), 0); }
+/** An expert course opens once enough stars are earned (or, for testing, after five taps on its locked tile). */
+function expertOpen(c: CourseDef) { return !c.unlockStars || regularStars() >= c.unlockStars || localGet(`unlock.${c.id}`) === '1'; }
 // A holiday course chosen last season falls back to the first course once its season is over
 setCourse(playable().some((c) => c.id === localGet('course')) ? localGet('course')! : 'candy');
 let world = new World(LEVELS[0]);
@@ -178,6 +182,8 @@ function creatureHit() {
   if ((L.seals ?? []).some((c) => near(c.x, c.y, 26))) return say(sfx.seal);
   if ((L.gingerbread ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.gingerbread);
   if ((L.nutcrackers ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 14); })) return say(sfx.nutcracker);
+  if ((L.pirates ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, 15); })) return say(sfx.pirate);
+  if ((L.parrots ?? []).some((a) => { const p = alienAt(a, t); return near(p.x, p.y, 11); })) return say(sfx.parrot);
   if ((L.clowns ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.clown);
   if ((L.mummies ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.groanMummy);
   if ((L.astronauts ?? []).some((c) => { const p = astronautAt(c, t); return near(p.x, p.y, p.r); })) return say(sfx.astronaut);
@@ -753,6 +759,10 @@ function refreshTitle() {
   document.querySelector('#btn-courses .course-icons')!.textContent = special.map((c) => COURSE_LOOK[c.id].icon).join('') + '🍭🦖🌙🎪🏺❄️';
   $('btn-courses').classList.toggle('special', special.length > 0);
   const topped = dailyTopUp(today());
+  for (const c of EXPERT) if (c.unlockStars && regularStars() >= c.unlockStars && !localGet(`unlocked.${c.id}`)) {
+    localSet(`unlocked.${c.id}`, '1');
+    setTimeout(() => { sfx.collect(); toast(`${COURSE_LOOK[c.id].icon} ${c.name} unlocked! An expert course, in Pick a course`, 'good', 3500); }, 600);
+  }
   $('menu-coins').innerHTML = `<i class="coin"></i>${coins()}`;
   const best = localGet(ck('best'));
   $('best').textContent = topped ? `Daily top-up: +${topped} coins` : best ? `${COURSE.name} best round: ${best}` : '';
@@ -986,6 +996,7 @@ const COURSE_LOOK: Record<string, { icon: string; bg: string; badge?: string }> 
   space: { icon: '🌙', bg: 'linear-gradient(160deg, #6a70b0, #2a2d5a 55%, #0e0f22)' },
   circus: { icon: '🎪', bg: 'linear-gradient(160deg, #f4c542, #d8303c 55%, #7a1420)' },
   halloween: { icon: '🎃', bg: 'linear-gradient(160deg, #ff8a1a, #6a2a8a 55%, #1a1030)', badge: 'HALLOWEEN SPECIAL' },
+  pirate: { icon: '🏴‍☠️', bg: 'linear-gradient(160deg, #3ad0e0, #1a7ab0 50%, #3a2a18)', badge: 'EXPERT' },
   christmas: { icon: '🎄', bg: 'linear-gradient(160deg, #e8f4ff, #d8303c 50%, #1f6a3e)', badge: 'CHRISTMAS SPECIAL' },
   tomb: { icon: '🏺', bg: 'linear-gradient(160deg, #f0d08a, #c08a3a 55%, #6a4518)' },
   arctic: { icon: '❄️', bg: 'linear-gradient(160deg, #e6f4ff, #7ab4e4 55%, #2e5e94)' },
@@ -1002,7 +1013,13 @@ function openCourses(holesOf?: string) {
     return `<div class="ctile off" data-off="${c.id}" style="background:${look.bg}"><div class="ctile-play"><i class="ctile-icon">${look.icon}</i><b>${c.name}</b>
       <small>Holiday special · back in ${months[c.season!.from[0] - 1]}</small></div></div>`;
   }).filter(Boolean).join('');
-  const open = [...SEASONAL.filter((c) => inSeason(c)), ...COURSES];
+  // Expert courses follow the regular ones: locked (with the stars still to earn) until they're opened
+  const locked = EXPERT.filter((c) => !expertOpen(c)).map((c) => {
+    const look = COURSE_LOOK[c.id], have = regularStars();
+    return `<div class="ctile off" data-lock="${c.id}" style="background:${look.bg}"><em class="ctile-badge">EXPERT</em><div class="ctile-play"><i class="ctile-icon">🔒</i><b>${c.name}</b>
+      <small>Earn ${c.unlockStars! - have} more ★ to unlock</small><small class="ctile-prog">★ ${have}/${c.unlockStars} on the regular courses</small></div></div>`;
+  }).join('');
+  const open = [...SEASONAL.filter((c) => inSeason(c)), ...COURSES, ...EXPERT.filter(expertOpen)];
   const tiles = open.map((c) => {
     const best = localGet(ck('best', c.id));
     const par = c.holes.reduce((a, l) => a + l.par, 0);
@@ -1013,7 +1030,7 @@ function openCourses(holesOf?: string) {
         <small class="ctile-prog">★ ${P.courseStars(c.id)}/${c.holes.length * 3} · <i class="eight got">8</i> ${P.eightsFound(c.id)}/${c.holes.length}</small></button>
       <button class="ctile-holes" data-holes="${c.id}">HOLES ›</button></div>`;
   }).join('');
-  sheet('Pick a course', `<p>Tap a course to play a round, or <b>Holes</b> to practise one hole.</p><div class="ctiles">${tiles}${seasonal}</div>`);
+  sheet('Pick a course', `<p>Tap a course to play a round, or <b>Holes</b> to practise one hole.</p><div class="ctiles">${tiles}${locked}${seasonal}</div>`);
   const body = $('sheet-body');
   body.querySelectorAll<HTMLButtonElement>('[data-play]').forEach((b) => {
     b.onclick = () => { sfx.ui(); chooseCourse(b.dataset.play!); startRound(); };
@@ -1037,6 +1054,20 @@ function openCourses(holesOf?: string) {
     };
   };
   body.querySelectorAll('[data-off]').forEach((el) => taps(el, true));
+  // The same five taps open a locked expert course early, for testing
+  body.querySelectorAll<HTMLElement>('[data-lock]').forEach((el) => {
+    let n = 0, last = 0;
+    el.onclick = () => {
+      const t = performance.now();
+      n = t - last < 1500 ? n + 1 : 1;
+      last = t;
+      if (n === 1) toast(`Earn ${EXPERT.find((c) => c.id === el.dataset.lock)!.unlockStars} ★ on the regular courses to unlock`, '', 1800);
+      if (n < 5) return;
+      localSet(`unlock.${el.dataset.lock}`, '1');
+      sfx.collect();
+      openCourses();
+    };
+  });
   body.querySelectorAll('[data-preview]').forEach((el) => taps(el, false));
 }
 
@@ -2208,6 +2239,7 @@ click('btn-more', () => sheet('How to play', `<h3>Shooting</h3><p><b>Pull down</
   <p><b>Moving platforms</b> (ringed in yellow-and-black stripes) rise and sink on a timer. Roll onto one while it's down, wait for it to carry the ball up, then roll off onto the higher level while it's level.</p>
   <p>On <b>Arctic Peaks</b>, ice is slick, so the ball glides much further; holes in the ice cost a stroke. Roll up to a seal and it flips the ball over the obstacles with its tail. Hit a ski jump fast and straight to fly over walls. Roll into one igloo door to come out of the other.</p>
   <p>Every October, <b>Haunted Hollow</b> 🎃 opens for Halloween: ghosts that are solid only while you can see them, bats, spider webs that catch the ball, green slime, coffins you roll into and out of, pumpkin catapults, and witches whose brooms fly the ball across the hole.</p>
+  <p><b>Skull Island</b> 🏴‍☠️ is the expert course, unlocked by earning 36 stars on the six regular courses: narrow planks over the sea, cannonballs raining down, pirates and parrots in the way, quicksand, a kraken guarding its channel, sea caves, ship's cannons, and galleons whose decks rock on the swell, rolling the ball one way and then the other.</p>
   <p>From December 1 to January 6, <b>North Pole Village</b> 🎄 opens for Christmas: presents to bank off, snowmen, marching nutcracker soldiers, rolling snowballs, a frozen pond with holes in the ice, chimneys you drop down and pop out of, a toy train that carries the ball along its track, and Santa's sleigh, which flies it up onto the rooftops.</p>
   <h3>Ways to play</h3><p><b>Vs Computer</b> is match play: you play each hole, then your rival does, and the lower score wins the hole. Beat each rival to unlock the next. Every rival but Rookie Ricky has a coin stake: win the match and it pays back double, lose and it's gone. Under 50 coins? You're topped up to 50 once a day. All square after six holes? A closest-to-the-pin shootout settles it: one shot each, nearest the cup wins.</p>
   <p><b>Stars and treasure:</b> each hole has three stars to earn: ★ for par, ★★ for a birdie, ★★★ for a hole in one. Every hole also hides a spinning <b>golden 8-ball</b>, often up on a higher level or across a hazard: roll through it to collect it. Both pay coins, and the ★ button on the main menu opens the <b>trophy room</b>, where some trophies win designs you can't buy.</p>
@@ -2423,12 +2455,12 @@ function tick(dt: number) {
         view3d.splash(b.x, b.y);
         strokes++;
         busyTimer = 1.0;
-        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke', halloween: 'Slimed! +1 stroke', christmas: 'Through the ice! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
+        toast({ jurassic: 'Lava! +1 stroke', space: 'Lost in space! +1 stroke', garden: 'Splash! +1 stroke', circus: 'Splash! +1 stroke', tomb: 'Splash! +1 stroke', arctic: 'Through the ice! +1 stroke', candy: 'Chocolate dip! +1 stroke', halloween: 'Slimed! +1 stroke', christmas: 'Through the ice! +1 stroke', pirate: 'Overboard! +1 stroke' }[world.level.theme ?? 'garden'], 'bad');
         updateHud();
         break;
       case 'launch':
         if (turn === 'player' && !demo) P.noteLaunch(ev.by);
-        if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast(world.level.theme === 'halloween' ? 'Pumpkin launch!' : 'BOOM!', 'good', 800); }
+        if (ev.by === 'cannon') { sfx.cannon(); view3d.shake(4); buzz(ImpactStyle.Heavy); toast(world.level.theme === 'halloween' ? 'Pumpkin launch!' : world.level.theme === 'pirate' ? 'Fire!' : 'BOOM!', 'good', 800); }
         else if (ev.by === 'seal') { sfx.seal(); buzz(ImpactStyle.Medium); toast('Flipped!', 'good', 700); }
         else if (ev.by === 'ramp') { sfx.whoosh(); buzz(ImpactStyle.Medium); toast('Airborne!', 'good', 700); }
         else if (ev.by === 'rocket') { sfx.rocket(); view3d.shake(3); buzz(ImpactStyle.Heavy); toast('Blast off!', 'good', 900); }
@@ -2443,7 +2475,7 @@ function tick(dt: number) {
         break;
       case 'teleport':
         if (turn === 'player' && !demo) P.bump('portals');
-        if (ev.via === 'igloo') sfx.igloo(); else if (world.level.theme === 'halloween') { sfx.creak(); toast('Into the coffin…', 'good', 900); } else if (world.level.theme === 'christmas') { sfx.chimney(); toast('Down the chimney!', 'good', 900); } else sfx.portal();
+        if (ev.via === 'igloo') sfx.igloo(); else if (world.level.theme === 'halloween') { sfx.creak(); toast('Into the coffin…', 'good', 900); } else if (world.level.theme === 'christmas') { sfx.chimney(); toast('Down the chimney!', 'good', 900); } else if (world.level.theme === 'pirate') { sfx.igloo(); toast('Through the sea cave!', 'good', 900); } else sfx.portal();
         buzz(ImpactStyle.Light);
         break;
       case 'chute': {

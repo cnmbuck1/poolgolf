@@ -15,6 +15,14 @@ export const EIGHTS: Record<string, Record<string, Pt>> = {
     'Bat Cave': [615, 155],
     'Haunted Mansion': [515, 105],
   },
+  pirate: {
+    'Walk the Plank': [420, 185],
+    'Cannon Cove': [655, 325],
+    'Rocking Deck': [565, 165],
+    "Kraken's Lair": [690, 250],
+    'Treasure Cave': [615, 155],
+    "Captain's Quarters": [445, 235],
+  },
   christmas: {
     'Jingle Bell Lane': [575, 125],
     'Snowball Alley': [615, 345],

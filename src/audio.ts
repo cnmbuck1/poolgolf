@@ -359,6 +359,10 @@ export const sfx = {
   },
   /** A nutcracker soldier bonked: a hollow wooden clack. */
   nutcracker: () => { tone(620, 0.06, 'square', 0.1, { slideTo: 420 }); tone(880, 0.05, 'triangle', 0.08, { at: 0.07 }); },
+  /** A pirate bumped: a gruff "arr!" */
+  pirate: () => { warble(130, 0.45, 'sawtooth', 0.2, { slideTo: 95, rate: 22, depth: 0.12, filter: 700, attack: 0.03 }); },
+  /** A parrot squawks. */
+  parrot: () => { for (const at of [0, 0.12]) warble(1400, 0.1, 'square', 0.07, { at, slideTo: 2100, rate: 45, depth: 0.1, filter: 4000 }); },
   /** Short jingle that rises for good scores and sags for bad ones. */
   result: (toPar: number, holeInOne: boolean) => {
     const good = holeInOne ? [523, 659, 784, 1047, 1319] : toPar < 0 ? [523, 659, 784, 1047] : toPar === 0 ? [523, 659, 784] : [392, 370, 330];
