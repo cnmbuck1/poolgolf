@@ -12,6 +12,16 @@ export const AD_UNITS = {
   rewarded: 'ca-app-pub-8965676427575286/1979010584', // Rewarded coins
 };
 
+/**
+ * AdMob ad unit IDs (Android): Google's sample units until the Android app is set up in AdMob (its app ID goes
+ * in android/app/src/main/AndroidManifest.xml). Android builds get test ads unless they're built for the Play
+ * Store's production track (the "Android build" workflow sets VITE_REAL_ADS for those).
+ */
+export const AD_UNITS_ANDROID = {
+  interstitial: 'ca-app-pub-3940256099942544/1033173712',
+  rewarded: 'ca-app-pub-3940256099942544/5224354917',
+};
+
 /** The Remove ads in-app purchase (a non-consumable product with this ID in App Store Connect). */
 export const REMOVE_ADS_ID = 'com.cnmbuckstudios.racknroll.removeads';
 /** Shown until the App Store's own (local) price has loaded. */

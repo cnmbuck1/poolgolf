@@ -16,7 +16,10 @@
     </style>
 
 
+    <!-- Launch screen: Android 12 and later show the app icon on this colour; older phones show the splash image -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">#163222</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

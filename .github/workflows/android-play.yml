@@ -1,0 +1,102 @@
+# Builds the Android app for Google Play. Run it from the Actions tab: "Android build" → Run workflow.
+# Needs four repository secrets (Settings → Secrets and variables → Actions), see docs/GOOGLE_PLAY.md:
+#   ANDROID_KEYSTORE_BASE64    the upload key file, as text
+#   ANDROID_KEYSTORE_PASSWORD  its password
+#   ANDROID_KEY_ALIAS          the key's name inside it
+#   ANDROID_KEY_PASSWORD       the key's password
+# Optional, to send builds straight to Google Play instead of downloading them:
+#   PLAY_SERVICE_ACCOUNT_JSON  a Google Play service account's JSON key
+name: Android build
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Google Play track (testing tracks get test ads; production gets real ones)'
+        type: choice
+        options: [internal, alpha, production]
+        default: alpha
+
+concurrency:
+  group: android-play
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Check the secrets are set
+        id: secrets
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 isn't set (see docs/GOOGLE_PLAY.md). Building unsigned to check the app compiles; Google Play won't accept this build."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
+          [ -n "$PLAY" ] && echo "upload=true" >> "$GITHUB_OUTPUT" || echo "upload=false" >> "$GITHUB_OUTPUT"
+
+      - name: Build the game
+        env:
+          # Only production builds show real ads, so testers can never tap one
+          VITE_REAL_ADS: ${{ inputs.track == 'production' && '1' || '0' }}
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Build the app bundle (for Google Play) and an APK (to install by hand)
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+            printf '%s' "$KEYSTORE" | base64 -d > "$ANDROID_KEYSTORE_FILE"
+          fi
+          export VERSION_NAME=$(node -p "require('./package.json').version")
+          # Each upload needs a higher version code than the last
+          export VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon bundleRelease assembleRelease
+          mkdir -p "$RUNNER_TEMP/out"
+          cp app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/out/rack-and-roll-$VERSION_NAME-$VERSION_CODE.aab"
+          cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/out/rack-and-roll-$VERSION_NAME-$VERSION_CODE.apk"
+          rm -f "$RUNNER_TEMP/upload.jks"
+          echo "Built version $VERSION_NAME (version code $VERSION_CODE) for the **${{ inputs.track }}** track. Download it under Artifacts below." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rack-and-roll-android
+          path: ${{ runner.temp }}/out/
+
+      - name: Send to Google Play
+        if: steps.secrets.outputs.signed == 'true' && steps.secrets.outputs.upload == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.cnmbuckstudios.rackandroll
+          releaseFiles: ${{ runner.temp }}/out/*.aab
+          track: ${{ inputs.track }}
+          # A draft: it goes out when you press "Review release" and "Start rollout" in the Play Console
+          status: draft

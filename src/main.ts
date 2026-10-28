@@ -1,5 +1,6 @@
 import './style.css';
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
 import { ALL_COURSES, COURSE, CourseDef, COURSES, EXPERT, inSeason, LevelDef, LEVELS, SEASONAL, setCourse } from './levels';
@@ -23,7 +24,7 @@ import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
 import { noteRound, ORDER, setSkill, Skill, skill, SKILLS, snooze } from './difficulty';
-import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded } from './ads';
+import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded, storeWords } from './ads';
 import { AD_COINS } from './ads.config';
 import { bookReminder, canRemind, maybeAskForRating, remindersOn, setReminders } from './nudges';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track, watchErrors } from './telemetry';
@@ -717,7 +718,7 @@ function offerReminder() {
   b.onclick = async () => {
     b.disabled = true;
     const on = await setReminders(true, true, streak());
-    b.textContent = on ? "✓ We'll remind you at 6 pm" : 'Notifications are off for Rack & Roll (turn them on in iPhone Settings)';
+    b.textContent = on ? "✓ We'll remind you at 6 pm" : `Notifications are off for Rack & Roll (turn them on in ${storeWords.settings})`;
   };
   $('hole-coins').append(b);
 }
@@ -757,7 +758,7 @@ function adsSettingsHtml() {
         buy.disabled = false;
         // Said on the panel itself (a toast would be hidden behind it)
         if (result === 'done') { sfx.collect(); toast('Ads removed. Thank you!', 'good', 2000); openSettings(); }
-        else if (result === 'unavailable') note(`Remove ads isn't available from the App Store right now. Please try again later.${detail ? ` (${detail})` : ''}`);
+        else if (result === 'unavailable') note(`Remove ads isn't available from ${storeWords.store} right now. Please try again later.${detail ? ` (${detail})` : ''}`);
         else if (result === 'failed') note(`The purchase didn't go through. Please try again later.${detail ? ` (${detail})` : ''}`);
       };
     }
@@ -768,7 +769,7 @@ function adsSettingsHtml() {
       rest.disabled = false;
       if (ok) { toast('Purchase restored: ads removed', 'good', 2000); openSettings(); return; }
       const m = document.getElementById('noads-msg');
-      if (m) { m.textContent = 'No purchases to restore on this Apple ID.'; m.classList.remove('bad'); }
+      if (m) { m.textContent = `No purchases to restore on this ${storeWords.account}.`; m.classList.remove('bad'); }
     };
     const priv = document.getElementById('btn-adprivacy');
     if (priv) priv.onclick = () => void privacyChoices();
@@ -1032,6 +1033,17 @@ function sheet(title: string, html: string) {
 }
 click('btn-sheet-close', () => { refreshTitle(); show('screen-title'); });
 
+// Android's back button: close the open panel, pause a hole, or leave the game from the main menu
+if (Capacitor.getPlatform() === 'android') {
+  void App.addListener('backButton', () => {
+    const open = (id: string) => !$(id).classList.contains('hidden');
+    if (open('screen-sheet')) $('btn-sheet-close').click();
+    else if (open('screen-pause')) $('btn-resume').click();
+    else if (phase === 'play' && !demo) pause();
+    else if (open('screen-title')) void App.minimizeApp();
+  });
+}
+
 /** Each course's badge and colours for the course picker. */
 const COURSE_LOOK: Record<string, { icon: string; bg: string; badge?: string }> = {
   candy: { icon: '🍭', bg: 'linear-gradient(160deg, #ff8fc8, #c35c9a 55%, #5fae8a)' },
@@ -1190,7 +1202,7 @@ function openSettings() {
       if (b.dataset.set === 'remind') {
         void setReminders(!remindersOn(), isDoneToday(dailyFor(today())), streak()).then((on) => {
           b.setAttribute('aria-pressed', String(on));
-          if (!on && b.dataset.want === '1') toast('Notifications are off for Rack & Roll: turn them on in iPhone Settings', 'bad', 2600);
+          if (!on && b.dataset.want === '1') toast(`Notifications are off for Rack & Roll: turn them on in ${storeWords.settings}`, 'bad', 2600);
         });
         b.dataset.want = remindersOn() ? '0' : '1';
         return;

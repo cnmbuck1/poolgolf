@@ -10,10 +10,17 @@
 import { Capacitor } from '@capacitor/core';
 import { AdMob, AdmobConsentStatus, InterstitialAdPluginEvents, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { NativePurchases, PURCHASE_TYPE } from '@capgo/native-purchases';
-import { AD_COINS_PER_DAY, AD_UNITS, ADS_TESTING, INTERSTITIAL_FROM_SESSION, INTERSTITIAL_GAP_S, REMOVE_ADS_ID, REMOVE_ADS_PRICE } from './ads.config';
+import { AD_COINS_PER_DAY, AD_UNITS, AD_UNITS_ANDROID, ADS_TESTING, INTERSTITIAL_FROM_SESSION, INTERSTITIAL_GAP_S, REMOVE_ADS_ID, REMOVE_ADS_PRICE } from './ads.config';
 import { setAudioPaused } from './audio';
 
 const native = Capacitor.isNativePlatform();
+const android = Capacitor.getPlatform() === 'android';
+const units = android ? AD_UNITS_ANDROID : AD_UNITS;
+
+/** Words for the store and the phone, for messages in Settings. */
+export const storeWords = android
+  ? { store: 'Google Play', account: 'Google account', settings: "your phone's Settings" }
+  : { store: 'the App Store', account: 'Apple ID', settings: 'iPhone Settings' };
 const fake = (() => { try { return new URLSearchParams(location.search).has('fakeads') || localStorage.getItem('poolgolf.fakeads') === '1'; } catch { return false; } })();
 const get = (k: string) => { try { return localStorage.getItem(`poolgolf.${k}`); } catch { return null; } };
 const set = (k: string, v: string) => { try { localStorage.setItem(`poolgolf.${k}`, v); } catch { /* ignore */ } };
@@ -37,11 +44,13 @@ let lastReason = 'none yet this launch';
 let ready: Promise<boolean> | null = null;
 /**
  * Test ads instead of real ones: always while ADS_TESTING is on, and in any copy that didn't come from the App
- * Store (TestFlight or Xcode), so testers can never tap a real ad. Settled when ads start.
+ * Store (TestFlight or Xcode), so testers can never tap a real ad. On Android, which can't tell, only builds
+ * made for the Play Store's production track get real ads. Settled when ads start.
  */
 let testAds = ADS_TESTING;
 async function decideTestAds() {
   if (testAds) return;
+  if (android) { testAds = import.meta.env.VITE_REAL_ADS !== '1' || units.rewarded.startsWith('ca-app-pub-3940256099942544/'); return; }
   try {
     const { appTransaction } = await NativePurchases.getAppTransaction();
     testAds = appTransaction.environment !== 'Production';
@@ -71,10 +80,10 @@ function start() {
 
 let loadError = '';
 async function loadInterstitial() {
-  try { await AdMob.prepareInterstitial({ adId: AD_UNITS.interstitial, isTesting: testAds }); interstitialLoaded = true; loadError = ''; } catch (e) { interstitialLoaded = false; loadError = String((e as Error)?.message ?? e).slice(0, 120); }
+  try { await AdMob.prepareInterstitial({ adId: units.interstitial, isTesting: testAds }); interstitialLoaded = true; loadError = ''; } catch (e) { interstitialLoaded = false; loadError = String((e as Error)?.message ?? e).slice(0, 120); }
 }
 async function loadRewarded() {
-  try { await AdMob.prepareRewardVideoAd({ adId: AD_UNITS.rewarded, isTesting: testAds }); rewardedLoaded = true; } catch { rewardedLoaded = false; }
+  try { await AdMob.prepareRewardVideoAd({ adId: units.rewarded, isTesting: testAds }); rewardedLoaded = true; } catch { rewardedLoaded = false; }
 }
 
 /**
