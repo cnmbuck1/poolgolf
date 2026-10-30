@@ -1028,8 +1028,9 @@ function toTitle() {
 function sheet(title: string, html: string) {
   $('sheet-title').textContent = title;
   $('sheet-body').innerHTML = html;
-  $('sheet-body').parentElement!.scrollTop = 0; // a new sheet starts at the top, title and close button showing
   show('screen-sheet');
+  // A new sheet starts at the top, title and close button showing (only takes once the sheet is on screen)
+  $('sheet-body').parentElement!.scrollTop = 0;
 }
 click('btn-sheet-close', () => { refreshTitle(); show('screen-title'); });
 
