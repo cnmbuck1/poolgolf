@@ -124,7 +124,7 @@ consent form in the EU/UK). Purchases are handled by Apple and aren't collected 
 > Rack & Roll is a single-player and pass-and-play mini golf game. No login is needed. Anonymous play
 > statistics (which can be turned off in Settings) and optional feedback are sent to the developer to
 > improve hole difficulty. The app shows Google AdMob ads (rewarded videos the player chooses to watch, and
-> occasional interstitials halfway through and at the end of a course) and offers a non-consumable "Remove ads" in-app purchase, which
+> occasional interstitials halfway through and at the end of a course) and offers a non-consumable "Remove ads" in-app purchase (which also unlocks the Cnmbuck Orb ball in Cues & Balls), which
 > can be restored from Settings → Restore purchases. To test it, use a Sandbox account.
 
 ## Screenshots and preview video

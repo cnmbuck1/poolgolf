@@ -13,7 +13,7 @@ import { HoleRecorder, sampleShot, Shot } from './replay';
 import { execute, hasMovers, Opponent, OPPONENTS, Planner } from './ai';
 import { bestToday, Daily, dailyCourse, dailyFor, dailyName, dateLabel, isDoneToday, recordDaily, streak, today, untilTomorrow } from './daily';
 import { checkRule, courseName, isDone, markDone, ruleText, Trick, TRICKS } from './tricks';
-import { ACHIEVEMENTS, addCoins, buy, coins, dailyTopUp, earn, holeReward, isOwned, itemInfo, ItemKey, roundReward, TOP_UP } from './wallet';
+import { ACHIEVEMENTS, addCoins, buy, coins, dailyTopUp, earn, grant, holeReward, isOwned, itemInfo, ItemKey, roundReward, TOP_UP } from './wallet';
 import { setAudioPaused, setMusic, setRolling, setSound, sfx, unlockAudio } from './audio';
 import { playMusic } from './music';
 import { PLAYTEST_URL, TESTER_CODE_HASH } from './playtest.config';
@@ -24,7 +24,7 @@ import * as P from './progress';
 import { COACH_STEPS, COURSE_INTROS } from './coach';
 import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareChallenge } from './challenge';
 import { noteRound, ORDER, setSkill, Skill, skill, SKILLS, snooze } from './difficulty';
-import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded, storeWords } from './ads';
+import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded, storeWords, onAdsRemoved } from './ads';
 import { AD_COINS } from './ads.config';
 import { bookReminder, canRemind, maybeAskForRating, remindersOn, setReminders } from './nudges';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track, watchErrors } from './telemetry';
@@ -136,8 +136,11 @@ function applySkill() {
   setStrictCup(d.strictCup);
 }
 view3d.setOverview(settings.top);
-// Designs that came with a trophy after it was won (the Cnmbuck Orb joined Globetrotter later)
+// Designs that came with a trophy after it was won, and the Cnmbuck Orb for anyone who already finished Jolly
+// Roger or bought Remove ads (it comes with both)
 for (const t of P.TROPHIES) if (t.item && P.trophyDone(t)) earn(t.item);
+if (P.roundDone('pirate')) earn('jolly');
+onAdsRemoved(() => grant('b:cnmbuck'));
 view3d.setBall(localGet('ball') ?? 'cue');
 view3d.setCue(localGet('cue') ?? 'classic');
 
@@ -638,6 +641,7 @@ function finishHole(score: number, pickedUp = false) {
     if (d <= 0) maybeAskForRating(stat('rounds'));
     if (!daily && !demo) { const next = noteRound(d); if (next) setTimeout(() => offerLevel(next), 1600); }
     if (COURSE.id === 'space') unlocked.push(earn('lunar') ?? '');
+    if (COURSE.id === 'pirate') unlocked.push(earn('jolly') ?? '');
   }
   if (daily?.kind === 'hole') {
     // Daily challenge: meet the day's goal for the daily coins and to keep the streak going
@@ -759,7 +763,7 @@ function adsSettingsHtml() {
         const { result, detail } = await buyRemoveAds();
         buy.disabled = false;
         // Said on the panel itself (a toast would be hidden behind it)
-        if (result === 'done') { sfx.collect(); toast('Ads removed. Thank you!', 'good', 2000); openSettings(); }
+        if (result === 'done') { sfx.collect(); toast('Ads removed, and the Cnmbuck Orb is yours. Thank you!', 'good', 2600); openSettings(); }
         else if (result === 'unavailable') note(`Remove ads isn't available from ${storeWords.store} right now. Please try again later.${detail ? ` (${detail})` : ''}`);
         else if (result === 'failed') note(`The purchase didn't go through. Please try again later.${detail ? ` (${detail})` : ''}`);
       };
@@ -769,7 +773,7 @@ function adsSettingsHtml() {
       rest.disabled = true;
       const ok = await restorePurchases();
       rest.disabled = false;
-      if (ok) { toast('Purchase restored: ads removed', 'good', 2000); openSettings(); return; }
+      if (ok) { toast('Purchase restored: ads removed and the Cnmbuck Orb back', 'good', 2400); openSettings(); return; }
       const m = document.getElementById('noads-msg');
       if (m) { m.textContent = `No purchases to restore on this ${storeWords.account}.`; m.classList.remove('bad'); }
     };
@@ -777,8 +781,8 @@ function adsSettingsHtml() {
     if (priv) priv.onclick = () => void privacyChoices();
   });
   return `<div class="ads-box">${adsRemoved()
-    ? '<p class="noads-done">✓ Ads removed. Thank you for supporting Rack &amp; Roll!</p>'
-    : '<button class="btn-gold small" id="btn-noads">Remove ads · <b>…</b></button><p id="noads-msg" class="noads-msg"></p><p>Turns off the full-screen ads during and after courses for good. Ads you choose to watch for coins stay available.</p>'}
+    ? '<p class="noads-done">✓ Ads removed and the Cnmbuck Orb is yours (Cues &amp; Balls). Thank you for supporting Rack &amp; Roll!</p>'
+    : '<button class="btn-gold small" id="btn-noads">Remove ads + Cnmbuck Orb · <b>…</b></button><p id="noads-msg" class="noads-msg"></p><p>Turns off the full-screen ads during and after courses for good, and adds the <b>Cnmbuck Orb</b>, the studio\'s glowing signature ball. Ads you choose to watch for coins stay available.</p>'}
     <div class="ads-row"><button class="btn" id="btn-restore">Restore purchases</button>${native ? '<button class="btn" id="btn-adprivacy">Ad privacy choices</button>' : ''}</div></div>`;
 }
 
@@ -1327,7 +1331,8 @@ function openGear() {
   const balls = BALLS.filter((b) => !b.signature).map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)).join('');
   // The studio's own ball gets a card of its own at the top
   const signature = BALLS.filter((b) => b.signature).map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)
-    .replace('class="gear ball', 'class="gear ball signature').replace('</span>', '</span><small>The Cnmbuck Studios ball. Glows, trails light and rolls in every Cnmbuck game.</small>')).join('');
+    .replace('class="gear ball', 'class="gear ball signature').replace('</span>', '</span><small>The Cnmbuck Studios ball. Glows, trails light and rolls in every Cnmbuck game.</small>')
+    .replace(/(🔒 [^<]*)<\/em>/, canPurchase ? '$1 · or comes with Remove ads</em>' : '$1</em>')).join('');
   const cues = CUES.map((c) => gearCard(`c:${c.id}`, preview(`c:${c.id}`, () => cuePreview(c.id)), c.id === cueId)).join('');
   sheet('Cues & Balls', `<div class="gear-top"><p id="gear-msg">Earn coins on every hole, then unlock new balls and cues. Some can only be won.</p><b class="wallet"><i class="coin"></i><span id="gear-coins">${coins()}</span></b>${coinAdButton(openGear)}</div>
     <h3 class="gear-head">SIGNATURE BALL</h3>${signature}
@@ -1340,7 +1345,12 @@ function openGear() {
       const k = b.dataset.item as ItemKey;
       const { name, price, achievement } = itemInfo(k);
       if (!isOwned(k)) {
-        if (achievement) { sfx.ui(); msg(`${name}: ${achievement.toLowerCase()} to unlock it.`, true); return; }
+        if (achievement) {
+          sfx.ui();
+          const how = achievement[0].toLowerCase() + achievement.slice(1);
+          msg(k === 'b:cnmbuck' && canPurchase ? `${name}: ${how} to win it, or get it with Remove ads in Settings.` : `${name}: ${how} to unlock it.`, true);
+          return;
+        }
         // First tap asks, second tap buys
         if (!b.classList.contains('confirm')) {
           sfx.ui();

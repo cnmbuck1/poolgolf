@@ -31,6 +31,10 @@ export const adsAvailable = native || fake;
 export const canPurchase = native || fake;
 /** The player bought Remove ads (kept in saves, and re-checked with the App Store at launch). */
 export const adsRemoved = () => get('noads') === '1';
+/** Remove ads also brings the Cnmbuck Orb: main.ts listens, so a purchase, a restore or the launch check all grant it. */
+const removedListeners: (() => void)[] = [];
+export function onAdsRemoved(fn: () => void) { removedListeners.push(fn); if (adsRemoved()) fn(); }
+function markRemoved() { set('noads', '1'); for (const fn of removedListeners) fn(); }
 
 // App launches, so a new player gets a few sessions without any full-screen ads
 const session = Number(get('sessions') ?? 0) + 1;
@@ -209,7 +213,7 @@ export async function removeAdsPrice() {
  * doesn't offer the product (not set up yet, or no Paid Apps agreement), `failed` otherwise, with Apple's message.
  */
 export async function buyRemoveAds(): Promise<{ result: 'done' | 'cancelled' | 'unavailable' | 'failed'; detail?: string }> {
-  if (fake && !native) { set('noads', '1'); return { result: 'done' }; }
+  if (fake && !native) { markRemoved(); return { result: 'done' }; }
   try {
     const { products } = await NativePurchases.getProducts({ productIdentifiers: [REMOVE_ADS_ID], productType: PURCHASE_TYPE.INAPP });
     if (!products.length) return { result: 'unavailable' };
@@ -218,7 +222,7 @@ export async function buyRemoveAds(): Promise<{ result: 'done' | 'cancelled' | '
   }
   try {
     const t = await NativePurchases.purchaseProduct({ productIdentifier: REMOVE_ADS_ID, productType: PURCHASE_TYPE.INAPP });
-    if (t?.productIdentifier === REMOVE_ADS_ID || t?.transactionId) { set('noads', '1'); return { result: 'done' }; }
+    if (t?.productIdentifier === REMOVE_ADS_ID || t?.transactionId) { markRemoved(); return { result: 'done' }; }
     return { result: 'failed' };
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
@@ -230,7 +234,7 @@ export async function buyRemoveAds(): Promise<{ result: 'done' | 'cancelled' | '
 async function checkPurchase() {
   try {
     const { purchases } = await NativePurchases.getPurchases({ onlyCurrentEntitlements: true });
-    if (purchases.some((p) => p.productIdentifier === REMOVE_ADS_ID)) set('noads', '1');
+    if (purchases.some((p) => p.productIdentifier === REMOVE_ADS_ID)) markRemoved();
     return adsRemoved();
   } catch { return adsRemoved(); }
 }

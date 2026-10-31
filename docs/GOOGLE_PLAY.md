@@ -62,7 +62,7 @@ Builds for testing tracks always show **test ads**, so testers can tap them safe
 Play Console → **Monetize with Play → Products → In-app products → Create product** (the page only opens once a
 build is uploaded):
 - Product ID: **`com.cnmbuckstudios.racknroll.removeads`**
-- Name: `Remove ads`. Description: `Turns off the full-screen ads for good.`
+- Name: `Remove ads`. Description: `No full-screen ads, plus the Cnmbuck Orb ball.`
 - Price: **$2.99** (Google converts it for other countries). **Save**, then **Activate**.
 
 Testers on the closed track buy it for real unless they're **licence testers**: **Settings → License testing** →

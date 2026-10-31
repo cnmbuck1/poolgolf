@@ -133,6 +133,8 @@ export function takeEight(course: string, hole: string) {
 export function bump(counter: string, n = 1) { s.counts[counter] = (s.counts[counter] ?? 0) + n; save(); }
 const count = (k: string) => s.counts[k] ?? 0;
 export function noteLaunch(by: string) { if (!s.launches.includes(by)) { s.launches.push(by); save(); } }
+/** Whether a full round of this course has ever been finished. */
+export const roundDone = (course: string) => s.rounds.includes(course);
 export function noteRound(course: string) { if (!s.rounds.includes(course)) { s.rounds.push(course); save(); } }
 
 export interface Trophy {
@@ -162,7 +164,7 @@ export const TROPHIES: Trophy[] = [
   { id: 'eight1', name: 'Lucky eight', desc: 'Find a golden 8-ball', coins: 15, progress: () => [Math.min(1, eightsFound()), 1] },
   { id: 'eight12', name: 'Treasure hunter', desc: 'Find 12 golden 8-balls', coins: 100, progress: () => [Math.min(12, eightsFound()), 12] },
   { id: 'eightAll', name: 'Golden touch', desc: `Find all ${EIGHT_TOTAL} golden 8-balls`, coins: 300, item: 'allEights', progress: () => [eightsFound(), EIGHT_TOTAL] },
-  { id: 'globe', name: 'Globetrotter', desc: 'Finish a round on every course', coins: 150, item: 'globe', progress: () => [s.rounds.filter((c) => COURSES.some((k) => k.id === c)).length, COURSES.length] },
+  { id: 'globe', name: 'Globetrotter', desc: 'Finish a round on every course', coins: 150, progress: () => [s.rounds.filter((c) => COURSES.some((k) => k.id === c)).length, COURSES.length] },
   { id: 'flyer', name: 'Frequent flyer', desc: 'Get launched by a ramp, trampoline, cannon, seal, rocket and geyser', coins: 150,
     progress: () => [LAUNCH_KINDS.filter((k) => s.launches.includes(k)).length, LAUNCH_KINDS.length] },
   { id: 'chutes', name: 'Snakes & ladders', desc: 'Ride 20 chutes, slides, ladders or lifts', coins: 60, progress: () => [Math.min(20, count('chutes') + count('ladders')), 20] },
