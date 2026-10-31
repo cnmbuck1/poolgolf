@@ -703,7 +703,8 @@ function offerDouble(lines: [string, number][]) {
   b.onclick = async () => {
     unlockAudio();
     b.disabled = true;
-    if (!(await showRewarded())) { b.disabled = false; toast('Watch the whole ad to double your coins', '', 1800); return; }
+    const ad = await showRewarded();
+    if (ad !== 'earned') { b.disabled = false; toast(ad === 'unavailable' ? NO_AD : 'Watch the whole ad to double your coins', '', 2200); return; }
     addCoins(earned);
     sfx.collect();
     const done = document.createElement('span');
@@ -729,6 +730,9 @@ function offerReminder() {
   $('hole-coins').append(b);
 }
 
+/** Said when Google has no ad to show (no connection, or none available for a moment). */
+const NO_AD = 'No ad is ready right now. Try again in a moment.';
+
 /** A button for coins from an ad (in the shop and on Vs Computer), a few times a day. `after` refreshes the screen. */
 function coinAdButton(after: () => void) {
   if (!adsAvailable || coinAdsLeft(today()) <= 0) return '';
@@ -738,7 +742,8 @@ function coinAdButton(after: () => void) {
     b.onclick = async () => {
       unlockAudio();
       b.disabled = true;
-      if (!(await showRewarded())) { b.disabled = false; toast('Watch the whole ad to earn the coins', '', 1800); return; }
+      const ad = await showRewarded();
+      if (ad !== 'earned') { b.disabled = false; toast(ad === 'unavailable' ? NO_AD : 'Watch the whole ad to earn the coins', '', 2200); return; }
       addCoins(AD_COINS);
       noteCoinAd(today());
       sfx.collect();

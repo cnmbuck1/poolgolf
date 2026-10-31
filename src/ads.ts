@@ -142,19 +142,20 @@ function fakeAd(label: string, seconds: number) {
   });
 }
 
-/**
- * A rewarded ad the player asked for. Resolves true if they watched it through (grant the reward then),
- * false if it wasn't available or they closed it early.
- */
-export async function showRewarded(): Promise<boolean> {
-  if (fake && !native) return fakeAd('Rewarded ad', 3);
-  if (!(await start())) return false;
-  if (!rewardedLoaded) await loadRewarded();
-  if (!rewardedLoaded) return false;
+/** How a rewarded ad went: watched through (grant the reward), closed early, or none could be shown. */
+export type RewardResult = 'earned' | 'closed' | 'unavailable';
+
+/** A rewarded ad the player asked for. */
+export async function showRewarded(): Promise<RewardResult> {
+  if (fake && !native) return (await fakeAd('Rewarded ad', 3)) ? 'earned' : 'closed';
+  if (!(await start())) return 'unavailable';
+  // Not ready yet (a first launch, or Google had none a moment ago): try twice more, a few seconds each at most
+  for (let i = 0; i < 2 && !rewardedLoaded; i++) await Promise.race([loadRewarded(), new Promise((r) => setTimeout(r, 4000))]);
+  if (!rewardedLoaded) return 'unavailable';
   rewardedLoaded = false;
   const earned = await present('rewarded');
   void loadRewarded();
-  return earned;
+  return earned ? 'earned' : 'closed';
 }
 
 /** Halfway through a course or at the end: maybe a full-screen ad (see the rules at the top). Resolves when it's closed. */
