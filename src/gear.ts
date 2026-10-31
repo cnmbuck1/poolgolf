@@ -93,6 +93,12 @@ export interface BallDesign {
   bump?: 'dimples' | 'pebble';
   /** Coins to unlock (free when missing; some are earned through achievements instead, see wallet.ts). */
   price?: number;
+  /** Paints what glows (an emissive map); the rest of the ball stays unlit by it. */
+  glow?: Paint;
+  /** A hand-drawn 72x72 menu icon instead of the shaded front of the sphere map. */
+  icon?: Paint;
+  /** The Cnmbuck Studios ball: it carries the rim glow, ground glow and light trail in the game (see render3d.ts). */
+  signature?: boolean;
 }
 
 const S = sphere;
@@ -239,7 +245,59 @@ export const BALLS: BallDesign[] = [
     id: 'neon', name: 'Neon Glow', price: 2500, roughness: 0.3, emissive: 0.9,
     paint: S((x, y, z) => mix(hex(0x2aff8a), hex(0x2ad8ff), clamp01(0.5 + 0.5 * Math.sin(y * 6 + Math.atan2(z, x) * 2)))),
   },
+  {
+    // The Cnmbuck Studios ball, the same in every Cnmbuck game: deep blue glass with a glowing S swoosh
+    id: 'cnmbuck', name: 'Cnmbuck Orb', signature: true, roughness: 0.08, clearcoat: 1, emissive: 1.8,
+    paint: S((x, y, z) => {
+      const s = swoosh(x, y, z);
+      // Deep navy, brighter toward the top like the logo's glass
+      let c = mix(hex(0x020818), hex(0x0c3486), clamp01(0.45 + 0.55 * y + 0.12 * wob(x, y, z, 3)));
+      c = mix(c, hex(0x1a8cff), line(s, 0.32) * 0.65);
+      c = mix(c, hex(0x38d4ff), line(s, 0.17));
+      return mix(c, hex(0xe6fbff), line(s, 0.07));
+    }),
+    glow: S((x, y, z) => {
+      const s = swoosh(x, y, z);
+      return mix(mix([0, 0, 0], hex(0x1a9cff), line(s, 0.22)), hex(0xcff6ff), line(s, 0.08));
+    }),
+    icon: (g, w, h) => {
+      const cx = w / 2, cy = h / 2, r = w * 0.4;
+      // Rim light: blue on the left, orange on the right, like the logo
+      const ring = g.createLinearGradient(cx - r, 0, cx + r, 0);
+      ring.addColorStop(0, '#2aa8ff'); ring.addColorStop(0.5, '#3a6aff'); ring.addColorStop(1, '#ffa21a');
+      g.shadowColor = 'rgba(60, 170, 255, 0.9)'; g.shadowBlur = w * 0.08;
+      g.fillStyle = ring; g.beginPath(); g.arc(cx, cy, r + w * 0.035, 0, Math.PI * 2); g.fill();
+      g.shadowBlur = 0;
+      const body = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
+      body.addColorStop(0, '#2a62d8'); body.addColorStop(0.55, '#0a2466'); body.addColorStop(1, '#020a1e');
+      g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+      // Warm glow on the right edge
+      const warm = g.createRadialGradient(cx + r * 0.9, cy + r * 0.1, 0, cx + r * 0.9, cy + r * 0.1, r * 0.9);
+      warm.addColorStop(0, 'rgba(255, 150, 30, 0.75)'); warm.addColorStop(1, 'rgba(255, 150, 30, 0)');
+      g.save(); g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+      g.fillStyle = warm; g.fillRect(0, 0, w, h);
+      // The S swoosh: a glowing band from top left, round the middle, out at the bottom right
+      g.lineCap = 'round';
+      const sPath = () => { g.beginPath(); g.moveTo(cx - r * 0.75, cy - r * 0.55); g.bezierCurveTo(cx - r * 0.1, cy - r * 1.05, cx + r * 0.25, cy - r * 0.35, cx - r * 0.05, cy + r * 0.05); g.bezierCurveTo(cx - r * 0.35, cy + r * 0.45, cx + r * 0.15, cy + r * 1.05, cx + r * 0.85, cy + r * 0.55); };
+      g.shadowColor = '#38d4ff'; g.shadowBlur = w * 0.1;
+      g.strokeStyle = 'rgba(40, 170, 255, 0.85)'; g.lineWidth = r * 0.36; sPath(); g.stroke();
+      g.shadowBlur = 0;
+      g.strokeStyle = '#7fe6ff'; g.lineWidth = r * 0.17; sPath(); g.stroke();
+      g.strokeStyle = '#f2fdff'; g.lineWidth = r * 0.06; sPath(); g.stroke();
+      // Highlight
+      const hi = g.createRadialGradient(cx - r * 0.42, cy - r * 0.5, 0, cx - r * 0.42, cy - r * 0.5, r * 0.3);
+      hi.addColorStop(0, 'rgba(255,255,255,0.95)'); hi.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = hi; g.fillRect(0, 0, w, h);
+      g.restore();
+    },
+  },
 ];
+
+/** The S swoosh round the Cnmbuck Orb: signed distance-ish from a seam that weaves round the ball. */
+function swoosh(x: number, y: number, z: number) {
+  const a = Math.atan2(z, x);
+  return y - 0.6 * Math.sin(2 * a) * Math.sqrt(1 - y * y) ** 0.25;
+}
 
 const ballCache = new Map<string, THREE.MeshPhysicalMaterial>();
 /** A ready-to-use material for a ball design (built once). */
@@ -252,7 +310,7 @@ export function ballMaterial(id: string) {
     map, roughness: d.roughness ?? 0.3, metalness: d.metalness ?? 0, clearcoat: d.clearcoat ?? 0, clearcoatRoughness: 0.08,
     sheen: d.sheen ?? 0, sheenRoughness: 0.6, sheenColor: new THREE.Color(0xf0ffb0),
   });
-  if (d.emissive) { m.emissiveMap = map; m.emissive.setHex(0xffffff); m.emissiveIntensity = d.emissive; }
+  if (d.emissive) { m.emissiveMap = d.glow ? texture(canvas(512, 256, d.glow)) : map; m.emissive.setHex(0xffffff); m.emissiveIntensity = d.emissive; }
   if (d.bump) {
     m.bumpMap = texture(canvas(512, 256, d.bump === 'dimples' ? dimples : pebble));
     m.bumpScale = d.bump === 'dimples' ? 1.4 : 0.6;
@@ -283,6 +341,7 @@ const pebble: Paint = (g, w, h) => {
 /** A small round preview of a ball for the menu (the front of the sphere map, shaded). */
 export function ballPreview(id: string) {
   const d = BALLS.find((b) => b.id === id) ?? BALLS[0];
+  if (d.icon) return toUrl(canvas(144, 144, d.icon));
   const src = canvas(256, 128, d.paint);
   return toUrl(canvas(72, 72, (g) => {
     g.save();

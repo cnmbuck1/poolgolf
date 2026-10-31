@@ -19,6 +19,7 @@ export const ACHIEVEMENTS = {
   lunar: { item: 'b:galaxy' as ItemKey, label: 'Finish a round of Lunar Links' },
   allEights: { item: 'b:golden8' as ItemKey, label: 'Find all 36 golden 8-balls' },
   stars54: { item: 'c:master' as ItemKey, label: 'Earn 54 hole stars' },
+  globe: { item: 'b:cnmbuck' as ItemKey, label: 'Finish a round on all six courses' },
 };
 export type Achievement = keyof typeof ACHIEVEMENTS;
 

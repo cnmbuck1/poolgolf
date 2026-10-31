@@ -497,6 +497,14 @@ h2 { margin: 0; font-family: var(--logo); font-weight: 900; font-size: 34px; lin
 .gear-head { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--edge); font-family: var(--display); font-size: 14px; letter-spacing: 0.16em; color: var(--gold); }
 .gear-balls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .gear-cues { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.gear.signature { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 14px; justify-items: start; text-align: left; width: 100%; padding: 10px 14px;
+  border: 1px solid transparent; background: linear-gradient(#0d1a33, #0d1a33) padding-box, linear-gradient(100deg, #2ab4ff, #3a6aff 50%, #ff9a1a) border-box;
+  box-shadow: 0 0 18px rgba(42, 180, 255, 0.25), 0 0 18px rgba(255, 154, 26, 0.12) inset; }
+.gear.signature img { grid-row: 1 / 4; width: 72px; height: 72px; align-self: center; }
+.gear.signature span { font-size: 16px; letter-spacing: 0.08em; background: linear-gradient(90deg, #8fe0ff, #ffffff 55%, #ffb44a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gear.signature small { color: var(--muted); font-size: 12px; line-height: 1.3; }
+.gear.signature em { text-align: left; }
+.gear.signature.on { box-shadow: 0 0 0 2px rgba(246, 189, 71, 0.45), 0 0 22px rgba(42, 180, 255, 0.35); }
 .gear {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   padding: 8px 6px; border-radius: 12px;

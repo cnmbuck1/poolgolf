@@ -7,7 +7,8 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { Animated } from './art';
 import { buildCourse, Course, disposeGroup, HH, HW, to3 } from './course';
 import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR } from './garden';
-import { ballMaterial, cueMaterials } from './gear';
+import { ballMaterial, BALLS, cueMaterials } from './gear';
+import { SignatureFx } from './signature';
 import { getModels } from './models';
 import { Theme } from './levels';
 import { BALL_R, CUP_R, deckRoll, heightNow, routeTarget, spinPath, World } from './physics';
@@ -67,6 +68,8 @@ export class Renderer3D {
   private level: World['level'] | null = null;
   private ball: THREE.Mesh;
   private ballGhost: THREE.Mesh;
+  /** The Cnmbuck Orb's glow and light trail (shown only with that ball). */
+  private signature = new SignatureFx();
   private ballShadowFake: THREE.Mesh;
   private dots: THREE.InstancedMesh;
   private dotRims: THREE.InstancedMesh;
@@ -162,6 +165,7 @@ export class Renderer3D {
     }));
     this.ballGhost.renderOrder = 4;
     this.scene.add(this.ballGhost);
+    this.scene.add(this.signature.group);
     // Soft contact shadow so the ball sits on the turf even where the shadow map is blurry
     this.ballShadowFake = new THREE.Mesh(
       new THREE.CircleGeometry(BALL_R * 1.1, 24).rotateX(-Math.PI / 2),
@@ -296,7 +300,10 @@ export class Renderer3D {
   /** Switch to a cue design from the Cues & Balls menu. */
   setCue(id: string) { this.buildCue(id); }
   /** Switch to a ball design from the Cues & Balls menu. */
-  setBall(id: string) { this.ball.material = ballMaterial(id); }
+  setBall(id: string) {
+    this.ball.material = ballMaterial(id);
+    this.signature.on = !!BALLS.find((b) => b.id === id)?.signature;
+  }
 
   // ---------- per hole ----------
 
@@ -703,6 +710,8 @@ export class Renderer3D {
     this.ballGhost.visible = this.ball.visible && !fx.sink;
     this.ballGhost.position.copy(this.ball.position);
     this.ballShadowFake.position.copy(to3(bx, by)).setY(ground + 0.6);
+    if (this.signature.on) this.signature.setScale(this.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)));
+    this.signature.update(this.ball.position, fx.sink ? this.h(world.level.cup[0], world.level.cup[1]) : ground, world.moving, this.ball.visible, dt);
     const sh = 1 + (this.hop.y + (b.z ?? 0)) / 40;
     this.ballShadowFake.scale.set(sh, 1, sh);
     (this.ballShadowFake.material as THREE.MeshBasicMaterial).opacity = 0.55 / sh;

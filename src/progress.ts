@@ -162,7 +162,7 @@ export const TROPHIES: Trophy[] = [
   { id: 'eight1', name: 'Lucky eight', desc: 'Find a golden 8-ball', coins: 15, progress: () => [Math.min(1, eightsFound()), 1] },
   { id: 'eight12', name: 'Treasure hunter', desc: 'Find 12 golden 8-balls', coins: 100, progress: () => [Math.min(12, eightsFound()), 12] },
   { id: 'eightAll', name: 'Golden touch', desc: `Find all ${EIGHT_TOTAL} golden 8-balls`, coins: 300, item: 'allEights', progress: () => [eightsFound(), EIGHT_TOTAL] },
-  { id: 'globe', name: 'Globetrotter', desc: 'Finish a round on every course', coins: 150, progress: () => [s.rounds.filter((c) => COURSES.some((k) => k.id === c)).length, COURSES.length] },
+  { id: 'globe', name: 'Globetrotter', desc: 'Finish a round on every course', coins: 150, item: 'globe', progress: () => [s.rounds.filter((c) => COURSES.some((k) => k.id === c)).length, COURSES.length] },
   { id: 'flyer', name: 'Frequent flyer', desc: 'Get launched by a ramp, trampoline, cannon, seal, rocket and geyser', coins: 150,
     progress: () => [LAUNCH_KINDS.filter((k) => s.launches.includes(k)).length, LAUNCH_KINDS.length] },
   { id: 'chutes', name: 'Snakes & ladders', desc: 'Ride 20 chutes, slides, ladders or lifts', coins: 60, progress: () => [Math.min(20, count('chutes') + count('ladders')), 20] },

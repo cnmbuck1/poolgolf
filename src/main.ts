@@ -136,6 +136,8 @@ function applySkill() {
   setStrictCup(d.strictCup);
 }
 view3d.setOverview(settings.top);
+// Designs that came with a trophy after it was won (the Cnmbuck Orb joined Globetrotter later)
+for (const t of P.TROPHIES) if (t.item && P.trophyDone(t)) earn(t.item);
 view3d.setBall(localGet('ball') ?? 'cue');
 view3d.setCue(localGet('cue') ?? 'classic');
 
@@ -1322,9 +1324,13 @@ function gearCard(k: ItemKey, img: string, equipped: boolean) {
 
 function openGear() {
   const ballId = localGet('ball') ?? 'cue', cueId = localGet('cue') ?? 'classic';
-  const balls = BALLS.map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)).join('');
+  const balls = BALLS.filter((b) => !b.signature).map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)).join('');
+  // The studio's own ball gets a card of its own at the top
+  const signature = BALLS.filter((b) => b.signature).map((b) => gearCard(`b:${b.id}`, preview(`b:${b.id}`, () => ballPreview(b.id)), b.id === ballId)
+    .replace('class="gear ball', 'class="gear ball signature').replace('</span>', '</span><small>The Cnmbuck Studios ball. Glows, trails light and rolls in every Cnmbuck game.</small>')).join('');
   const cues = CUES.map((c) => gearCard(`c:${c.id}`, preview(`c:${c.id}`, () => cuePreview(c.id)), c.id === cueId)).join('');
   sheet('Cues & Balls', `<div class="gear-top"><p id="gear-msg">Earn coins on every hole, then unlock new balls and cues. Some can only be won.</p><b class="wallet"><i class="coin"></i><span id="gear-coins">${coins()}</span></b>${coinAdButton(openGear)}</div>
+    <h3 class="gear-head">SIGNATURE BALL</h3>${signature}
     <h3 class="gear-head">BALLS</h3><div class="gear-balls">${balls}</div>
     <h3 class="gear-head">CUES</h3><div class="gear-cues">${cues}</div>`);
   const body = $('sheet-body');
