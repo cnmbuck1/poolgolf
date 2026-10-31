@@ -48,36 +48,59 @@ let lastReason = 'none yet this launch';
 let ready: Promise<boolean> | null = null;
 /**
  * Test ads instead of real ones: always while ADS_TESTING is on, and in any copy that didn't come from the App
- * Store (TestFlight or Xcode), so testers can never tap a real ad. On Android, which can't tell, only builds
- * made for the Play Store's production track get real ads. Settled when ads start.
+ * Store (TestFlight or Xcode), so testers can never tap a real ad. If Apple can't say where the copy came from,
+ * test ads too (a tester must never see a real one; an App Store copy asks again on its next launch). On Android,
+ * which can't tell, only builds made for the Play Store's production track get real ads.
  */
 let testAds = ADS_TESTING;
-async function decideTestAds() {
-  if (testAds) return;
-  if (android) { testAds = import.meta.env.VITE_REAL_ADS !== '1' || units.rewarded.startsWith('ca-app-pub-3940256099942544/'); return; }
-  try {
-    const { appTransaction } = await NativePurchases.getAppTransaction();
-    testAds = appTransaction.environment !== 'Production';
-  } catch { /* can't tell (older iOS): an App Store copy, real ads */ }
+/** Why testAds is what it is, and the last thing that went wrong starting or loading ads (the status readout). */
+let testWhy = ADS_TESTING ? 'testing switch on' : 'not checked yet';
+let startError = '', rewardedError = '';
+let decided: Promise<void> | null = null;
+function decideTestAds() {
+  decided ??= (async () => {
+    if (ADS_TESTING) return;
+    if (android) {
+      testAds = import.meta.env.VITE_REAL_ADS !== '1' || units.rewarded.startsWith('ca-app-pub-3940256099942544/');
+      testWhy = testAds ? 'Android test build' : 'Android production build';
+      return;
+    }
+    try {
+      const { appTransaction } = await NativePurchases.getAppTransaction();
+      testAds = appTransaction.environment !== 'Production';
+      testWhy = `installed from ${appTransaction.environment === 'Production' ? 'the App Store' : appTransaction.environment}`;
+    } catch (e) {
+      testAds = true;
+      testWhy = `couldn't tell where it was installed from (${short(e)})`;
+    }
+  })();
+  return decided;
 }
+const short = (e: unknown) => String((e as Error)?.message ?? e).slice(0, 120);
 let interstitialLoaded = false, rewardedLoaded = false;
 
 /** Consent, tracking question and SDK start, once; true when ads may be requested. */
 function start() {
   if (!native) return Promise.resolve(fake);
   ready ??= (async () => {
+    // Google's consent check: where the law asks (EU/UK), no ads until it's answered. If the check itself
+    // fails, carry on: Google's SDK still applies the right rules, and an error here mustn't switch ads off.
     try {
       let info = await AdMob.requestConsentInfo();
       if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) info = await AdMob.showConsentForm();
-      if (!info.canRequestAds) return false;
+      if (!info.canRequestAds) { startError = 'consent not given'; ready = null; return false; }
+    } catch (e) { startError = `consent check: ${short(e)}`; }
+    try {
       const t = await AdMob.trackingAuthorizationStatus();
       if (t.status === 'notDetermined') await AdMob.requestTrackingAuthorization();
+    } catch { /* no tracking question: ads are just less personalised */ }
+    try {
       await decideTestAds();
       await AdMob.initialize({ initializeForTesting: testAds });
-      void loadRewarded();
-      if (!adsRemoved()) void loadInterstitial();
-      return true;
-    } catch { ready = null; return false; }
+    } catch (e) { startError = `start: ${short(e)}`; ready = null; return false; }
+    void loadRewarded();
+    if (!adsRemoved()) void loadInterstitial();
+    return true;
   })();
   return ready;
 }
@@ -87,7 +110,7 @@ async function loadInterstitial() {
   try { await AdMob.prepareInterstitial({ adId: units.interstitial, isTesting: testAds }); interstitialLoaded = true; loadError = ''; } catch (e) { interstitialLoaded = false; loadError = String((e as Error)?.message ?? e).slice(0, 120); }
 }
 async function loadRewarded() {
-  try { await AdMob.prepareRewardVideoAd({ adId: units.rewarded, isTesting: testAds }); rewardedLoaded = true; } catch { rewardedLoaded = false; }
+  try { await AdMob.prepareRewardVideoAd({ adId: units.rewarded, isTesting: testAds }); rewardedLoaded = true; rewardedError = ''; } catch (e) { rewardedLoaded = false; rewardedError = short(e); }
 }
 
 /**
@@ -96,6 +119,7 @@ async function loadRewarded() {
  * rewarded ad, or on their second launch.
  */
 export function initAds() {
+  if (native) void decideTestAds();
   if (native && session >= 2) setTimeout(() => void start(), 4000);
   if (native) void checkPurchase();
 }
@@ -180,7 +204,8 @@ export async function maybeInterstitial() {
 /** For testing: where the ads stand on this launch. */
 export function adStatus() {
   const since = lastFull === -Infinity ? 'none yet' : `${Math.round((performance.now() - lastFull) / 1000)}s ago`;
-  return `${testAds ? 'Test ads' : 'Real ads'} · Launch ${session} (full-screen ads from launch ${INTERSTITIAL_FROM_SESSION}) · last full-screen ad ${since} · next one ${interstitialLoaded ? 'loaded' : 'not loaded'} · last check: ${lastReason}${adsRemoved() ? ' · Remove ads bought' : ''}`;
+  const errors = [startError && `ads start: ${startError}`, rewardedError && `rewarded ad: ${rewardedError}`, loadError && `full-screen ad: ${loadError}`].filter(Boolean).join(' · ');
+  return `${testAds ? 'Test ads' : 'Real ads'} (${testWhy}) · ${errors ? `${errors} · ` : ''}Launch ${session} (full-screen ads from launch ${INTERSTITIAL_FROM_SESSION}) · last full-screen ad ${since} · next one ${interstitialLoaded ? 'loaded' : 'not loaded'} · last check: ${lastReason}${adsRemoved() ? ' · Remove ads bought' : ''}`;
 }
 
 /** Coin ads watched today, against the daily limit. */
