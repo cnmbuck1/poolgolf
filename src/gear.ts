@@ -246,46 +246,59 @@ export const BALLS: BallDesign[] = [
     paint: S((x, y, z) => mix(hex(0x2aff8a), hex(0x2ad8ff), clamp01(0.5 + 0.5 * Math.sin(y * 6 + Math.atan2(z, x) * 2)))),
   },
   {
-    // The Cnmbuck Studios ball, the same in every Cnmbuck game: deep blue glass with a glowing S swoosh
-    id: 'cnmbuck', name: 'Cnmbuck Orb', signature: true, roughness: 0.08, clearcoat: 1, emissive: 1.8,
+    // The Cnmbuck Studios ball, the same in every Cnmbuck game: deep blue glass circled by a glowing neon band
+    id: 'cnmbuck', name: 'Cnmbuck Orb', signature: true, roughness: 0.08, clearcoat: 1, emissive: 2.6,
     paint: S((x, y, z) => {
-      const s = swoosh(x, y, z);
+      const s = band(x, y, z);
       // Deep navy, brighter toward the top like the logo's glass
       let c = mix(hex(0x020818), hex(0x0c3486), clamp01(0.45 + 0.55 * y + 0.12 * wob(x, y, z, 3)));
-      c = mix(c, hex(0x1a8cff), line(s, 0.32) * 0.65);
-      c = mix(c, hex(0x38d4ff), line(s, 0.17));
-      return mix(c, hex(0xe6fbff), line(s, 0.07));
+      c = mix(c, hex(0x0a8cff), line(s, 0.34) * 0.7);
+      c = mix(c, hex(0x00e5ff), line(s, 0.16));
+      return mix(c, hex(0xf0feff), line(s, 0.06));
     }),
+    // What glows: the band, bright neon cyan with a white-hot core, and a faint blue glow in the glass itself
     glow: S((x, y, z) => {
-      const s = swoosh(x, y, z);
-      return mix(mix([0, 0, 0], hex(0x1a9cff), line(s, 0.22)), hex(0xcff6ff), line(s, 0.08));
+      const s = band(x, y, z);
+      let c = mix(hex(0x000208), hex(0x020c2e), clamp01(0.5 + 0.5 * y));
+      c = mix(c, hex(0x0a8cff), line(s, 0.36));
+      c = mix(c, hex(0x00e8ff), line(s, 0.18));
+      return mix(c, hex(0xffffff), line(s, 0.06));
     }),
     icon: (g, w, h) => {
-      const cx = w / 2, cy = h / 2, r = w * 0.4;
-      // Rim light: blue on the left, orange on the right, like the logo
+      const cx = w / 2, cy = h / 2, r = w * 0.38;
+      // Neon halo and rim: blue on the left, orange on the right, like the logo
+      const halo = g.createRadialGradient(cx, cy, r * 0.9, cx, cy, r * 1.32);
+      halo.addColorStop(0, 'rgba(0, 200, 255, 0.55)'); halo.addColorStop(1, 'rgba(0, 200, 255, 0)');
+      g.fillStyle = halo; g.fillRect(0, 0, w, h);
       const ring = g.createLinearGradient(cx - r, 0, cx + r, 0);
-      ring.addColorStop(0, '#2aa8ff'); ring.addColorStop(0.5, '#3a6aff'); ring.addColorStop(1, '#ffa21a');
-      g.shadowColor = 'rgba(60, 170, 255, 0.9)'; g.shadowBlur = w * 0.08;
-      g.fillStyle = ring; g.beginPath(); g.arc(cx, cy, r + w * 0.035, 0, Math.PI * 2); g.fill();
+      ring.addColorStop(0, '#00d8ff'); ring.addColorStop(0.5, '#3a7aff'); ring.addColorStop(1, '#ff9a1a');
+      g.shadowColor = '#00d8ff'; g.shadowBlur = w * 0.1;
+      g.fillStyle = ring; g.beginPath(); g.arc(cx, cy, r + w * 0.03, 0, Math.PI * 2); g.fill();
       g.shadowBlur = 0;
       const body = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
-      body.addColorStop(0, '#2a62d8'); body.addColorStop(0.55, '#0a2466'); body.addColorStop(1, '#020a1e');
+      body.addColorStop(0, '#2a62e8'); body.addColorStop(0.55, '#0a2470'); body.addColorStop(1, '#020a1e');
       g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-      // Warm glow on the right edge
-      const warm = g.createRadialGradient(cx + r * 0.9, cy + r * 0.1, 0, cx + r * 0.9, cy + r * 0.1, r * 0.9);
-      warm.addColorStop(0, 'rgba(255, 150, 30, 0.75)'); warm.addColorStop(1, 'rgba(255, 150, 30, 0)');
       g.save(); g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+      const warm = g.createRadialGradient(cx + r * 0.95, cy + r * 0.1, 0, cx + r * 0.95, cy + r * 0.1, r * 0.8);
+      warm.addColorStop(0, 'rgba(255, 150, 30, 0.8)'); warm.addColorStop(1, 'rgba(255, 150, 30, 0)');
       g.fillStyle = warm; g.fillRect(0, 0, w, h);
-      // The S swoosh: a glowing band from top left, round the middle, out at the bottom right
-      g.lineCap = 'round';
-      const sPath = () => { g.beginPath(); g.moveTo(cx - r * 0.75, cy - r * 0.55); g.bezierCurveTo(cx - r * 0.1, cy - r * 1.05, cx + r * 0.25, cy - r * 0.35, cx - r * 0.05, cy + r * 0.05); g.bezierCurveTo(cx - r * 0.35, cy + r * 0.45, cx + r * 0.15, cy + r * 1.05, cx + r * 0.85, cy + r * 0.55); };
-      g.shadowColor = '#38d4ff'; g.shadowBlur = w * 0.1;
-      g.strokeStyle = 'rgba(40, 170, 255, 0.85)'; g.lineWidth = r * 0.36; sPath(); g.stroke();
+      // The neon band: the front of a tilted ring round the ball, with a gentle ripple
+      const bandPath = () => {
+        g.beginPath();
+        for (let i = 0; i <= 40; i++) {
+          const t = Math.PI * (i / 40);
+          const bx = -Math.cos(t), by = Math.sin(t) * 0.34 + 0.06 * Math.sin(t * 3);
+          const rot = -0.42, px = bx * Math.cos(rot) - by * Math.sin(rot), py = bx * Math.sin(rot) + by * Math.cos(rot);
+          if (i === 0) g.moveTo(cx + px * r * 1.02, cy + py * r * 1.02); else g.lineTo(cx + px * r * 1.02, cy + py * r * 1.02);
+        }
+      };
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      g.shadowColor = '#00e5ff'; g.shadowBlur = w * 0.12;
+      g.strokeStyle = 'rgba(0, 170, 255, 0.9)'; g.lineWidth = r * 0.34; bandPath(); g.stroke();
+      g.strokeStyle = '#00e5ff'; g.lineWidth = r * 0.18; bandPath(); g.stroke();
       g.shadowBlur = 0;
-      g.strokeStyle = '#7fe6ff'; g.lineWidth = r * 0.17; sPath(); g.stroke();
-      g.strokeStyle = '#f2fdff'; g.lineWidth = r * 0.06; sPath(); g.stroke();
-      // Highlight
-      const hi = g.createRadialGradient(cx - r * 0.42, cy - r * 0.5, 0, cx - r * 0.42, cy - r * 0.5, r * 0.3);
+      g.strokeStyle = '#ffffff'; g.lineWidth = r * 0.07; bandPath(); g.stroke();
+      const hi = g.createRadialGradient(cx - r * 0.4, cy - r * 0.5, 0, cx - r * 0.4, cy - r * 0.5, r * 0.28);
       hi.addColorStop(0, 'rgba(255,255,255,0.95)'); hi.addColorStop(1, 'rgba(255,255,255,0)');
       g.fillStyle = hi; g.fillRect(0, 0, w, h);
       g.restore();
@@ -293,10 +306,10 @@ export const BALLS: BallDesign[] = [
   },
 ];
 
-/** The S swoosh round the Cnmbuck Orb: signed distance-ish from a seam that weaves round the ball. */
-function swoosh(x: number, y: number, z: number) {
-  const a = Math.atan2(z, x);
-  return y - 0.6 * Math.sin(2 * a) * Math.sqrt(1 - y * y) ** 0.25;
+/** The neon band round the Cnmbuck Orb: distance from a tilted ring with a gentle ripple (not a full S). */
+function band(x: number, y: number, z: number) {
+  const a = Math.atan2(y, z);
+  return 0.42 * y + 0.88 * x - 0.12 * Math.sin(3 * a);
 }
 
 const ballCache = new Map<string, THREE.MeshPhysicalMaterial>();

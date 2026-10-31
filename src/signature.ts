@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { BALL_R } from './physics';
 
-const BLUE = new THREE.Color(0x2ab4ff), ORANGE = new THREE.Color(0xff9a1a);
+const BLUE = new THREE.Color(0x00d8ff), ORANGE = new THREE.Color(0xff9a1a);
 const TRAIL = 26; // trail points kept
 const TRAIL_LIFE = 0.45; // seconds a trail point lasts
 
@@ -24,6 +24,7 @@ function dotTexture(inner: string, outer: string) {
 export class SignatureFx {
   readonly group = new THREE.Group();
   private rim: THREE.Mesh;
+  private halo: THREE.Sprite;
   private ground: THREE.Mesh;
   private trail: THREE.Points;
   private points: { p: THREE.Vector3; age: number }[] = [];
@@ -41,11 +42,15 @@ export class SignatureFx {
           float f = pow(1.0 - max(dot(normalize(vN), normalize(vV)), 0.0), 2.4);
           float warm = smoothstep(-0.2, 0.6, vN.x);
           vec3 col = mix(blue, orange, warm);
-          gl_FragColor = vec4(col * f * (1.7 + warm * 0.9) * pulse, f);
+          gl_FragColor = vec4(col * f * (2.4 + warm * 1.0) * pulse, f);
         }`,
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     this.rim.renderOrder = 3;
+    // Neon halo round the ball (the ball itself hides the middle of it)
+    this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTexture('rgba(0, 220, 255, 0.9)', 'rgba(0, 150, 255, 0.35)'), transparent: true, depthWrite: false, toneMapped: false }));
+    this.halo.scale.setScalar(BALL_R * 4.2);
+    this.halo.renderOrder = 2;
     // Ground glow, like the logo's reflection on the floor
     this.ground = new THREE.Mesh(new THREE.PlaneGeometry(BALL_R * 6, BALL_R * 6), new THREE.MeshBasicMaterial({
       map: dotTexture('rgba(60, 190, 255, 0.85)', 'rgba(40, 120, 255, 0.4)'), transparent: true, depthWrite: false, toneMapped: false,
@@ -68,7 +73,7 @@ export class SignatureFx {
       transparent: true, depthWrite: false,
     }));
     this.trail.frustumCulled = false;
-    this.group.add(this.rim, this.ground, this.trail);
+    this.group.add(this.halo, this.rim, this.ground, this.trail);
   }
 
   set on(v: boolean) { this.group.visible = v; if (!v) this.points = []; }
@@ -83,8 +88,10 @@ export class SignatureFx {
     this.t += dt;
     const pulse = 0.85 + 0.15 * Math.sin(this.t * 3);
     (this.rim.material as THREE.ShaderMaterial).uniforms.pulse.value = pulse;
-    this.rim.visible = this.ground.visible = visible;
+    this.rim.visible = this.ground.visible = this.halo.visible = visible;
     this.rim.position.copy(pos);
+    this.halo.position.copy(pos);
+    this.halo.material.opacity = 0.5 * pulse;
     this.ground.position.set(pos.x, groundY + 0.8, pos.z);
     const lift = Math.max(0, pos.y - groundY - BALL_R);
     (this.ground.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.8 - lift / 60) * pulse;
