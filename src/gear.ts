@@ -287,9 +287,9 @@ export const BALLS: BallDesign[] = [
         g.beginPath();
         for (let i = 0; i <= 40; i++) {
           const t = Math.PI * (i / 40);
-          const bx = -Math.cos(t), by = Math.sin(t) * 0.34 + 0.06 * Math.sin(t * 3);
+          const bx = -Math.cos(t), by = Math.sin(t) * (0.26 + 0.05 * Math.sin(t * 3));
           const rot = -0.42, px = bx * Math.cos(rot) - by * Math.sin(rot), py = bx * Math.sin(rot) + by * Math.cos(rot);
-          if (i === 0) g.moveTo(cx + px * r * 1.02, cy + py * r * 1.02); else g.lineTo(cx + px * r * 1.02, cy + py * r * 1.02);
+          if (i === 0) g.moveTo(cx + px * r * 1.12, cy + py * r * 1.12); else g.lineTo(cx + px * r * 1.12, cy + py * r * 1.12);
         }
       };
       g.lineCap = 'round'; g.lineJoin = 'round';
