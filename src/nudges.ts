@@ -27,7 +27,8 @@ export function maybeAskForRating(rounds: number) {
 
 const REMINDER_ID = 1;
 const REMINDER_HOUR = 18;
-export const canRemind = native;
+// Off in 1.0: the permission request doesn't reach iOS on some phones yet (fixed for 1.0.1)
+export const canRemind = false;
 export const remindersOn = () => get('remind') === '1';
 
 /**
