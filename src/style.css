@@ -876,3 +876,5 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 
 /* Cards that open over a result screen (course intros, level-up offers) sit on top of it */
 #screen-intro { z-index: 8; }
+
+.rate-btn { display: block; text-align: center; text-decoration: none; color: var(--gold-hi); border-color: var(--gold-edge); }

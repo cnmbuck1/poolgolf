@@ -34,6 +34,8 @@ declare const __VERSION__: string;
 const APP_VERSION = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '';
 /** The game's web home: privacy policy and support pages. */
 const SITE = 'https://cnmbuck1.github.io/poolgolf/';
+/** The App Store's "write a review" page for Rack & Roll (app ID from App Store Connect). */
+const REVIEW_URL = 'https://apps.apple.com/app/id6827656033?action=write-review';
 /** Aim turn per pixel of sideways drag on the shot camera (radians). */
 const AIM_TURN = 0.004;
 const native = Capacitor.isNativePlatform();
@@ -1174,6 +1176,7 @@ function openSettings() {
     <button class="toggle" data-set="share" aria-pressed="${sharing()}"><span>Share anonymous play stats</span><em></em></button>
     ${canRemind ? `<button class="toggle" data-set="remind" aria-pressed="${remindersOn()}"><span>Daily challenge reminder <small>(6 pm)</small></span><em></em></button>` : ''}</div>
     ${adsSettingsHtml()}
+    ${Capacitor.getPlatform() === 'ios' ? `<a class="btn rate-btn" href="${REVIEW_URL}" target="_blank" rel="noopener">★ Rate Rack &amp; Roll on the App Store</a>` : ''}
     ${native ? '' : '<button class="btn" id="btn-playtest">Playtest results</button>'}
     <button class="btn reset" id="btn-reset">Reset all progress</button>
     <p class="about">Rack &amp; Roll ${APP_VERSION} (${BUILD}) · © ${new Date().getFullYear()} Cnmbuck Studios<br>
