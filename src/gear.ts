@@ -2,7 +2,7 @@
 // balls as an equirectangular map for a sphere, cues as wraps for the shaft and butt cylinders.
 import * as THREE from 'three';
 import { createOrbMaterial } from './brand/cnmbuck-orb';
-import orbIcon from './brand/cnmbuck-orb-256.png';
+import orbIcon from './brand/cnmbuck-orb-3d.png';
 
 // ---------- painting helpers ----------
 
