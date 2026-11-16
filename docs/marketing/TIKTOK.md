@@ -57,3 +57,16 @@ Post it on **1 December**, the day the course opens in the game. Pick a Christma
 **Caption:**
 > Mini golf at the North Pole 🎅🎄 Santa's sleigh, a toy train and an 8-bank hole in one ❄️ Open all December!
 > #christmas #minigolf #holeinone #cozygames #mobilegames #indiegame #satisfying #rackandroll
+
+## Video 6: Out now (21 s), the launch post
+
+`rack-and-roll-out-now.mp4`. "IT'S HERE 🎉 Rack & Roll is OUT NOW", then a pool-cue hole in one, trick shots
+(trampoline, portal), the pirate ship and the Christmas course, a match against the computer, and an end card:
+"OUT NOW · FREE on the App Store", "Search: Rack & Roll Mini Golf", and the Cnmbuck Orb with "A CNMBUCK STUDIOS
+GAME" (the orb image is the official one from cnmbuck1/cnmbuckstudios-brand).
+
+Post it the day the app is live. Put the App Store link in your bio first, and pin a comment with it.
+
+**Caption:**
+> It's finally here 🎉 Rack & Roll: mini golf with a pool cue 🎱⛳ Free on the App Store, link in bio!
+> #minigolf #newgame #mobilegames #indiegame #iphonegames #holeinone #trickshot #pool #rackandroll
