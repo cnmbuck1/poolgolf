@@ -1,7 +1,8 @@
 // Ball and cue designs for the Cues & Balls menu. Every pattern is painted in code onto a canvas:
 // balls as an equirectangular map for a sphere, cues as wraps for the shaft and butt cylinders.
 import * as THREE from 'three';
-import { createOrbMaterial, drawOrbIcon } from './brand/cnmbuck-orb';
+import { createOrbMaterial } from './brand/cnmbuck-orb';
+import orbIcon from './brand/cnmbuck-orb-256.png';
 
 // ---------- painting helpers ----------
 
@@ -94,8 +95,8 @@ export interface BallDesign {
   bump?: 'dimples' | 'pebble';
   /** Coins to unlock (free when missing; some are earned through achievements instead, see wallet.ts). */
   price?: number;
-  /** A hand-drawn 72x72 menu icon instead of the shaded front of the sphere map. */
-  icon?: Paint;
+  /** A ready-made menu icon (an image URL) instead of the shaded front of the sphere map. */
+  iconUrl?: string;
   /** The Cnmbuck Studios ball: it carries the rim glow, ground glow and light trail in the game (see render3d.ts). */
   signature?: boolean;
   /** A ready-made material (the brand kit's Orb) instead of one built from `paint`. */
@@ -251,7 +252,7 @@ export const BALLS: BallDesign[] = [
     // (src/brand/cnmbuck-orb.ts, copied unchanged from cnmbuck1/cnmbuckstudios-brand)
     id: 'cnmbuck', name: 'Cnmbuck Orb', signature: true, material: createOrbMaterial,
     paint: (g, w, h) => { g.fillStyle = '#0c3486'; g.fillRect(0, 0, w, h); },
-    icon: (g, w) => drawOrbIcon(g, w),
+    iconUrl: orbIcon,
   },
 ];
 
@@ -298,7 +299,7 @@ const pebble: Paint = (g, w, h) => {
 /** A small round preview of a ball for the menu (the front of the sphere map, shaded). */
 export function ballPreview(id: string) {
   const d = BALLS.find((b) => b.id === id) ?? BALLS[0];
-  if (d.icon) return toUrl(canvas(144, 144, d.icon));
+  if (d.iconUrl) return d.iconUrl;
   const src = canvas(256, 128, d.paint);
   return toUrl(canvas(72, 72, (g) => {
     g.save();
