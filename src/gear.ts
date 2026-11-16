@@ -1,6 +1,7 @@
 // Ball and cue designs for the Cues & Balls menu. Every pattern is painted in code onto a canvas:
 // balls as an equirectangular map for a sphere, cues as wraps for the shaft and butt cylinders.
 import * as THREE from 'three';
+import { createOrbMaterial, drawOrbIcon } from './brand/cnmbuck-orb';
 
 // ---------- painting helpers ----------
 
@@ -93,12 +94,12 @@ export interface BallDesign {
   bump?: 'dimples' | 'pebble';
   /** Coins to unlock (free when missing; some are earned through achievements instead, see wallet.ts). */
   price?: number;
-  /** Paints what glows (an emissive map); the rest of the ball stays unlit by it. */
-  glow?: Paint;
   /** A hand-drawn 72x72 menu icon instead of the shaded front of the sphere map. */
   icon?: Paint;
   /** The Cnmbuck Studios ball: it carries the rim glow, ground glow and light trail in the game (see render3d.ts). */
   signature?: boolean;
+  /** A ready-made material (the brand kit's Orb) instead of one built from `paint`. */
+  material?: () => THREE.MeshPhysicalMaterial;
 }
 
 const S = sphere;
@@ -246,71 +247,13 @@ export const BALLS: BallDesign[] = [
     paint: S((x, y, z) => mix(hex(0x2aff8a), hex(0x2ad8ff), clamp01(0.5 + 0.5 * Math.sin(y * 6 + Math.atan2(z, x) * 2)))),
   },
   {
-    // The Cnmbuck Studios ball, the same in every Cnmbuck game: deep blue glass circled by a glowing neon band
-    id: 'cnmbuck', name: 'Cnmbuck Orb', signature: true, roughness: 0.08, clearcoat: 1, emissive: 2.6,
-    paint: S((x, y, z) => {
-      const s = band(x, y, z);
-      // Deep navy, brighter toward the top like the logo's glass
-      let c = mix(hex(0x020818), hex(0x0c3486), clamp01(0.45 + 0.55 * y + 0.12 * wob(x, y, z, 3)));
-      c = mix(c, hex(0x0a8cff), line(s, 0.34) * 0.7);
-      c = mix(c, hex(0x00e5ff), line(s, 0.16));
-      return mix(c, hex(0xf0feff), line(s, 0.06));
-    }),
-    // What glows: the band, bright neon cyan with a white-hot core, and a faint blue glow in the glass itself
-    glow: S((x, y, z) => {
-      const s = band(x, y, z);
-      let c = mix(hex(0x000208), hex(0x020c2e), clamp01(0.5 + 0.5 * y));
-      c = mix(c, hex(0x0a8cff), line(s, 0.36));
-      c = mix(c, hex(0x00e8ff), line(s, 0.18));
-      return mix(c, hex(0xffffff), line(s, 0.06));
-    }),
-    icon: (g, w, h) => {
-      const cx = w / 2, cy = h / 2, r = w * 0.38;
-      // Neon halo and rim: blue on the left, orange on the right, like the logo
-      const halo = g.createRadialGradient(cx, cy, r * 0.9, cx, cy, r * 1.32);
-      halo.addColorStop(0, 'rgba(0, 200, 255, 0.55)'); halo.addColorStop(1, 'rgba(0, 200, 255, 0)');
-      g.fillStyle = halo; g.fillRect(0, 0, w, h);
-      const ring = g.createLinearGradient(cx - r, 0, cx + r, 0);
-      ring.addColorStop(0, '#00d8ff'); ring.addColorStop(0.5, '#3a7aff'); ring.addColorStop(1, '#ff9a1a');
-      g.shadowColor = '#00d8ff'; g.shadowBlur = w * 0.1;
-      g.fillStyle = ring; g.beginPath(); g.arc(cx, cy, r + w * 0.03, 0, Math.PI * 2); g.fill();
-      g.shadowBlur = 0;
-      const body = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
-      body.addColorStop(0, '#2a62e8'); body.addColorStop(0.55, '#0a2470'); body.addColorStop(1, '#020a1e');
-      g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-      g.save(); g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
-      const warm = g.createRadialGradient(cx + r * 0.95, cy + r * 0.1, 0, cx + r * 0.95, cy + r * 0.1, r * 0.8);
-      warm.addColorStop(0, 'rgba(255, 150, 30, 0.8)'); warm.addColorStop(1, 'rgba(255, 150, 30, 0)');
-      g.fillStyle = warm; g.fillRect(0, 0, w, h);
-      // The neon band: the front of a tilted ring round the ball, with a gentle ripple
-      const bandPath = () => {
-        g.beginPath();
-        for (let i = 0; i <= 40; i++) {
-          const t = Math.PI * (i / 40);
-          const bx = -Math.cos(t), by = Math.sin(t) * (0.26 + 0.05 * Math.sin(t * 3));
-          const rot = -0.42, px = bx * Math.cos(rot) - by * Math.sin(rot), py = bx * Math.sin(rot) + by * Math.cos(rot);
-          if (i === 0) g.moveTo(cx + px * r * 1.12, cy + py * r * 1.12); else g.lineTo(cx + px * r * 1.12, cy + py * r * 1.12);
-        }
-      };
-      g.lineCap = 'round'; g.lineJoin = 'round';
-      g.shadowColor = '#00e5ff'; g.shadowBlur = w * 0.12;
-      g.strokeStyle = 'rgba(0, 170, 255, 0.9)'; g.lineWidth = r * 0.34; bandPath(); g.stroke();
-      g.strokeStyle = '#00e5ff'; g.lineWidth = r * 0.18; bandPath(); g.stroke();
-      g.shadowBlur = 0;
-      g.strokeStyle = '#ffffff'; g.lineWidth = r * 0.07; bandPath(); g.stroke();
-      const hi = g.createRadialGradient(cx - r * 0.4, cy - r * 0.5, 0, cx - r * 0.4, cy - r * 0.5, r * 0.28);
-      hi.addColorStop(0, 'rgba(255,255,255,0.95)'); hi.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = hi; g.fillRect(0, 0, w, h);
-      g.restore();
-    },
+    // The Cnmbuck Studios ball, the same in every Cnmbuck game: drawn by the studio's brand kit
+    // (src/brand/cnmbuck-orb.ts, copied unchanged from cnmbuck1/cnmbuckstudios-brand)
+    id: 'cnmbuck', name: 'Cnmbuck Orb', signature: true, material: createOrbMaterial,
+    paint: (g, w, h) => { g.fillStyle = '#0c3486'; g.fillRect(0, 0, w, h); },
+    icon: (g, w) => drawOrbIcon(g, w),
   },
 ];
-
-/** The neon band round the Cnmbuck Orb: distance from a tilted ring with a gentle ripple (not a full S). */
-function band(x: number, y: number, z: number) {
-  const a = Math.atan2(y, z);
-  return 0.42 * y + 0.88 * x - 0.12 * Math.sin(3 * a);
-}
 
 const ballCache = new Map<string, THREE.MeshPhysicalMaterial>();
 /** A ready-to-use material for a ball design (built once). */
@@ -318,12 +261,13 @@ export function ballMaterial(id: string) {
   const d = BALLS.find((b) => b.id === id) ?? BALLS[0];
   const hit = ballCache.get(d.id);
   if (hit) return hit;
+  if (d.material) { const m = d.material(); ballCache.set(d.id, m); return m; }
   const map = texture(canvas(512, 256, d.paint));
   const m = new THREE.MeshPhysicalMaterial({
     map, roughness: d.roughness ?? 0.3, metalness: d.metalness ?? 0, clearcoat: d.clearcoat ?? 0, clearcoatRoughness: 0.08,
     sheen: d.sheen ?? 0, sheenRoughness: 0.6, sheenColor: new THREE.Color(0xf0ffb0),
   });
-  if (d.emissive) { m.emissiveMap = d.glow ? texture(canvas(512, 256, d.glow)) : map; m.emissive.setHex(0xffffff); m.emissiveIntensity = d.emissive; }
+  if (d.emissive) { m.emissiveMap = map; m.emissive.setHex(0xffffff); m.emissiveIntensity = d.emissive; }
   if (d.bump) {
     m.bumpMap = texture(canvas(512, 256, d.bump === 'dimples' ? dimples : pebble));
     m.bumpScale = d.bump === 'dimples' ? 1.4 : 0.6;

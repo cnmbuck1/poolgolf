@@ -8,7 +8,7 @@ import { Animated } from './art';
 import { buildCourse, Course, disposeGroup, HH, HW, to3 } from './course';
 import { ATMOSPHERE, buildSky, FOG_COLOR, setSkyTheme, skyEnvironment, SUN_DIR } from './garden';
 import { ballMaterial, BALLS, cueMaterials } from './gear';
-import { SignatureFx } from './signature';
+import { OrbFx } from './brand/cnmbuck-orb';
 import { getModels } from './models';
 import { Theme } from './levels';
 import { BALL_R, CUP_R, deckRoll, heightNow, routeTarget, spinPath, World } from './physics';
@@ -69,7 +69,7 @@ export class Renderer3D {
   private ball: THREE.Mesh;
   private ballGhost: THREE.Mesh;
   /** The Cnmbuck Orb's glow and light trail (shown only with that ball). */
-  private signature = new SignatureFx();
+  private signature = new OrbFx(BALL_R);
   private ballShadowFake: THREE.Mesh;
   private dots: THREE.InstancedMesh;
   private dotRims: THREE.InstancedMesh;
@@ -710,8 +710,7 @@ export class Renderer3D {
     this.ballGhost.visible = this.ball.visible && !fx.sink;
     this.ballGhost.position.copy(this.ball.position);
     this.ballShadowFake.position.copy(to3(bx, by)).setY(ground + 0.6);
-    if (this.signature.on) this.signature.setScale(this.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)));
-    this.signature.update(this.ball.position, fx.sink ? this.h(world.level.cup[0], world.level.cup[1]) : ground, world.moving, this.ball.visible, dt);
+    this.signature.update(this.ball.position, fx.sink ? this.h(world.level.cup[0], world.level.cup[1]) : ground, world.moving, this.ball.visible, dt, this.camera, this.renderer);
     const sh = 1 + (this.hop.y + (b.z ?? 0)) / 40;
     this.ballShadowFake.scale.set(sh, 1, sh);
     (this.ballShadowFake.material as THREE.MeshBasicMaterial).opacity = 0.55 / sh;
