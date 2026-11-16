@@ -1,6 +1,7 @@
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { StatusBar } from '@capacitor/status-bar';
 import { ALL_COURSES, COURSE, CourseDef, COURSES, EXPERT, inSeason, LevelDef, LEVELS, SEASONAL, setCourse } from './levels';
@@ -2676,6 +2677,16 @@ type Hot = { snapshot(fn: () => unknown): void; ready?(fn: (d: unknown) => void)
 const hot = (window as unknown as { claude?: { hot?: Hot } }).claude?.hot;
 hot?.snapshot(() => ({ holeIdx, scores, playing: phase !== 'title', course: COURSE.id }));
 
+/** Fade out the launch image once the title screen is ready (or after a few seconds, whatever happens). */
+let splashDown = false;
+function hideSplash() {
+  if (splashDown || !native) return;
+  splashDown = true;
+  // Two frames, so the title scene is on screen under the launch image before it fades
+  requestAnimationFrame(() => requestAnimationFrame(() => void SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => {})));
+}
+setTimeout(hideSplash, 4000);
+
 /** Load the 3D models in the background; until then the procedural look stands in. */
 function loadCourseModels() {
   const bar = $('loading');
@@ -2685,10 +2696,12 @@ function loadCourseModels() {
     .then(() => {
       view3d.setLevel(world);
       bar.classList.add('hidden');
+      hideSplash();
     })
     .catch((err) => {
       console.warn('Course models failed to load; using the procedural look', err);
       bar.classList.add('hidden');
+      hideSplash();
     });
 }
 
