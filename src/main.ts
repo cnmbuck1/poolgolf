@@ -419,6 +419,7 @@ function updateFinger() {
 
 // ---------- Flow ----------
 function loadHole(i: number) {
+  if (DEMO && (COURSE.id !== 'candy' || i >= DEMO_HOLES)) { demoOver(); return; }
   holeIdx = i;
   holeStartedAt = performance.now();
   shootout = null;
@@ -2676,6 +2677,41 @@ if (import.meta.env.DEV) {
 type Hot = { snapshot(fn: () => unknown): void; ready?(fn: (d: unknown) => void): void; data?: unknown };
 const hot = (window as unknown as { claude?: { hot?: Hot } }).claude?.hot;
 hot?.snapshot(() => ({ holeIdx, scores, playing: phase !== 'title', course: COURSE.id }));
+
+// ---------- Website demo ----------
+// The public website (GitHub Pages, built with VITE_DEMO=1) is a short demo: three holes of Candy Land, then
+// the App Store. The app, and test builds of the site, are the full game.
+const DEMO = import.meta.env.VITE_DEMO === '1' && !native;
+const DEMO_HOLES = 3;
+const APP_STORE_URL = 'https://apps.apple.com/app/id6827656033';
+
+/** The full game is in the app: what it has, and the App Store button. `done` after the demo holes. */
+function storeSheet(done = false) {
+  sheet(done ? 'Nice round!' : 'In the app', `<div class="demo-store">
+    <p>${done ? "That's the demo. The full game is free on the App Store:" : 'This part of the game is in the free app:'}</p>
+    <ul>
+      <li>🌍 Six worlds and 36 holes, plus Jolly Roger, an expert course on a rolling pirate ship</li>
+      <li>🎃🎄 Holiday courses every October and December</li>
+      <li>🤖 Vs Computer, play with friends on one phone, and a new daily challenge every day</li>
+      <li>🏆 Career tours, trick shots, trophies, and 30 balls and cues to unlock</li>
+    </ul>
+    <a class="btn-gold store-btn" href="${APP_STORE_URL}" target="_blank" rel="noopener">GET IT FREE ON THE APP STORE</a>
+  </div>`);
+}
+function demoOver() { toTitle(); storeSheet(true); }
+
+if (DEMO) {
+  const career = $('btn-career');
+  career.querySelector('span')!.innerHTML = 'PLAY THE DEMO<small>3 holes of Candy Land</small>';
+  career.onclick = () => { unlockAudio(); sfx.ui(); chooseCourse('candy'); startRound(); };
+  for (const id of ['btn-versus', 'btn-party', 'btn-courses', 'btn-cues', 'btn-stats']) $(id).onclick = () => { sfx.ui(); storeSheet(); };
+  $('daily-card').style.display = 'none';
+  const store = document.createElement('a');
+  store.className = 'btn-gold store-btn title-store';
+  store.href = APP_STORE_URL; store.target = '_blank'; store.rel = 'noopener';
+  store.textContent = 'GET THE FULL GAME FREE ON THE APP STORE';
+  $('btn-career').after(store);
+}
 
 /** Fade out the launch image once the title screen is ready (or after a few seconds, whatever happens). */
 let splashDown = false;

@@ -40,7 +40,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # The public site is a short demo of the game; the full game is in the App Store app
       - run: npm run build
+        env:
+          VITE_DEMO: '1'
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
