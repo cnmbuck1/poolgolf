@@ -2335,6 +2335,8 @@ function testerGate() {
   if (incoming) return;
   const local = /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname);
   const embedded = (() => { try { return window.top !== window.self; } catch { return true; } })();
+  // The public website demo is open to everyone (DEMO itself is declared further down, so test the flag here).
+  if (import.meta.env.VITE_DEMO === '1') return;
   if (!TESTER_CODE_HASH || native || local || embedded) return;
   if (localGet('access') === TESTER_CODE_HASH) return;
   const hash = (code: string) => sha256(`rack-and-roll:${code.toUpperCase().replace(/[^A-Z0-9]/g, '')}`);
