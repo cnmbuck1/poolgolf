@@ -19,6 +19,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+      - name: Check the branch has the Game Center catalog
+        run: |
+          if [ ! -f tools/gamecenter/catalog.json ]; then
+            echo "::error::No tools/gamecenter/catalog.json on '${{ github.ref_name }}'. Run this on the release-1.1 branch (Use workflow from → release-1.1)."
+            exit 1
+          fi
       - name: Write the App Store Connect API key
         env:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
