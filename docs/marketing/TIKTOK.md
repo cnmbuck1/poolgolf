@@ -70,3 +70,16 @@ Post it the day the app is live. Put the App Store link in your bio first, and p
 **Caption:**
 > It's finally here 🎉 Rack & Roll: mini golf with a pool cue 🎱⛳ Free on the App Store, link in bio!
 > #minigolf #newgame #mobilegames #indiegame #iphonegames #holeinone #trickshot #pool #rackandroll
+
+## Video 7: Three games, all free (23 s), for paid promotion
+
+`cnmbuck-studios-3-games.mp4`. Hook: "3 NEW GAMES 🎮 ALL FREE" over a trick shot. Then each game with its icon and a
+one-line pitch over real gameplay: Rack & Roll (bank-shot hole in one, the pirate ship, Christmas), Gravitor
+(title and two course flyovers), Chain Reaction (switches flipped, power flows, the Orb rolls home). End card: the
+three icons, "ALL FREE ON THE APP STORE" and the Cnmbuck Orb with "CNMBUCK STUDIOS".
+
+Text stays clear of TikTok's overlays (the caption area at the bottom and the icons on the right).
+
+**Caption:**
+> 3 games. 0 dollars. 🎮 Mini golf with a pool cue, a gravity-flipping maze and a logic puzzle machine, all free on
+> the App Store. Which one are you trying first? 👇 #mobilegames #iphonegames #freegames #indiegame #puzzlegame #minigolf
