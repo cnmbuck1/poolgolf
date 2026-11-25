@@ -132,6 +132,8 @@ export function takeEight(course: string, hole: string) {
 
 export function bump(counter: string, n = 1) { s.counts[counter] = (s.counts[counter] ?? 0) + n; save(); }
 const count = (k: string) => s.counts[k] ?? 0;
+/** A play counter (aces, banks, portals...), for Game Center. */
+export const counter = count;
 export function noteLaunch(by: string) { if (!s.launches.includes(by)) { s.launches.push(by); save(); } }
 /** Whether a full round of this course has ever been finished. */
 export const roundDone = (course: string) => s.rounds.includes(course);

@@ -9,3 +9,4 @@ android/local.properties
 .bpy
 __pycache__/
 assets-src/brand/out/
+ios/App/App/GoogleService-Info.plist

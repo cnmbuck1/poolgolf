@@ -69,6 +69,9 @@
 	<true/>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<!-- Firebase Analytics (play stats only): never used for ads or personalisation. -->
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-8965676427575286~1645510652</string>
 	<key>NSUserTrackingUsageDescription</key>

@@ -12,6 +12,7 @@ import { AdMob, AdmobConsentStatus, InterstitialAdPluginEvents, RewardAdPluginEv
 import { NativePurchases, PURCHASE_TYPE } from '@capgo/native-purchases';
 import { AD_COINS_PER_DAY, AD_UNITS, AD_UNITS_ANDROID, ADS_TESTING, INTERSTITIAL_FROM_SESSION, INTERSTITIAL_GAP_S, REMOVE_ADS_ID, REMOVE_ADS_PRICE } from './ads.config';
 import { setAudioPaused } from './audio';
+import { logEvent } from './analytics';
 
 const native = Capacitor.isNativePlatform();
 const android = Capacitor.getPlatform() === 'android';
@@ -197,6 +198,7 @@ export async function maybeInterstitial() {
   if (!interstitialLoaded) return skip(`not loaded: ${loadError || 'still loading'}`);
   interstitialLoaded = false;
   await present('interstitial');
+  logEvent('ad_interstitial');
   void loadInterstitial();
   skip('shown');
 }

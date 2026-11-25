@@ -1,7 +1,7 @@
 {
   "name": "rack-and-roll",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -10,16 +10,19 @@
     "cap:sync": "npm run build && cap sync",
     "ios": "npm run build && cap sync ios && cap open ios",
     "android": "npm run build && cap sync android && cap open android",
-    "assets": "bash scripts/build-assets.sh"
+    "assets": "bash scripts/build-assets.sh",
+    "gamecenter:catalog": "node tools/gamecenter/write-catalog.mjs",
+    "gamecenter:badges": "node tools/gamecenter/render-badges.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.2.1",
     "@capacitor-community/in-app-review": "^8.0.0",
-    "@capacitor/android": "8.5.3",
+    "@capacitor-firebase/analytics": "^8.6.0",
+    "@capacitor/android": "8.6.0",
     "@capacitor/app": "^8.1.2",
-    "@capacitor/core": "8.5.3",
+    "@capacitor/core": "8.6.0",
     "@capacitor/haptics": "^8.0.0",
-    "@capacitor/ios": "8.5.3",
+    "@capacitor/ios": "8.6.0",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.3",
@@ -31,7 +34,7 @@
     "three": "^0.159.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.5.3",
+    "@capacitor/cli": "8.6.0",
     "@gltf-transform/cli": "^4.5.1",
     "@types/three": "^0.159.0",
     "typescript": "^5.9.0",

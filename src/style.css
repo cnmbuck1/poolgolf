@@ -886,3 +886,6 @@ i.eight.got { color: #141414; border: 0; background: radial-gradient(circle at 3
 .title-store { margin-top: 10px; font-size: 14px; }
 .demo-store ul { margin: 8px 0 16px; padding-left: 4px; list-style: none; display: grid; gap: 6px; }
 .demo-store p { margin: 0; }
+
+/* Game Center buttons in the trophy room (iPhone app) */
+.gc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; }

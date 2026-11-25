@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // Build label shown with playtest feedback: the commit and the date
 const commit = (() => { try { return execSync('git rev-parse --short HEAD').toString().trim(); } catch { return 'local'; } })();
@@ -12,6 +13,10 @@ export default defineConfig({
   define: { __BUILD__: JSON.stringify(BUILD), __VERSION__: JSON.stringify(process.env.npm_package_version ?? JSON.parse(readFileSync('package.json', 'utf8')).version) },
   build: { target: 'es2020' },
   // three.js add-ons (loaders, post-processing) must share the one copy of three
-  resolve: { dedupe: ['three'] },
+  resolve: {
+    dedupe: ['three'],
+    // Analytics run only in the iPhone app (native Firebase SDK); the plugin's unused web side gets a stub
+    alias: { 'firebase/analytics': fileURLToPath(new URL('./src/firebase-web-stub.ts', import.meta.url)) },
+  },
   optimizeDeps: { include: ['three', 'three/examples/jsm/loaders/GLTFLoader.js', 'three/examples/jsm/postprocessing/EffectComposer.js', 'three/examples/jsm/postprocessing/RenderPass.js', 'three/examples/jsm/postprocessing/UnrealBloomPass.js', 'three/examples/jsm/postprocessing/OutputPass.js', 'three/examples/jsm/postprocessing/ShaderPass.js'] },
 });

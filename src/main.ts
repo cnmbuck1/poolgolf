@@ -27,6 +27,8 @@ import { Challenge, challengeFromUrl, challengeLink, clearChallengeUrl, shareCha
 import { noteRound, ORDER, setSkill, Skill, skill, SKILLS, snooze } from './difficulty';
 import { adStatus, adsAvailable, adsRemoved, buyRemoveAds, canPurchase, coinAdsLeft, initAds, maybeInterstitial, noteCoinAd, privacyChoices, removeAdsPrice, restorePurchases, showRewarded, storeWords, onAdsRemoved } from './ads';
 import { AD_COINS } from './ads.config';
+import { logEvent, setAnalyticsEnabled, setUserProperty } from './analytics';
+import { gc, sendProgress, showAchievements, showLeaderboards, startGameCenter, submitDaily, submitRound } from './gamecenter/competition';
 import { bookReminder, canRemind, maybeAskForRating, remindersOn, setReminders } from './nudges';
 import { BUILD, flush, loadRecords, PlaytestRecord, setSharing, setTesterName, sharing, summarize, testerName, track, watchErrors } from './telemetry';
 
@@ -428,6 +430,8 @@ function loadHole(i: number) {
   endAiTurnUi();
   aiShot = null;
   enterLevel(LEVELS[i]);
+  const at = whereIs(LEVELS[i]);
+  if (at && !demo && sharing()) logEvent('hole_start', { course: at.course, hole: at.hole, label: `${at.course}-${at.hole}`, mode: playMode(), skill: skill() });
   banner();
 }
 
@@ -505,13 +509,21 @@ function whereIs(L: LevelDef) {
   return c ? { course: c.id, hole: c.holes.indexOf(L) + 1 } : null;
 }
 
+/** How the current hole is being played, for play stats: daily, career, vs, practice or round, plus the level. */
+function playMode() {
+  return (party ? 'party' : daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round') + (skill() === 'amateur' ? '' : `-${skill()}`);
+}
+
 function holeOut(score: number, pickedUp = false) {
   if (demo) { demo.sunkAt ??= demo.t; return; } // the demo's shot: no score, no stats
   const at = whereIs(world.level);
   if (party) { partyHoleOut(score, pickedUp); return; }
   if (at && !shootout && !(match && turn === 'ai')) {
-    const mode = (daily ? 'daily' : careerEvent ? 'career' : match ? 'vs' : practice ? 'practice' : 'round') + (skill() === 'amateur' ? '' : `-${skill()}`);
-    track({ type: 'hole', ...at, name: world.level.name, par: world.level.par, strokes: score, mode, seconds: Math.round((performance.now() - holeStartedAt) / 1000), pickedUp });
+    const mode = playMode();
+    const seconds = Math.round((performance.now() - holeStartedAt) / 1000);
+    track({ type: 'hole', ...at, name: world.level.name, par: world.level.par, strokes: score, mode, seconds, pickedUp });
+    if (sharing()) logEvent('hole_end', { course: at.course, hole: at.hole, label: `${at.course}-${at.hole}`, mode, skill: skill(), par: world.level.par, strokes: score,
+      to_par: score - world.level.par, stars: pickedUp ? 0 : P.starsFor(score, world.level.par), time_sec: seconds, picked_up: pickedUp ? 1 : 0, banked: sinkBanked ? 1 : 0 });
     lastPlayed = { ...at, name: world.level.name, strokes: score };
   }
   if (shootout) shootoutShot(0);
@@ -587,6 +599,8 @@ function offerLevel(next: Skill) {
 }
 function changeSkill(s: Skill) {
   setSkill(s);
+  logEvent('skill_change', { skill: s });
+  setUserProperty('skill', s);
   applySkill();
   syncSettingsUi();
 }
@@ -604,6 +618,7 @@ const starsHtml = (n: number | null) => (n == null ? '' : `<span class="hole-sta
 
 function finishHole(score: number, pickedUp = false) {
   scores[holeIdx] = score;
+  setTimeout(() => void sendProgress(), 1500);
   phase = 'holeDone';
   const prevBest = localGet(ck(`hole${holeIdx}`));
   if (!pickedUp) recordHole(holeIdx, score);
@@ -640,6 +655,15 @@ function finishHole(score: number, pickedUp = false) {
   if (!pickedUp && score === 1) { unlocked.push(earn('ace') ?? ''); maybeAskForRating(stat('rounds')); }
   if (last && !practice) {
     const d = roundToPar();
+    if (!daily && !party) {
+      const total = scores.reduce((a: number, s) => a + (s ?? 0), 0), course = COURSE;
+      void submitRound(course.id, total).then((r) => {
+        if (!r?.rank) return;
+        const friend = r.friendsAhead[0];
+        later(() => toast(`🏆 #${r.rank} in the world on ${course.name}${friend ? ` · ${friend.name} is next (${friend.score})` : ''}`, 'good', 3600), 2600);
+      });
+    }
+    if (sharing()) logEvent('round_end', { course: COURSE.id, mode: playMode(), skill: skill(), strokes: scores.reduce((a: number, s) => a + (s ?? 0), 0), to_par: d });
     lines.push(...roundReward(d));
     if (d < 0) unlocked.push(earn('underPar') ?? '');
     if (d <= 0) maybeAskForRating(stat('rounds'));
@@ -651,6 +675,8 @@ function finishHole(score: number, pickedUp = false) {
     // Daily challenge: meet the day's goal for the daily coins and to keep the streak going
     const d = daily;
     const r = pickedUp ? null : recordDaily(d, score);
+    if (r) submitDaily(score);
+    if (r && sharing()) logEvent('daily_end', { course: COURSE.id, hole: holeIdx + 1, label: `${COURSE.id}-${holeIdx + 1}`, strokes: score, goal_met: r.met ? 1 : 0 });
     if (r) lines.push(...r.coins);
     if (r) { void bookReminder(true, streak()); if (r.met) setTimeout(offerReminder); }
     $('hole-kicker').textContent = `DAILY CHALLENGE · ${dateLabel(d.day)}`;
@@ -708,6 +734,7 @@ function offerDouble(lines: [string, number][]) {
     unlockAudio();
     b.disabled = true;
     const ad = await showRewarded();
+    logEvent('ad_rewarded', { placement: 'double_coins', result: ad });
     if (ad !== 'earned') { b.disabled = false; toast(ad === 'unavailable' ? NO_AD : 'Watch the whole ad to double your coins', '', 2200); return; }
     addCoins(earned);
     sfx.collect();
@@ -747,6 +774,7 @@ function coinAdButton(after: () => void) {
       unlockAudio();
       b.disabled = true;
       const ad = await showRewarded();
+      logEvent('ad_rewarded', { placement: 'coins', result: ad });
       if (ad !== 'earned') { b.disabled = false; toast(ad === 'unavailable' ? NO_AD : 'Watch the whole ad to earn the coins', '', 2200); return; }
       addCoins(AD_COINS);
       noteCoinAd(today());
@@ -770,6 +798,7 @@ function adsSettingsHtml() {
         buy.disabled = true;
         note('');
         const { result, detail } = await buyRemoveAds();
+        logEvent('remove_ads', { result });
         buy.disabled = false;
         // Said on the panel itself (a toast would be hidden behind it)
         if (result === 'done') { sfx.collect(); toast('Ads removed, and the Cnmbuck Orb is yours. Thank you!', 'good', 2600); openSettings(); }
@@ -781,6 +810,7 @@ function adsSettingsHtml() {
     if (rest) rest.onclick = async () => {
       rest.disabled = true;
       const ok = await restorePurchases();
+      if (ok) logEvent('remove_ads', { result: 'restored' });
       rest.disabled = false;
       if (ok) { toast('Purchase restored: ads removed and the Cnmbuck Orb back', 'good', 2400); openSettings(); return; }
       const m = document.getElementById('noads-msg');
@@ -1215,7 +1245,7 @@ function openSettings() {
   $('sheet-body').querySelectorAll<HTMLButtonElement>('.toggle').forEach((b) => {
     b.onclick = () => {
       sfx.ui();
-      if (b.dataset.set === 'share') { setSharing(!sharing()); b.setAttribute('aria-pressed', String(sharing())); return; }
+      if (b.dataset.set === 'share') { setSharing(!sharing()); setAnalyticsEnabled(sharing()); b.setAttribute('aria-pressed', String(sharing())); return; }
       if (b.dataset.set === 'remind') {
         void setReminders(!remindersOn(), isDoneToday(dailyFor(today())), streak()).then((on) => {
           b.setAttribute('aria-pressed', String(on));
@@ -1306,6 +1336,7 @@ function openStats() {
       <div class="stat"><b>🏆 ${P.trophiesWon()}<small>/${P.TROPHIES.length}</small></b><span>Trophies</span></div>
     </div>
     <p>★ par · ★★ birdie · ★★★ hole in one, on each hole (+${P.STAR_COINS} coins a new star). Every hole hides a golden 8-ball (+${P.EIGHT_COINS}): roll through it to pick it up.</p>
+    ${gc.supported ? '<div class="gc-row"><button class="btn" id="btn-gc-boards">🏆 Leaderboards</button><button class="btn" id="btn-gc-ach">🎖️ Achievements</button></div>' : ''}
     <h3>Trophy room</h3><div class="trophies">${trophies}</div>
     <h3>${COURSE.name}</h3>
     <div class="stats">
@@ -1317,6 +1348,11 @@ function openStats() {
     <tr><th>PAR</th>${LEVELS.map((l) => `<td>${l.par}</td>`).join('')}</tr><tr><th>BEST</th>${holes}</tr>
     <tr><th>★</th>${LEVELS.map((l) => `<td class="st">${P.starsOf(COURSE.id, l.name) || '–'}</td>`).join('')}</tr></table></div>
     <p>Progress is saved on this device only.</p>`);
+  if (gc.supported) {
+    const fail = () => toast('Sign in to Game Center in your iPhone Settings to see leaderboards', 'bad', 2800);
+    $('btn-gc-boards').onclick = async () => { sfx.ui(); if (!(await showLeaderboards())) fail(); };
+    $('btn-gc-ach').onclick = async () => { sfx.ui(); if (!(await showAchievements())) fail(); };
+  }
 }
 
 /** Previews are painted once per design, the first time the menu opens. */
@@ -2757,6 +2793,9 @@ function start(data: unknown) {
   }
   if (incoming) { clearChallengeUrl(); startChallenge(incoming); } else maybeWelcome();
   initAds();
+  setAnalyticsEnabled(sharing());
+  startGameCenter();
+  setUserProperty('skill', skill());
   void bookReminder(isDoneToday(dailyFor(today())), streak());
   requestAnimationFrame(frame);
 }

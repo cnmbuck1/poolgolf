@@ -1,0 +1,250 @@
+{
+  "boards": [
+    {
+      "id": "rackandroll.total_stars",
+      "name": "Total Stars",
+      "format": "INTEGER",
+      "sort": "DESC"
+    },
+    {
+      "id": "rackandroll.holes_in_one",
+      "name": "Holes in One",
+      "format": "INTEGER",
+      "sort": "DESC"
+    },
+    {
+      "id": "rackandroll.daily_challenge",
+      "name": "Daily Challenge",
+      "format": "INTEGER",
+      "sort": "ASC",
+      "recurring": {
+        "start": "2026-12-01T00:00:00Z",
+        "days": 1
+      }
+    },
+    {
+      "id": "rackandroll.round.candy",
+      "name": "Best Round · Candy Land",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.jurassic",
+      "name": "Best Round · Jurassic Canyon",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.space",
+      "name": "Best Round · Lunar Links",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.circus",
+      "name": "Best Round · Big Top Circus",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.tomb",
+      "name": "Best Round · Pharaoh's Tomb",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.arctic",
+      "name": "Best Round · Arctic Peaks",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.halloween",
+      "name": "Best Round · Haunted Hollow",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.christmas",
+      "name": "Best Round · North Pole Village",
+      "format": "INTEGER",
+      "sort": "ASC"
+    },
+    {
+      "id": "rackandroll.round.pirate",
+      "name": "Best Round · Jolly Roger",
+      "format": "INTEGER",
+      "sort": "ASC"
+    }
+  ],
+  "achievements": [
+    {
+      "id": "rackandroll.ach.par1",
+      "name": "On the card",
+      "points": 10,
+      "goal": "Make par on any hole.",
+      "earned": "Earned: Make par on any hole."
+    },
+    {
+      "id": "rackandroll.ach.birdie1",
+      "name": "Early bird",
+      "points": 15,
+      "goal": "Make a birdie.",
+      "earned": "Earned: Make a birdie."
+    },
+    {
+      "id": "rackandroll.ach.ace1",
+      "name": "Hole in one",
+      "points": 25,
+      "goal": "Make a hole in one.",
+      "earned": "Earned: Make a hole in one."
+    },
+    {
+      "id": "rackandroll.ach.aces5",
+      "name": "Ace collector",
+      "points": 50,
+      "goal": "Make 5 holes in one.",
+      "earned": "Earned: Make 5 holes in one."
+    },
+    {
+      "id": "rackandroll.ach.stars25",
+      "name": "Rising star",
+      "points": 30,
+      "goal": "Earn 25 hole stars.",
+      "earned": "Earned: Earn 25 hole stars."
+    },
+    {
+      "id": "rackandroll.ach.stars54",
+      "name": "Grand master",
+      "points": 60,
+      "goal": "Earn 54 hole stars.",
+      "earned": "Earned: Earn 54 hole stars."
+    },
+    {
+      "id": "rackandroll.ach.stars108",
+      "name": "Perfectionist",
+      "points": 100,
+      "goal": "Earn all 108 hole stars.",
+      "earned": "Earned: Earn all 108 hole stars."
+    },
+    {
+      "id": "rackandroll.ach.pars_candy",
+      "name": "Candy Land regular",
+      "points": 20,
+      "goal": "A star on every hole of Candy Land.",
+      "earned": "Earned: A star on every hole of Candy Land."
+    },
+    {
+      "id": "rackandroll.ach.pars_jurassic",
+      "name": "Jurassic Canyon regular",
+      "points": 20,
+      "goal": "A star on every hole of Jurassic Canyon.",
+      "earned": "Earned: A star on every hole of Jurassic Canyon."
+    },
+    {
+      "id": "rackandroll.ach.pars_space",
+      "name": "Lunar Links regular",
+      "points": 20,
+      "goal": "A star on every hole of Lunar Links.",
+      "earned": "Earned: A star on every hole of Lunar Links."
+    },
+    {
+      "id": "rackandroll.ach.pars_circus",
+      "name": "Big Top Circus regular",
+      "points": 20,
+      "goal": "A star on every hole of Big Top Circus.",
+      "earned": "Earned: A star on every hole of Big Top Circus."
+    },
+    {
+      "id": "rackandroll.ach.pars_tomb",
+      "name": "Pharaoh's Tomb regular",
+      "points": 20,
+      "goal": "A star on every hole of Pharaoh's Tomb.",
+      "earned": "Earned: A star on every hole of Pharaoh's Tomb."
+    },
+    {
+      "id": "rackandroll.ach.pars_arctic",
+      "name": "Arctic Peaks regular",
+      "points": 20,
+      "goal": "A star on every hole of Arctic Peaks.",
+      "earned": "Earned: A star on every hole of Arctic Peaks."
+    },
+    {
+      "id": "rackandroll.ach.eight1",
+      "name": "Lucky eight",
+      "points": 10,
+      "goal": "Find a golden 8-ball.",
+      "earned": "Earned: Find a golden 8-ball."
+    },
+    {
+      "id": "rackandroll.ach.eight12",
+      "name": "Treasure hunter",
+      "points": 30,
+      "goal": "Find 12 golden 8-balls.",
+      "earned": "Earned: Find 12 golden 8-balls."
+    },
+    {
+      "id": "rackandroll.ach.eightAll",
+      "name": "Golden touch",
+      "points": 70,
+      "goal": "Find all 36 golden 8-balls.",
+      "earned": "Earned: Find all 36 golden 8-balls."
+    },
+    {
+      "id": "rackandroll.ach.globe",
+      "name": "Globetrotter",
+      "points": 40,
+      "goal": "Finish a round on every course.",
+      "earned": "Earned: Finish a round on every course."
+    },
+    {
+      "id": "rackandroll.ach.flyer",
+      "name": "Frequent flyer",
+      "points": 40,
+      "goal": "Get launched by a ramp, trampoline, cannon, seal, rocket and geyser.",
+      "earned": "Earned: Get launched by a ramp, trampoline, cannon, seal, rocket and geyser."
+    },
+    {
+      "id": "rackandroll.ach.chutes",
+      "name": "Snakes & ladders",
+      "points": 20,
+      "goal": "Ride 20 chutes, slides, ladders or lifts.",
+      "earned": "Earned: Ride 20 chutes, slides, ladders or lifts."
+    },
+    {
+      "id": "rackandroll.ach.portals",
+      "name": "Wormhole",
+      "points": 20,
+      "goal": "Go through a portal or igloo 15 times.",
+      "earned": "Earned: Go through a portal or igloo 15 times."
+    },
+    {
+      "id": "rackandroll.ach.banks",
+      "name": "Bank on it",
+      "points": 30,
+      "goal": "Sink 25 bank shots.",
+      "earned": "Earned: Sink 25 bank shots."
+    },
+    {
+      "id": "rackandroll.ach.spin",
+      "name": "English lesson",
+      "points": 25,
+      "goal": "Sink 10 shots hit with side spin.",
+      "earned": "Earned: Sink 10 shots hit with side spin."
+    },
+    {
+      "id": "rackandroll.ach.draw",
+      "name": "Draw shot",
+      "points": 20,
+      "goal": "Sink 5 shots hit with backspin.",
+      "earned": "Earned: Sink 5 shots hit with backspin."
+    },
+    {
+      "id": "rackandroll.ach.streak7",
+      "name": "Regular",
+      "points": 40,
+      "goal": "Keep a 7-day daily challenge streak.",
+      "earned": "Earned: Keep a 7-day daily challenge streak."
+    }
+  ]
+}

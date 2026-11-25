@@ -5,6 +5,7 @@
 #   ASC_KEY_ID          App Store Connect API key ID
 #   ASC_ISSUER_ID       App Store Connect API issuer ID
 #   ASC_PRIVATE_KEY     the whole contents of the AuthKey_XXXX.p8 file
+# Optional: GOOGLE_SERVICE_INFO_PLIST, the Rack & Roll Firebase app's GoogleService-Info.plist (docs/FIREBASE.md)
 name: iPhone build to TestFlight
 
 on:
@@ -71,6 +72,25 @@ jobs:
           xcodebuild build -project App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
           echo "The app compiles. Add the four secrets in docs/APP_STORE.md to sign and upload it to TestFlight." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Add the Firebase config (analytics)
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          # Optional: without the secret the app builds and runs normally, minus Firebase Analytics (docs/FIREBASE.md)
+          if [ -z "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "::warning::No GOOGLE_SERVICE_INFO_PLIST secret, so this build has no Firebase Analytics. See docs/FIREBASE.md."
+            exit 0
+          fi
+          printf '%s\n' "$GOOGLE_SERVICE_INFO_PLIST" > ios/App/App/GoogleService-Info.plist
+          plutil -lint ios/App/App/GoogleService-Info.plist
+          bundle=$(plutil -extract BUNDLE_ID raw ios/App/App/GoogleService-Info.plist)
+          if [ "$bundle" != "com.cnmbuckstudios.rackandroll" ]; then
+            echo "::error::GoogleService-Info.plist is for bundle ID '$bundle', not com.cnmbuckstudios.rackandroll. Download the one for the Rack & Roll iOS app in Firebase."
+            exit 1
+          fi
+          echo "Firebase config added (project $(plutil -extract PROJECT_ID raw ios/App/App/GoogleService-Info.plist))"
 
       - name: Clear out old development certificates
         if: steps.secrets.outputs.ready == 'true'
