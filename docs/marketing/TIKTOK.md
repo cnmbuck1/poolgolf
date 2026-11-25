@@ -83,3 +83,14 @@ Text stays clear of TikTok's overlays (the caption area at the bottom and the ic
 **Caption:**
 > 3 games. 0 dollars. 🎮 Mini golf with a pool cue, a gravity-flipping maze and a logic puzzle machine, all free on
 > the App Store. Which one are you trying first? 👇 #mobilegames #iphonegames #freegames #indiegame #puzzlegame #minigolf
+
+## Video 8: 5 holes in one, which is best? (18 s), for "More followers" promotions
+
+`rack-and-roll-5-holes-in-one.mp4`. "5 HOLES IN ONE 🤯 Which one is best? 👇", then five numbered holes in one, each
+ending as the ball drops (#1 Bank shot, #2 Trampoline, #3 The portal, #4 Ski jump, #5 Chimney drop), and an end card:
+"FOLLOW for more trick shots 🎯", Rack & Roll (free on the App Store), Cnmbuck Studios.
+
+The numbered "which is best?" format invites comments ("#3!"), which TikTok rewards with more reach.
+
+**Caption:**
+> 5 holes in one. Which number is the best? 👇 Comment your pick! Follow for more trick shots 🎯 #trickshot #minigolf #holeinone #satisfying #mobilegames #rackandroll
